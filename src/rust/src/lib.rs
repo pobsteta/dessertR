@@ -27,6 +27,7 @@ mod rvt;
 /// @param compute_opns Whether to compute the openness (degrees).
 /// @return A list with `svf` (0..1) and `opns` (degrees), each row-major with
 ///   `NaN` where the input elevation is `NaN`; an unrequested channel is empty.
+/// @keywords internal
 #[extendr]
 #[allow(clippy::too_many_arguments)]
 fn rvt_svf_opns(

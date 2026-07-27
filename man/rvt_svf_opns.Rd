@@ -53,3 +53,4 @@ the DEM. \strong{Negative openness} is obtained by calling this on the negated D
 Kernel vendored from the \code{foretaccess} package (same author), itself validated
 pixel-to-pixel against the RVT Python oracle.
 }
+\keyword{internal}

@@ -30,6 +30,7 @@ NULL
 #' @param compute_opns Whether to compute the openness (degrees).
 #' @return A list with `svf` (0..1) and `opns` (degrees), each row-major with
 #'   `NaN` where the input elevation is `NaN`; an unrequested channel is empty.
+#' @keywords internal
 rvt_svf_opns <- function(height, nr, nc, resolution, radius_max, radius_min, num_directions, compute_svf, compute_opns) .Call(wrap__rvt_svf_opns, height, nr, nc, resolution, radius_max, radius_min, num_directions, compute_svf, compute_opns)
 
 # nolint end
