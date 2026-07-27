@@ -12,3 +12,8 @@ reference:
     contents:
       - dsr_corridor
       - dsr_dalles_requises
+  - title: Canal geomorphologique (MNT)
+    contents:
+      - dsr_grille_reference
+      - dsr_micro_relief
+      - dsr_canaux_externes
