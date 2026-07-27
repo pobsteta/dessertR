@@ -45,8 +45,23 @@
 
   Conductivite geomorphologique `sigma_geo`
 
+- [`dsr_sigma_surf()`](https://pobsteta.github.io/dessertR/reference/dsr_sigma_surf.md)
+  :
+
+  Conductivite de surface `sigma_surf`
+
 - [`dsr_appartenance()`](https://pobsteta.github.io/dessertR/reference/dsr_appartenance.md)
   : Fonction d'appartenance floue
 
 - [`dsr_specs_geomorpho()`](https://pobsteta.github.io/dessertR/reference/dsr_specs_geomorpho.md)
   : Specifications d'appartenance par defaut du canal geomorphologique
+
+- [`dsr_specs_surface()`](https://pobsteta.github.io/dessertR/reference/dsr_specs_surface.md)
+  : Specifications d'appartenance par defaut du canal de surface
+
+## Etat de la desserte
+
+- [`dsr_etat()`](https://pobsteta.github.io/dessertR/reference/dsr_etat.md)
+  : Etat de la desserte par croisement des deux conductivites
+- [`dsr_divergence()`](https://pobsteta.github.io/dessertR/reference/dsr_divergence.md)
+  : Divergence des canaux de conductivite
