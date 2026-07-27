@@ -1,3 +1,18 @@
+# dessertR (developpement)
+
+## Canal geomorphologique complet et conductivite (lot 1)
+
+* `dsr_pente()`, `dsr_rugosite()` (rugosite residuelle), `dsr_slrm()` (relief
+  local simplifie multi-echelle) et `dsr_vesselness()` (linearite de Frangi +
+  orientation `theta` pour le pathfinder anisotrope).
+* `dsr_layers_dtm()` : assemble toute la pile geomorphologique sur la grille de
+  reference a partir du seul MNT.
+* `dsr_conductivite()` : `sigma_geo` par combinaison parametrique de fonctions
+  d'appartenance ([dsr_appartenance()], [dsr_specs_geomorpho()]), plancher
+  `sigma_min` et ponderation par une couche de confiance ; interface
+  `method = c("param", "model")` prete pour la conductivite apprise.
+
+
 # dessertR 0.1.0
 
 Premiere version taggee. Socle du lot 0 et noyau natif.

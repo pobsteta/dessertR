@@ -12,16 +12,17 @@ Outils pour corriger, mesurer et qualifier un reseau de desserte forestiere a pa
 Useful links:
 \itemize{
   \item \url{https://github.com/pobsteta/dessertR}
+  \item \url{https://pobsteta.github.io/dessertR}
   \item Report bugs at \url{https://github.com/pobsteta/dessertR/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: Prenom Nom \email{TODO@example.org}
+\strong{Maintainer}: Pascal Obstetar \email{pascal.obstetar@gmail.com}
 
 Authors:
 \itemize{
-  \item Prenom Nom \email{TODO@example.org}
+  \item Pascal Obstetar \email{pascal.obstetar@gmail.com}
 }
 
 }

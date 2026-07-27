@@ -284,6 +284,191 @@ dsr_micro_relief <- function(mnt, radius_m = 10, radius_min_m = NULL,
 }
 
 
+#' Pente locale du MNT
+#'
+#' Couche de base du canal geomorphologique (BRIEF section 3.2) : une route est
+#' une plateforme localement peu pentue. Simple enveloppe de [terra::terrain()].
+#'
+#' @param mnt Le MNT (`SpatRaster` ou chemin).
+#' @param unite `"degrees"` (defaut) ou `"radians"`.
+#' @return Un `SpatRaster` mono-couche `pente`.
+#' @seealso [dsr_layers_dtm()].
+#' @export
+dsr_pente <- function(mnt, unite = c("degrees", "radians")) {
+  unite <- match.arg(unite)
+  if (is.character(mnt)) mnt <- terra::rast(mnt)
+  if (terra::nlyr(mnt) > 1L) mnt <- mnt[[1]]
+  out <- terra::terrain(mnt, v = "slope", unit = unite)
+  names(out) <- "pente"
+  out
+}
+
+
+#' Rugosite residuelle du MNT
+#'
+#' Une route est **anormalement lisse** (BRIEF section 3.2). On retire la tendance
+#' locale (passe-haut par soustraction d'une moyenne focale) puis on mesure
+#' l'ecart-type residuel dans la meme fenetre : cela neutralise l'effet de la
+#' pente et isole la micro-texture. La version issue des points sol bruts
+#' (`rugosite_sol`, module nuage) reste meilleure car non lissee par
+#' l'interpolation du MNT.
+#'
+#' @param mnt Le MNT (`SpatRaster` ou chemin).
+#' @param fenetre_m Cote de la fenetre en metres. Defaut 5.
+#' @return Un `SpatRaster` mono-couche `rugosite` (unites du MNT).
+#' @seealso [dsr_layers_dtm()].
+#' @export
+dsr_rugosite <- function(mnt, fenetre_m = 5) {
+  if (is.character(mnt)) mnt <- terra::rast(mnt)
+  if (terra::nlyr(mnt) > 1L) mnt <- mnt[[1]]
+  w <- dsr_fenetre_impaire(fenetre_m, terra::res(mnt)[1])
+  moy <- terra::focal(mnt, w = w, fun = "mean", na.rm = TRUE)
+  resid <- mnt - moy
+  out <- terra::focal(resid^2, w = w, fun = "mean", na.rm = TRUE)
+  out <- sqrt(out)
+  names(out) <- "rugosite"
+  out
+}
+
+
+#' Modele de relief local simplifie (SLRM / MSTP)
+#'
+#' Le SLRM (Simple Local Relief Model) fait ressortir une route comme **terrasse
+#' locale plane**, robuste a la largeur (BRIEF section 3.2). C'est le residu
+#' signe du MNT apres retrait d'une surface lissee : `MNT - moyenne_focale(MNT)`.
+#' L'apport multi-echelle (plusieurs fenetres) est le vrai gain sur ALSroads.
+#'
+#' @param mnt Le MNT (`SpatRaster` ou chemin).
+#' @param fenetres_m Vecteur de cotes de fenetre en metres. Defaut `c(5, 15)`.
+#' @return Un `SpatRaster`, une couche `slrm_<fenetre>` par echelle.
+#' @seealso [dsr_layers_dtm()].
+#' @export
+dsr_slrm <- function(mnt, fenetres_m = c(5, 15)) {
+  if (is.character(mnt)) mnt <- terra::rast(mnt)
+  if (terra::nlyr(mnt) > 1L) mnt <- mnt[[1]]
+  res_m <- terra::res(mnt)[1]
+  lyrs <- lapply(fenetres_m, function(f) {
+    w <- dsr_fenetre_impaire(f, res_m)
+    out <- mnt - terra::focal(mnt, w = w, fun = "mean", na.rm = TRUE)
+    names(out) <- sprintf("slrm_%g", f)
+    out
+  })
+  do.call(c, lyrs)
+}
+
+
+#' Linearite (vesselness de Frangi) et orientation du MNT
+#'
+#' Probabilite qu'un pixel appartienne a une structure **lineaire en creux**
+#' (une route deprimee : plateforme en deblai, chemin creux, fosse), calculee par
+#' l'analyse des valeurs propres du **Hessien** a plusieurs echelles (filtre de
+#' Frangi). Fournit aussi l'**orientation** locale de la ligne, qui alimente le
+#' cout anisotrope du pathfinder (BRIEF sections 3.2 et 3.5).
+#'
+#' @details
+#' A chaque echelle, le MNT est lisse par une gaussienne d'ecart-type `sigma`,
+#' le Hessien est estime par differences finies (normalise par `sigma^2`), et la
+#' vesselness de Frangi est evaluee pour les structures **sombres** (vallees,
+#' `lambda2 > 0`). La reponse retenue est le maximum sur les echelles, et
+#' l'orientation celle de l'echelle gagnante. Les routes etant des creux, on ne
+#' detecte pas les cretes.
+#'
+#' @param mnt Le MNT (`SpatRaster` ou chemin), de preference a 1 m.
+#' @param echelles_m Ecarts-types gaussiens en metres. Defaut `c(1, 2, 4)`.
+#' @param beta Sensibilite au rapport d'anisotropie (Frangi). Defaut 0.5.
+#' @param c Sensibilite a l'intensite de structure ; `NULL` (defaut) -> moitie du
+#'   maximum de la norme de Frobenius du Hessien, par echelle (auto-echelle).
+#' @return Un `SpatRaster` a deux couches : `vesselness` (0..1) et `theta`
+#'   (orientation de la ligne en degres, 0..180), alignees sur `mnt`.
+#' @seealso [dsr_layers_dtm()].
+#' @export
+dsr_vesselness <- function(mnt, echelles_m = c(1, 2, 4), beta = 0.5, c = NULL) {
+  if (is.character(mnt)) mnt <- terra::rast(mnt)
+  if (terra::nlyr(mnt) > 1L) mnt <- mnt[[1]]
+  res_m <- terra::res(mnt)[1]
+
+  best_v <- NULL
+  best_theta <- NULL
+  for (sig in echelles_m) {
+    h <- dsr_hessien(mnt, sig, res_m) # liste Hxx, Hyy, Hxy (vecteurs)
+    fr <- dsr_frangi(h$xx, h$yy, h$xy, beta = beta, c = c)
+    if (is.null(best_v)) {
+      best_v <- fr$v
+      best_theta <- fr$theta
+    } else {
+      pris <- !is.na(fr$v) & (is.na(best_v) | fr$v > best_v)
+      best_v[pris] <- fr$v[pris]
+      best_theta[pris] <- fr$theta[pris]
+    }
+  }
+  v <- terra::rast(mnt)
+  terra::values(v) <- best_v
+  names(v) <- "vesselness"
+  th <- terra::rast(mnt)
+  terra::values(th) <- best_theta
+  names(th) <- "theta"
+  c(v, th)
+}
+
+
+#' Assembler le canal geomorphologique complet
+#'
+#' Construit toute la pile de couches geomorphologiques (BRIEF section 3.2) sur
+#' la **grille de reference** (1 m par defaut), a partir du seul MNT. C'est
+#' l'entree du calcul de `sigma_geo` ([dsr_conductivite()]).
+#'
+#' Le MNT est d'abord reechantillonne sur la grille de reference ; toutes les
+#' couches sont donc nativement alignees, sans reechantillonnage a posteriori.
+#'
+#' @param mnt Le MNT (`SpatRaster` ou chemin), typiquement a 50 cm.
+#' @param grille Grille de reference ([dsr_grille_reference()]) ; `NULL` (defaut)
+#'   -> derivee du MNT a `res`.
+#' @param res Resolution de la grille si `grille` est `NULL`. Defaut 1.
+#' @param rayons_openness Rayons d'openness negative multi-echelle, en metres.
+#'   Defaut `c(2, 5, 10)`.
+#' @param echelles_vessel Echelles de la vesselness, en metres. Defaut
+#'   `c(1, 2, 4)`.
+#' @param fenetres_slrm Fenetres du SLRM, en metres. Defaut `c(5, 15)`.
+#' @param fenetre_rugosite Fenetre de la rugosite, en metres. Defaut 5.
+#' @return Un `SpatRaster` multi-bandes aligne sur la grille : `pente`,
+#'   `rugosite`, `slrm_*`, `openness_neg_*`, `openness_pos`, `svf`, `vesselness`,
+#'   `theta`.
+#' @seealso [dsr_micro_relief()], [dsr_conductivite()].
+#' @export
+dsr_layers_dtm <- function(mnt, grille = NULL, res = DSR_RES_MULTIECHELLE,
+                           rayons_openness = c(2, 5, 10),
+                           echelles_vessel = c(1, 2, 4),
+                           fenetres_slrm = c(5, 15),
+                           fenetre_rugosite = 5) {
+  if (is.character(mnt)) mnt <- terra::rast(mnt)
+  if (!inherits(mnt, "SpatRaster")) {
+    dsr_abort("{.arg mnt} doit etre un {.cls SpatRaster} ou un chemin de fichier.")
+  }
+  if (terra::nlyr(mnt) > 1L) mnt <- mnt[[1]]
+  if (is.null(grille)) grille <- dsr_grille_reference(mnt, res = res)
+  m <- terra::resample(mnt, grille, method = "bilinear")
+
+  # Openness negative multi-echelle + svf + openness positive (rayon max).
+  on <- lapply(rayons_openness, function(r) {
+    x <- dsr_micro_relief(m, radius_m = r, canaux = "openness_neg")
+    names(x) <- sprintf("openness_neg_%g", r)
+    x
+  })
+  svf_op <- dsr_micro_relief(m, radius_m = max(rayons_openness),
+    canaux = c("svf", "openness_pos"))
+
+  couches <- c(
+    dsr_pente(m),
+    dsr_rugosite(m, fenetre_m = fenetre_rugosite),
+    dsr_slrm(m, fenetres_m = fenetres_slrm),
+    do.call(c, on),
+    svf_op,
+    dsr_vesselness(m, echelles_m = echelles_vessel)
+  )
+  couches
+}
+
+
 # Aligner un raster sur la grille de reference. Reprojection si CRS different,
 # recadrage exact si deja sur la grille (evite un reechantillonnage inutile),
 # reechantillonnage sinon.
@@ -330,4 +515,75 @@ dsr_avertir_angle <- function(nom, methode) {
       "i" = 'Preferer {.code methodes = list("{nom}" = "near")}.'
     ))
   }
+}
+
+
+# Cote de fenetre focale, en pixels, impair et >= 3 (contrainte de terra::focal).
+#' @noRd
+dsr_fenetre_impaire <- function(taille_m, res_m) {
+  w <- max(3L, as.integer(round(taille_m / res_m)))
+  if (w %% 2L == 0L) w <- w + 1L
+  w
+}
+
+
+# Hessien du MNT lisse par une gaussienne d'ecart-type `sigma_m` (metres),
+# estime par differences finies et normalise par sigma^2 (normalisation d'echelle
+# de Frangi). Renvoie les trois composantes en vecteurs ligne-major.
+#' @noRd
+dsr_hessien <- function(mnt, sigma_m, res_m) {
+  sigma_px <- sigma_m / res_m
+  # Lissage gaussien : noyau separable materialise en matrice pour terra::focal.
+  rad <- max(1L, as.integer(ceiling(3 * sigma_px)))
+  ax <- seq(-rad, rad)
+  g1 <- stats::dnorm(ax, 0, sigma_px)
+  gk <- outer(g1, g1)
+  gk <- gk / sum(gk)
+  zs <- terra::focal(mnt, w = gk, fun = "sum", na.rm = FALSE)
+
+  # Differences finies centrees (stencils 3x3), normalisees par la resolution.
+  kxx <- matrix(c(0, 0, 0, 1, -2, 1, 0, 0, 0), 3, 3, byrow = TRUE) / res_m^2
+  kyy <- matrix(c(0, 1, 0, 0, -2, 0, 0, 1, 0), 3, 3, byrow = TRUE) / res_m^2
+  # Terme croise avec le signe GEOGRAPHIQUE (y vers le haut) : les lignes du
+  # raster croissent vers le bas, d'ou l'inversion par rapport au stencil
+  # ligne/colonne. Sans quoi l'orientation theta est reflechie (135 au lieu de
+  # 45 sur une ligne y = x). Les valeurs propres (en hxy^2) sont inchangees.
+  kxy <- matrix(c(-1, 0, 1, 0, 0, 0, 1, 0, -1), 3, 3, byrow = TRUE) / (4 * res_m^2)
+
+  norm <- sigma_m^2 # normalisation d'echelle (gamma = 1)
+  hxx <- terra::values(terra::focal(zs, w = kxx, fun = "sum", na.rm = FALSE), mat = FALSE) * norm
+  hyy <- terra::values(terra::focal(zs, w = kyy, fun = "sum", na.rm = FALSE), mat = FALSE) * norm
+  hxy <- terra::values(terra::focal(zs, w = kxy, fun = "sum", na.rm = FALSE), mat = FALSE) * norm
+  list(xx = hxx, yy = hyy, xy = hxy)
+}
+
+
+# Vesselness de Frangi 2D pour structures SOMBRES (vallees, lambda2 > 0), a
+# partir des composantes du Hessien. Renvoie la reponse `v` (0..1) et
+# l'orientation `theta` de la ligne (degres, 0..180), en vecteurs.
+#' @noRd
+dsr_frangi <- function(hxx, hyy, hxy, beta = 0.5, c = NULL) {
+  moyenne <- (hxx + hyy) / 2
+  d <- sqrt(((hxx - hyy) / 2)^2 + hxy^2)
+  la <- moyenne - d
+  lb <- moyenne + d
+  # Ordonner par valeur absolue : |l1| <= |l2|.
+  swap <- abs(la) > abs(lb)
+  l1 <- ifelse(swap, lb, la)
+  l2 <- ifelse(swap, la, lb)
+
+  s <- sqrt(l1^2 + l2^2) # norme de Frobenius du Hessien
+  if (is.null(c)) {
+    smax <- suppressWarnings(max(s, na.rm = TRUE))
+    c <- if (is.finite(smax) && smax > 0) 0.5 * smax else 1
+  }
+  rb <- ifelse(l2 == 0, 0, l1 / l2)
+  v <- exp(-rb^2 / (2 * beta^2)) * (1 - exp(-s^2 / (2 * c^2)))
+  # Structures sombres seulement : une route est un creux (lambda2 > 0).
+  v[is.na(l2) | l2 <= 0] <- 0
+
+  # Orientation de la ligne = vecteur propre de la plus petite valeur propre
+  # |l1| (direction de moindre courbure). v_l1 proportionnel a (hxy, l1 - hxx).
+  theta <- (atan2(l1 - hxx, hxy) * 180 / pi) %% 180
+  list(v = v, theta = theta)
 }

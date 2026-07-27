@@ -127,3 +127,63 @@ test_that("dsr_micro_relief : un creux ferme le ciel (svf < 1, openness < 90)", 
   expect_lt(mr[["svf"]][centre][1, 1], 1)
   expect_lt(mr[["openness_pos"]][centre][1, 1], 90)
 })
+
+test_that("dsr_pente : terrain plat -> pente nulle", {
+  skip_if_not_installed("terra")
+  mnt <- terra::rast(nrows = 20, ncols = 20, xmin = 0, xmax = 20,
+    ymin = 0, ymax = 20, crs = "EPSG:2154")
+  terra::values(mnt) <- 100
+  p <- dsr_pente(mnt)
+  expect_equal(names(p), "pente")
+  expect_equal(unname(terra::global(p, "max", na.rm = TRUE)[1, 1]), 0, tolerance = 1e-6)
+})
+
+test_that("dsr_rugosite : plat lisse ~ 0, bosse > 0", {
+  skip_if_not_installed("terra")
+  mnt <- terra::rast(nrows = 25, ncols = 25, xmin = 0, xmax = 25,
+    ymin = 0, ymax = 25, crs = "EPSG:2154")
+  terra::values(mnt) <- 100
+  expect_lt(unname(terra::global(dsr_rugosite(mnt), "max", na.rm = TRUE)[1, 1]), 1e-6)
+  mnt[13, 13] <- 105
+  expect_gt(unname(terra::global(dsr_rugosite(mnt), "max", na.rm = TRUE)[1, 1]), 0)
+})
+
+test_that("dsr_slrm : une couche par fenetre", {
+  skip_if_not_installed("terra")
+  mnt <- terra::rast(nrows = 30, ncols = 30, xmin = 0, xmax = 30,
+    ymin = 0, ymax = 30, crs = "EPSG:2154")
+  terra::values(mnt) <- stats::runif(terra::ncell(mnt))
+  s <- dsr_slrm(mnt, fenetres_m = c(3, 9))
+  expect_equal(names(s), c("slrm_3", "slrm_9"))
+})
+
+test_that("dsr_vesselness : vallee diagonale -> reponse et theta ~ 45", {
+  skip_if_not_installed("terra")
+  n <- 70
+  g <- terra::rast(nrows = n, ncols = n, xmin = 0, xmax = n, ymin = 0, ymax = n,
+    crs = "EPSG:2154")
+  xy <- terra::xyFromCell(g, seq_len(terra::ncell(g)))
+  d <- (xy[, 2] - xy[, 1]) / sqrt(2)
+  terra::values(g) <- 100 - 2 * exp(-(d^2) / (2 * 3^2))
+  ves <- dsr_vesselness(g)
+  expect_setequal(names(ves), c("vesselness", "theta"))
+  vv <- terra::values(ves[["vesselness"]]); th <- terra::values(ves[["theta"]])
+  ligne <- which(abs(d) < 1); dehors <- which(abs(d) > 8)
+  expect_gt(median(vv[ligne], na.rm = TRUE), 0.5)
+  expect_lt(median(vv[dehors], na.rm = TRUE), 0.05)
+  expect_equal(median(th[ligne], na.rm = TRUE), 45, tolerance = 2)
+})
+
+test_that("dsr_layers_dtm : pile attendue alignee sur la grille", {
+  skip_if_not_installed("terra")
+  mnt <- terra::rast(nrows = 60, ncols = 60, xmin = 0, xmax = 30,
+    ymin = 0, ymax = 30, resolution = 0.5, crs = "EPSG:2154")
+  terra::values(mnt) <- 100 + stats::runif(terra::ncell(mnt))
+  grille <- dsr_grille_reference(mnt, res = 1)
+  pile <- dsr_layers_dtm(mnt, grille = grille, rayons_openness = c(2, 5),
+    echelles_vessel = c(1, 2), fenetres_slrm = 5)
+  expect_true(all(c("pente", "rugosite", "slrm_5", "openness_neg_2",
+    "openness_neg_5", "svf", "openness_pos", "vesselness", "theta") %in% names(pile)))
+  expect_equal(terra::res(pile), terra::res(grille))
+  expect_equal(terra::origin(pile), terra::origin(grille))
+})
