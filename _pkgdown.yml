@@ -22,6 +22,9 @@ reference:
       - dsr_slrm
       - dsr_vesselness
       - dsr_canaux_externes
+  - title: Canal surface et qualite (nuage)
+    contents:
+      - dsr_layers_pc
   - title: Conductivite
     contents:
       - dsr_conductivite
