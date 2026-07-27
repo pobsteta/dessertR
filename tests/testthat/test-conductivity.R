@@ -77,3 +77,36 @@ test_that("dsr_conductivite : aucun canal correspondant -> erreur", {
   names(r) <- "inconnu"
   expect_error(dsr_conductivite(r), "Aucun canal")
 })
+
+test_that("dsr_sigma_surf : dans [sigma_min, 1] et decroit avec le sous-etage", {
+  skip_if_not_installed("terra")
+  r <- terra::rast(nrows = 10, ncols = 10, xmin = 0, xmax = 10, ymin = 0,
+    ymax = 10, crs = "EPSG:2154")
+  sous <- terra::rast(r); terra::values(sous) <- rep(seq(0, 1, length.out = 10), 10)
+  pen  <- terra::rast(r); terra::values(pen) <- 0.5
+  couches <- c(sous, pen); names(couches) <- c("densite_sousetage", "taux_penetration")
+
+  sp <- list(densite_sousetage = list(type = "decroissante", a = 0, b = 1))
+  ss <- dsr_sigma_surf(couches, specs = sp, sigma_min = 0.05)
+  expect_equal(names(ss), "sigma_surf")
+  mm <- terra::minmax(ss)
+  expect_gte(mm[1], 0.05); expect_lte(mm[2], 1)
+  # sous-etage faible (colonne gauche) -> sigma_surf plus fort qu'a droite.
+  v <- terra::as.matrix(ss, wide = TRUE)
+  expect_gt(mean(v[, 1]), mean(v[, 10]))
+})
+
+test_that("dsr_sigma_surf : masque d'exclusion ramene a sigma_min", {
+  skip_if_not_installed("terra")
+  r <- terra::rast(nrows = 6, ncols = 6, xmin = 0, xmax = 6, ymin = 0, ymax = 6,
+    crs = "EPSG:2154")
+  sous <- terra::rast(r); terra::values(sous) <- 0
+  pen  <- terra::rast(r); terra::values(pen) <- 1
+  couches <- c(sous, pen); names(couches) <- c("densite_sousetage", "taux_penetration")
+  excl <- terra::rast(r); terra::values(excl) <- 0; excl[1, 1] <- 1
+
+  ss <- dsr_sigma_surf(couches,
+    specs = list(densite_sousetage = list(type = "decroissante", a = 0, b = 1)),
+    masque_exclusion = excl, sigma_min = 0.05)
+  expect_equal(ss[1, 1][1, 1], 0.05, tolerance = 1e-9)
+})

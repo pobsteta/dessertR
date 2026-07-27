@@ -28,5 +28,11 @@ reference:
   - title: Conductivite
     contents:
       - dsr_conductivite
+      - dsr_sigma_surf
       - dsr_appartenance
       - dsr_specs_geomorpho
+      - dsr_specs_surface
+  - title: Etat de la desserte
+    contents:
+      - dsr_etat
+      - dsr_divergence

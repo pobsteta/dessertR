@@ -1,5 +1,14 @@
 # dessertR (developpement)
 
+## Conductivite de surface et etat (lot 3)
+
+* `dsr_sigma_surf()` : conductivite de surface (emprise encore degagee), fondee
+  sur `densite_sousetage` -- le signal d'abandon -- avec masque d'exclusion.
+* `dsr_divergence()` et `dsr_etat()` : croisement `sigma_geo` / `sigma_surf` en
+  quatre etats (en service, abandonnee, trouee sans route, hors route), le
+  diagnostic d'etat du BRIEF (section 3.4). Valide sur dalle reelle : les routes
+  actives ressortent en `en_service`.
+
 ## Canal surface et qualite via le nuage (lot 3, amorce)
 
 * `dsr_layers_pc()` : rasterise via `lasR` les metriques du nuage classe sur la
