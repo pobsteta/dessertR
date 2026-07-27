@@ -33,4 +33,27 @@ NULL
 #' @keywords internal
 rvt_svf_opns <- function(height, nr, nc, resolution, radius_max, radius_min, num_directions, compute_svf, compute_opns) .Call(wrap__rvt_svf_opns, height, nr, nc, resolution, radius_max, radius_min, num_directions, compute_svf, compute_opns)
 
+#' Anisotropic least-cost path with heading state and curvature penalty.
+#'
+#' Runs a Dijkstra over a (cell, heading) state space on the geomorphic
+#' conductivity, with a 16-neighbourhood to curb Dijkstra's metrication bias, a
+#' cross-orientation anisotropy penalty (a road has a direction), and a
+#' curvature penalty on heading changes (BRIEF section 3.5). No GIS in the crate:
+#' R passes the flat grids and cell indices, and re-attaches the trace.
+#'
+#' @param sigma Geomorphic conductivity, row-major, `NA` for impassable.
+#' @param theta Local line orientation (degrees), row-major; `NA` -> isotropic.
+#' @param weight Anisotropy strength per cell (e.g. vesselness, 0..1), row-major.
+#' @param nr,nc Raster rows and columns.
+#' @param resolution Cell size (m).
+#' @param k Number of discrete headings.
+#' @param lambda Anisotropy weight (cross-orientation penalty).
+#' @param mu Curvature weight (heading-change penalty).
+#' @param sigma_min Conductivity floor (avoids infinite resistance).
+#' @param src,dst Source and target cell indices (0-based, row-major).
+#' @return A list with `path` (1-based cell indices, source to target), `cost`
+#'   (total, `NA` if unreachable) and `cumcost` (min cost-to-source per cell).
+#' @keywords internal
+pathfinder_anisotrope <- function(sigma, theta, weight, nr, nc, resolution, k, lambda, mu, sigma_min, src, dst) .Call(wrap__pathfinder_anisotrope, sigma, theta, weight, nr, nc, resolution, k, lambda, mu, sigma_min, src, dst)
+
 # nolint end

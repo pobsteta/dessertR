@@ -1,5 +1,15 @@
 # dessertR (developpement)
 
+## Pathfinder anisotrope (lot 4)
+
+* `dsr_pathfinder()` : recherche de trace de moindre cout sur `sigma_geo`, avec
+  noyau Rust -- etat d'orientation (cellule, cap), penalite d'anisotropie (les
+  deplacements en travers de `theta` sont penalises), penalite de courbure, et
+  voisinage 16 qui supprime le biais de metrication du Dijkstra 8-connexe
+  (BRIEF section 3.5). Sortie `sf` `LINESTRING` + champ de cout cumule. Les
+  sauts « cavalier » sont verrouilles pour ne pas franchir une barriere `NA`
+  d'une cellule. Valide sur dalle reelle (le trace suit la route forestiere).
+
 ## Conductivite de surface et etat (lot 3)
 
 * `dsr_sigma_surf()` : conductivite de surface (emprise encore degagee), fondee
