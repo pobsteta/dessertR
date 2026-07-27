@@ -17,12 +17,14 @@ Useful links:
 
 - <https://github.com/pobsteta/dessertR>
 
+- <https://pobsteta.github.io/dessertR>
+
 - Report bugs at <https://github.com/pobsteta/dessertR/issues>
 
 ## Author
 
-**Maintainer**: Prenom Nom <TODO@example.org>
+**Maintainer**: Pascal Obstetar <pascal.obstetar@gmail.com>
 
 Authors:
 
-- Prenom Nom <TODO@example.org>
+- Pascal Obstetar <pascal.obstetar@gmail.com>

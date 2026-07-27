@@ -22,8 +22,8 @@ dsr_grille_reference(mnt, res = DSR_RES_MULTIECHELLE)
 
 - res:
 
-  Resolution de la grille en metres. Defaut 1 (voir
-  DSR_RES_MULTIECHELLE). Descendre a 0.5 uniquement pour la mesure fine.
+  Resolution de la grille en metres. Defaut 1 (`DSR_RES_MULTIECHELLE`).
+  Descendre a 0.5 uniquement pour la mesure fine.
 
 ## Value
 

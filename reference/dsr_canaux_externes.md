@@ -25,8 +25,9 @@ dsr_canaux_externes(
 
   Liste **nommee** : nom de canal -\> chemin de GeoTIFF ou `SpatRaster`.
   Les noms attendus figurent dans DSR_CANAUX_DTM ; les variantes
-  multi-echelles se suffixent par le rayon (`openness_neg_5`). Un nom
-  hors vocabulaire est accepte mais signale (garde-fou anti-faute).
+  multi-echelles se suffixent par le rayon (`openness_neg_5`). Le
+  vocabulaire connu figure dans `DSR_CANAUX_DTM` ; un nom hors
+  vocabulaire est accepte mais signale (garde-fou anti-faute).
 
 - reference:
 
