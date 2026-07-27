@@ -36,3 +36,6 @@ reference:
     contents:
       - dsr_etat
       - dsr_divergence
+  - title: Recherche de trace
+    contents:
+      - dsr_pathfinder

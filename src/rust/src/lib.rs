@@ -1,5 +1,6 @@
 use extendr_api::prelude::*;
 
+mod pathfinder;
 mod rvt;
 
 /// Sky-view factor and openness (RVT micro-relief channels).
@@ -58,10 +59,66 @@ fn rvt_svf_opns(
     )
 }
 
+/// Anisotropic least-cost path with heading state and curvature penalty.
+///
+/// Runs a Dijkstra over a (cell, heading) state space on the geomorphic
+/// conductivity, with a 16-neighbourhood to curb Dijkstra's metrication bias, a
+/// cross-orientation anisotropy penalty (a road has a direction), and a
+/// curvature penalty on heading changes (BRIEF section 3.5). No GIS in the crate:
+/// R passes the flat grids and cell indices, and re-attaches the trace.
+///
+/// @param sigma Geomorphic conductivity, row-major, `NA` for impassable.
+/// @param theta Local line orientation (degrees), row-major; `NA` -> isotropic.
+/// @param weight Anisotropy strength per cell (e.g. vesselness, 0..1), row-major.
+/// @param nr,nc Raster rows and columns.
+/// @param resolution Cell size (m).
+/// @param k Number of discrete headings.
+/// @param lambda Anisotropy weight (cross-orientation penalty).
+/// @param mu Curvature weight (heading-change penalty).
+/// @param sigma_min Conductivity floor (avoids infinite resistance).
+/// @param src,dst Source and target cell indices (0-based, row-major).
+/// @return A list with `path` (1-based cell indices, source to target), `cost`
+///   (total, `NA` if unreachable) and `cumcost` (min cost-to-source per cell).
+/// @keywords internal
+#[extendr]
+#[allow(clippy::too_many_arguments)]
+fn pathfinder_anisotrope(
+    sigma: Vec<f64>,
+    theta: Vec<f64>,
+    weight: Vec<f64>,
+    nr: i32,
+    nc: i32,
+    resolution: f64,
+    k: i32,
+    lambda: f64,
+    mu: f64,
+    sigma_min: f64,
+    src: i32,
+    dst: i32,
+) -> List {
+    let out = pathfinder::shortest_path(
+        &sigma,
+        &theta,
+        &weight,
+        nr as usize,
+        nc as usize,
+        resolution,
+        (k.max(1)) as usize,
+        lambda,
+        mu,
+        sigma_min,
+        src as usize,
+        dst as usize,
+    );
+    let path: Vec<i32> = out.path.iter().map(|&c| c as i32 + 1).collect();
+    list!(path = path, cost = out.cost, cumcost = out.cumcost)
+}
+
 // Macro to generate exports.
 // This ensures exported functions are registered with R.
 // See corresponding C code in `entrypoint.c`.
 extendr_module! {
     mod dessert_r;
     fn rvt_svf_opns;
+    fn pathfinder_anisotrope;
 }
