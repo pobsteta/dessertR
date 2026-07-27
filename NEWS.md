@@ -1,5 +1,13 @@
 # dessertR (developpement)
 
+## Canal surface et qualite via le nuage (lot 3, amorce)
+
+* `dsr_layers_pc()` : rasterise via `lasR` les metriques du nuage classe sur la
+  grille de reference -- `densite_sol` (confiance du MNT), `taux_penetration`,
+  `densite_sousetage` (signal d'abandon, 0,3-3 m au-dessus du sol), `h_couvert`,
+  `masque_exclusion` et `masque_pont`. Regime corridor par `emprise` / `masque`.
+  Valide sur dalle Lidar HD reelle (lecture COPC par lasR).
+
 ## Canal geomorphologique complet et conductivite (lot 1)
 
 * `dsr_pente()`, `dsr_rugosite()` (rugosite residuelle), `dsr_slrm()` (relief
