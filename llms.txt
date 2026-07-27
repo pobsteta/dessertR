@@ -105,6 +105,11 @@ GPL (\>= 3).
 - [`dsr_canaux_externes()`](https://pobsteta.github.io/dessertR/reference/dsr_canaux_externes.md)
   : Ingerer des canaux morphometriques externes et les aligner
 
+## Canal surface et qualite (nuage)
+
+- [`dsr_layers_pc()`](https://pobsteta.github.io/dessertR/reference/dsr_layers_pc.md)
+  : Canaux de surface et de qualite du nuage de points
+
 ## Conductivite
 
 - [`dsr_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_conductivite.md)
