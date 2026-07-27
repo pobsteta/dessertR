@@ -15,8 +15,9 @@ dsr_canaux_externes(
 \arguments{
 \item{couches}{Liste \strong{nommee} : nom de canal -> chemin de GeoTIFF ou
 \code{SpatRaster}. Les noms attendus figurent dans \link{DSR_CANAUX_DTM} ; les
-variantes multi-echelles se suffixent par le rayon (\code{openness_neg_5}). Un
-nom hors vocabulaire est accepte mais signale (garde-fou anti-faute).}
+variantes multi-echelles se suffixent par le rayon (\code{openness_neg_5}). Le
+vocabulaire connu figure dans \code{DSR_CANAUX_DTM} ; un nom hors vocabulaire est
+accepte mais signale (garde-fou anti-faute).}
 
 \item{reference}{Grille de reference : un \code{SpatRaster} gabarit (typiquement la
 sortie de \code{\link[=dsr_grille_reference]{dsr_grille_reference()}}) ou un chemin.}

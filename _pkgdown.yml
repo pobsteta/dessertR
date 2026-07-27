@@ -15,5 +15,15 @@ reference:
   - title: Canal geomorphologique (MNT)
     contents:
       - dsr_grille_reference
+      - dsr_layers_dtm
       - dsr_micro_relief
+      - dsr_pente
+      - dsr_rugosite
+      - dsr_slrm
+      - dsr_vesselness
       - dsr_canaux_externes
+  - title: Conductivite
+    contents:
+      - dsr_conductivite
+      - dsr_appartenance
+      - dsr_specs_geomorpho

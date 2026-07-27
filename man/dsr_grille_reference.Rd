@@ -9,8 +9,8 @@ dsr_grille_reference(mnt, res = DSR_RES_MULTIECHELLE)
 \arguments{
 \item{mnt}{Un \code{SpatRaster} (le MNT), ou un chemin vers un GeoTIFF.}
 
-\item{res}{Resolution de la grille en metres. Defaut 1 (voir
-\link{DSR_RES_MULTIECHELLE}). Descendre a 0.5 uniquement pour la mesure fine.}
+\item{res}{Resolution de la grille en metres. Defaut 1
+(\code{DSR_RES_MULTIECHELLE}). Descendre a 0.5 uniquement pour la mesure fine.}
 }
 \value{
 Un \code{SpatRaster} \strong{sans valeurs} servant de gabarit d'alignement.
