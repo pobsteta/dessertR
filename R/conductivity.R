@@ -142,34 +142,7 @@ dsr_conductivite <- function(couches, specs = dsr_specs_geomorpho(),
     ))
   }
 
-  bases <- sub("_[0-9.]+$", "", names(couches))
-  utilises <- intersect(unique(bases), names(specs))
-  if (length(utilises) == 0L) {
-    dsr_abort(c(
-      "Aucun canal de {.arg couches} ne correspond aux regles {.arg specs}.",
-      "i" = "Canaux presents : {.val {unique(bases)}} ; regles : {.val {names(specs)}}."
-    ))
-  }
-
-  n <- terra::ncell(couches)
-  log_acc <- rep(0, n)
-  poids_tot <- 0
-  for (base in utilises) {
-    sp <- specs[[base]]
-    idx <- which(bases == base)
-    # Moyenne des appartenances sur les echelles d'un meme canal.
-    mu <- rep(0, n)
-    for (i in idx) {
-      mu <- mu + dsr_appartenance(couches[[i]], type = sp$type, a = sp$a, b = sp$b,
-        marge = sp$marge)[]
-    }
-    mu <- mu / length(idx)
-    w <- if (is.null(sp$poids)) 1 else sp$poids
-    log_acc <- log_acc + w * log(pmax(mu, sigma_min))
-    poids_tot <- poids_tot + w
-  }
-  sigma <- exp(log_acc / poids_tot)
-  sigma <- pmax(sigma, sigma_min)
+  sigma <- .dsr_fusion_appartenance(couches, specs, sigma_min)
 
   if (!is.null(confiance)) {
     if (!inherits(confiance, "SpatRaster")) {
@@ -183,5 +156,115 @@ dsr_conductivite <- function(couches, specs = dsr_specs_geomorpho(),
   out <- terra::rast(couches[[1]])
   terra::values(out) <- sigma
   names(out) <- "sigma_geo"
+  out
+}
+
+
+# Moyenne geometrique ponderee des fonctions d'appartenance : le coeur de la
+# fusion parametrique, partage par sigma_geo et sigma_surf. Renvoie un vecteur de
+# valeurs (ordre des cellules de `couches`), plancher a `sigma_min`. Les canaux
+# multi-echelles (suffixe _<rayon>) sont regroupes par nom de base et moyennes.
+#' @noRd
+.dsr_fusion_appartenance <- function(couches, specs, sigma_min) {
+  bases <- sub("_[0-9.]+$", "", names(couches))
+  utilises <- intersect(unique(bases), names(specs))
+  if (length(utilises) == 0L) {
+    dsr_abort(c(
+      "Aucun canal de {.arg couches} ne correspond aux regles {.arg specs}.",
+      "i" = "Canaux presents : {.val {unique(bases)}} ; regles : {.val {names(specs)}}."
+    ))
+  }
+  n <- terra::ncell(couches)
+  log_acc <- rep(0, n)
+  poids_tot <- 0
+  for (base in utilises) {
+    sp <- specs[[base]]
+    idx <- which(bases == base)
+    mu <- rep(0, n)
+    for (i in idx) {
+      mu <- mu + dsr_appartenance(couches[[i]], type = sp$type, a = sp$a, b = sp$b,
+        marge = sp$marge)[]
+    }
+    mu <- mu / length(idx)
+    w <- if (is.null(sp$poids)) 1 else sp$poids
+    log_acc <- log_acc + w * log(pmax(mu, sigma_min))
+    poids_tot <- poids_tot + w
+  }
+  pmax(exp(log_acc / poids_tot), sigma_min)
+}
+
+
+#' Specifications d'appartenance par defaut du canal de surface
+#'
+#' Regles reliant les couches de [dsr_layers_pc()] a la probabilite qu'une
+#' emprise soit **encore degagee** : le discriminant central est
+#' `densite_sousetage` (echos 0,3-3 m au-dessus du sol) -- faible = degagee,
+#' forte = recolonisee (BRIEF sections 0 et 3.4). `taux_penetration` (ouverture
+#' au-dessus de l'emprise) intervient en appui, avec un poids moindre.
+#'
+#' @return Une liste nommee par canal, chaque element une liste
+#'   `type` / `poids` pour [dsr_sigma_surf()].
+#' @seealso [dsr_sigma_surf()].
+#' @export
+dsr_specs_surface <- function() {
+  list(
+    densite_sousetage = list(type = "decroissante", poids = 2),
+    taux_penetration  = list(type = "croissante", poids = 1)
+  )
+}
+
+
+#' Conductivite de surface `sigma_surf`
+#'
+#' Probabilite que l'empreinte d'une route soit **encore degagee et circulable**
+#' (canal nuage, etat present), dans `[sigma_min, 1]` (BRIEF section 3.4). Meme
+#' machinerie que [dsr_conductivite()] (moyenne geometrique ponderee de fonctions
+#' d'appartenance), appliquee aux couches de [dsr_layers_pc()]. Le signal central
+#' est `densite_sousetage` : une emprise recolonisee par le sous-etage n'est plus
+#' circulable, meme sous un couvert haut intact -- distinction impossible sur le
+#' MNH.
+#'
+#' `sigma_surf` n'a de sens que **la ou une empreinte existe** : c'est sa
+#' divergence avec `sigma_geo` qui revele l'etat ([dsr_etat()]), pas sa valeur
+#' absolue.
+#'
+#' @param couches Le `SpatRaster` de [dsr_layers_pc()] (ou un sous-ensemble
+#'   aligne).
+#' @param specs Regles d'appartenance ; defaut [dsr_specs_surface()].
+#' @param method `"param"` (defaut) ou `"model"` (reserve, non implemente).
+#' @param sigma_min Plancher de conductivite. Defaut 0.05.
+#' @param masque_exclusion `SpatRaster` binaire (1 = zone neutralisee, p. ex.
+#'   `masque_exclusion` de [dsr_layers_pc()]) ; les cellules a 1 sont ramenees a
+#'   `sigma_min`. `NULL` pour ne pas masquer.
+#' @return Un `SpatRaster` mono-couche `sigma_surf`.
+#' @seealso [dsr_conductivite()], [dsr_layers_pc()], [dsr_etat()].
+#' @export
+dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
+                           method = c("param", "model"),
+                           sigma_min = 0.05, masque_exclusion = NULL) {
+  method <- match.arg(method)
+  if (!inherits(couches, "SpatRaster")) {
+    dsr_abort("{.arg couches} doit etre un {.cls SpatRaster} (sortie de {.fun dsr_layers_pc}).")
+  }
+  if (identical(method, "model")) {
+    dsr_abort(c(
+      "La conductivite apprise ({.code method = \"model\"}) n'est pas encore implementee.",
+      "i" = "Elle attend un jeu de validation (BRIEF section 4) ; utiliser {.code method = \"param\"} d'ici la."
+    ))
+  }
+
+  sigma <- .dsr_fusion_appartenance(couches, specs, sigma_min)
+
+  if (!is.null(masque_exclusion)) {
+    if (!inherits(masque_exclusion, "SpatRaster")) {
+      dsr_abort("{.arg masque_exclusion} doit etre un {.cls SpatRaster} binaire.")
+    }
+    excl <- terra::values(masque_exclusion, mat = FALSE)
+    sigma[!is.na(excl) & excl > 0] <- sigma_min
+  }
+
+  out <- terra::rast(couches[[1]])
+  terra::values(out) <- sigma
+  names(out) <- "sigma_surf"
   out
 }
