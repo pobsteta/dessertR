@@ -138,3 +138,8 @@ GPL (\>= 3).
 - [`dsr_divergence()`](https://pobsteta.github.io/dessertR/reference/dsr_divergence.md)
   : Divergence des canaux de conductivite
 
+## Recherche de trace
+
+- [`dsr_pathfinder()`](https://pobsteta.github.io/dessertR/reference/dsr_pathfinder.md)
+  : Trace de moindre cout anisotrope entre deux points
+
