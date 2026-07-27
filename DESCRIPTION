@@ -1,9 +1,10 @@
 Package: dessertR
 Type: Package
 Title: Correction, Mesure et Qualification de la Desserte Forestiere par Lidar HD
-Version: 0.0.0.9000
-Authors@R: c(
-    person("Prenom", "Nom", email = "TODO@example.org", role = c("aut", "cre")))
+Version: 0.1.0
+Authors@R:
+    person("Pascal", "Obstetar", email = "pascal.obstetar@gmail.com",
+           role = c("aut", "cre"))
 Description: Outils pour corriger, mesurer et qualifier un reseau de desserte
     forestiere a partir des donnees du programme Lidar HD de l'IGN (nuage de
     points classe, MNT et MNH) et d'une carte de reference vectorielle telle
@@ -16,7 +17,6 @@ License: GPL (>= 3)
 Encoding: UTF-8
 Language: fr
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
 Depends:
     R (>= 4.2)
 Imports:
@@ -37,3 +37,6 @@ Additional_repositories: https://r-lidar.r-universe.dev
 Config/testthat/edition: 3
 URL: https://github.com/pobsteta/dessertR
 BugReports: https://github.com/pobsteta/dessertR/issues
+Config/roxygen2/version: 8.0.0
+Config/rextendr/version: 0.5.0
+SystemRequirements: Cargo (Rust's package manager), rustc >= 1.65.0, xz

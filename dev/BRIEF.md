@@ -95,7 +95,7 @@ dessertR/
 │   ├── network.R        # cohérence topologique
 │   ├── detect.R         # détection hors référence (v2)
 │   └── io.R             # export GPKG, styles QGIS, rapport
-├── src/                 # pathfinder anisotrope (cpp11)
+├── src/rust/            # noyau Rust (extendr) : rvt (openness/SVF) + pathfinder anisotrope
 ├── inst/extdata/        # 1 dalle LAZ écrêtée + MNT + MNH + extrait BD TOPO
 └── vignettes/
 ```
@@ -128,7 +128,7 @@ Couches **continues et non étirées** : on ne fabrique pas un composite RVT typ
 
 Deux remarques d'implémentation :
 
-- Openness et SVF sont coûteux (balayage directionnel) : C++ obligatoire, ou pré-traitement RVT externe. Chiffrer avant de choisir — une dépendance Python dans un package R est un coût de maintenance durable.
+- Openness et SVF sont coûteux (balayage directionnel) : **tranché — noyau Rust vendorisé.** Le crate `rvt` (portage de la Relief Visualization Toolbox, Apache 2.0, validé pixel-à-pixel, repris du paquet `foretaccess`) est intégré à `src/rust/` et exposé via `dsr_micro_relief()` (bandes brutes `svf` / `openness_pos` / `openness_neg`, rayon en mètres). Pas de dépendance Python, pas de pré-traitement externe. Mesuré : ~0,4 s pour les trois canaux sur une grille 1 m de 0,36 Mpx, soit ~2–3 s/dalle — non bloquant. Voir §3.5 et §6 pour le choix de chaîne native unique (Rust/extendr).
 - **Le MNT à 50 cm est trop fin pour les couches multi-échelles.** Rééchantillonner à 1 m réduit le bruit d'interpolation et divise le coût par 4. Garder le 50 cm pour la mesure de largeur et la détection de fossés uniquement.
 
 ### 3.3 `layers_pc.R` — canal surface et qualité, via `lasR`
@@ -172,7 +172,7 @@ Pour la fusion vers `sigma_geo` : **commencer par une combinaison paramétrique 
 
 ### 3.5 `pathfinder.R` + `src/`
 
-- Noyau C++ (`cpp11`, plus léger que Rcpp), **sans dépendance Boost**.
+- Noyau **Rust (`extendr-api`)**, **sans dépendance Boost**. Décision révisée par rapport à v0.2 : dessertR n'a **qu'une seule chaîne native, Rust**, plutôt que cpp11. Motif : le noyau openness/SVF (§3.2) existe déjà en Rust, validé, et le vendoriser évite de maintenir deux toolchains (cargo *et* C++) en CI. Le pathfinder anisotrope est donc écrit en Rust dans le même crate `src/rust/`, avec `rayon` pour le multi-thread.
 - **Coût anisotrope avec état (x, y, θ)** et pénalité de courbure. Une route a une direction ; sans cela le chemin coupe les virages et saute sur les linéarités parallèles (fossés, lignes, cloisonnements). C'est l'amélioration qualitative la plus rentable par rapport à ALSroads.
 - Voisinage 16 minimum, ou fast marching, pour supprimer le biais de métrication de Dijkstra 8-connexe (tracés en escalier à 0°/45°).
 - Sortie : le chemin optimal **et** une incertitude latérale dérivée de la courbure transversale du champ de coût. Savoir où le résultat est douteux vaut autant que le résultat.
@@ -245,11 +245,11 @@ Deux inversions par rapport à v0.1, conséquences directes de l'ajout du nuage 
 
 ## 6. Choix techniques
 
-- R ≥ 4.2. `terra` (jamais `raster`, retiré), `sf`, **`lasR` en `Imports`**, `data.table`, `cpp11`, `mirai`. `sfnetworks` en `Suggests` puis promu.
+- R ≥ 4.2. `terra` (jamais `raster`, retiré), `sf`, **`lasR` en `Imports`**, `data.table`, `mirai`. Noyau natif en **Rust/`extendr`** (crate `src/rust/`, deps `extendr-api` + `rayon`), plus **cpp11** abandonné au profit de Rust (voir §3.5). `sfnetworks` en `Suggests` puis promu. `SystemRequirements: Cargo, rustc`.
 - Pas de dépendance Python en `Imports`. Si RVT s'avère nécessaire pour l'openness, l'encapsuler en pré-traitement optionnel documenté.
 - Parallélisme : laisser `lasR` gérer ses threads ; paralléliser au niveau dalle uniquement pour les couches `terra` (mono-thread). **Ne pas empiler les deux niveaux** — c'est la recette classique de la sursouscription CPU.
 - Tests `testthat` sur un extrait minimal versionné : une dalle LAZ écrêtée à quelques centaines de milliers de points, plus MNT/MNH et extrait BD TOPO croppés. Licence ouverte Etalab côté données, redistribution possible — vérifier la mention d'attribution.
-- CI GitHub Actions : `R-CMD-check` Linux/macOS/Windows + job de non-régression numérique. Attention : `lasR` n'est pas sur le CRAN, prévoir son installation dans le workflow.
+- CI GitHub Actions : `R-CMD-check` Linux/macOS/Windows + job de non-régression numérique. Attention : `lasR` n'est pas sur le CRAN, prévoir son installation dans le workflow. Prévoir aussi la toolchain **Rust** (cargo/rustc) et le build hors-ligne : les dépendances cargo sont vendorisées (`src/rust/vendor.tar.xz` via `rextendr::vendor_crates()`) et le `Cargo.lock` est versionné et **épinglé** (rayon-core ≤ 1.12.1 tant que la CI reste sur rustc < 1.80).
 - Documentation `pkgdown` + vignette « du téléchargement des dalles au GPKG de sortie ».
 - **Licence** : vérifier celle d'ALSroads avant tout emprunt de code (probablement GPL-3, comme lidR). Reprendre la *méthode* d'un article publié est libre ; recopier du code ne l'est pas. Citer Roussel *et al.* 2022 et 2023 dans `README` et `CITATION`.
 - Contacter Jean-Romain Roussel en amont : r-lidar a basculé sur un modèle de support commercial, `lasR` est son moteur, et une partie de ce brief recoupe peut-être des travaux engagés.

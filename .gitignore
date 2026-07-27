@@ -12,3 +12,6 @@ dev/cache/
 *.copc.laz
 *.laz
 *.las
+src/rust/vendor
+src/Makevars
+src/Makevars.win
