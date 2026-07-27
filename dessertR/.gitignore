@@ -1,0 +1,14 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+docs/
+inst/doc
+src/*.o
+src/*.so
+src/*.dll
+dev/data/
+dev/cache/
+*.copc.laz
+*.laz
+*.las

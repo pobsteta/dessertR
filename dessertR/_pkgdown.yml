@@ -1,0 +1,14 @@
+url: https://pobsteta.github.io/dessertR/
+
+template:
+  bootstrap: 5
+
+reference:
+  - title: Catalogage des dalles
+    contents:
+      - dsr_catalog
+      - dsr_parse_dalle
+  - title: Emprises et corridors
+    contents:
+      - dsr_corridor
+      - dsr_dalles_requises
