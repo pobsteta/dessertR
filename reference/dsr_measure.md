@@ -22,7 +22,7 @@ dsr_measure(
   prof_fosse = 0.2,
   liss_travers = 3,
   liss_long = 5,
-  methode_largeur = c("planeite", "gradient"),
+  methode_largeur = c("chaussee", "planeite", "gradient"),
   tol_planeite = 0.1,
   base_courbure = 30,
   reference = NULL,
@@ -65,7 +65,8 @@ dsr_measure(
 
 - methode_largeur:
 
-  `"planeite"` (defaut) ou `"gradient"` (methode historique) ; voir
+  `"chaussee"` (defaut, retranche l'accotement), `"planeite"` (la
+  plateforme entiere) ou `"gradient"` (methode historique) ; voir
   Details.
 
 - tol_planeite:
@@ -92,7 +93,10 @@ dsr_measure(
 
 ## Value
 
-Une liste : `stations` (`sf` `POINT` avec `LARGEUR_ROULABLE`, `DEVERS`,
+Une liste : `stations` (`sf` `POINT` avec `LARGEUR_ROULABLE`, `BORD_G`
+et `BORD_D` (distance de l'axe a chaque bord, m – leur somme fait la
+largeur), `BORDS_CHAUSSEE` (methode `"chaussee"` seulement : nombre de
+cotes ou la rupture chaussee/accotement a ete resolue), `DEVERS`,
 `FOSSES`, `PENTE_LONG`, et si fournis `CONFIANCE_MNT`, `DEPLACEMENT`),
 et `resume` (metriques globales : `LARGEUR_ROULABLE_MED`,
 `PENTE_LONG_MOY`, `PENTE_LONG_MAX`, `RAYON_COURBURE_MIN`,
@@ -159,6 +163,62 @@ bombement**, soit `bombement x largeur / 2`. Une route de 6 m bombee a 3
 (fleche 18 cm) est tronquee a 4,4 m et demande 0,20. Le bombement,
 symetrique, n'est pas un devers : `DEVERS` ne retient que l'inclinaison
 d'ensemble, celle qui compte pour la stabilite d'un chargement.
+
+**Chaussee ou plateforme : ce que la largeur mesure.** `"planeite"`
+s'arrete la ou la surface quitte le plan de chaussee, donc il **retient
+l'accotement** tant que celui-ci reste dans `tol_planeite` : il mesure
+la *plateforme*. Sur un profil de synthese de chaussee 4,00 m, il rend
+3,89 m sans accotement, 4,75 m avec 0,5 m a 6 %, 5,57 m avec 1,0 m a 6
+%, 6,54 m avec 1,5 m a 4 %.
+
+`"chaussee"` (defaut) va plus loin : entre l'axe et le bord de
+plateforme, le profil compte au plus deux segments – la chaussee, puis
+l'accotement, plus penche. Une droite brisee a deux segments est ajustee
+et le bord retenu est l'**intersection des deux droites**. Sur les memes
+profils :
+
+|                          |              |              |
+|--------------------------|--------------|--------------|
+| profil (chaussee 4,00 m) | `"planeite"` | `"chaussee"` |
+| sans accotement          | 3,89 m       | 3,89 m       |
+| accotement 0,5 m a 6 %   | 4,75 m       | 3,67 m       |
+| accotement 1,0 m a 6 %   | 5,57 m       | **4,00 m**   |
+| accotement 1,0 m a 10 %  | 5,14 m       | **4,00 m**   |
+| accotement 1,5 m a 12 %  | 4,95 m       | 3,67 m       |
+
+**Ce qu'elle ne sait pas faire, et ce qu'elle fait alors.** La rupture
+n'est retenue que si elle est significative (test F contre une droite
+unique) et contrastee. Deux situations lui echappent : un accotement
+dont la pente est trop proche du bombement (4 % contre 3 % :
+indiscernables sur un MNT), et un bruit de MNT superieur a environ 5 cm,
+qui noie la rupture. Dans ces cas elle **rend le bord de plateforme**
+plutot qu'un bord invente, et `BORDS_CHAUSSEE` compte les cotes (0, 1 ou
+2) ou la rupture a effectivement ete resolue. Lire cette colonne avant
+d'interpreter la largeur : sur l'extrait Lidar HD livre avec le paquet,
+MNT a 50 cm sous couvert, elle vaut 0 a 162 stations sur 222.
+
+L'ajustement se fait sur le profil **brut**, non lisse : le lissage
+arrondit la rupture et la regression segmentee lit cet arrondi comme un
+segment. Elle demande en revanche un echantillonnage transversal fin
+(`pas_travers` \<= 0,25 m) : a 0,5 m il n'y a pas assez de points pour
+deux droites.
+
+Consequence directe sur une route de montagne en deblai-remblai : les
+deux bords ne se comportent pas de la meme facon. Sur l'extrait Lidar HD
+livre avec le paquet, la position du bord amont, adossee a un talus de
+deblai construit, a un ecart interquartile de 0,50 m le long du troncon
+; le bord aval, sur remblai, de 1,00 a 1,25 m. La variation est
+**lisse** (le bord se deplace d'une seule maille d'echantillonnage entre
+stations voisines, autocorrelation 0,44 a 0,68) : c'est la geometrie de
+l'accotement qui varie, pas la mesure qui saute. `BORD_G` et `BORD_D`
+sont renvoyes separement pour que cette dissymetrie reste lisible au
+lieu d'etre noyee dans une largeur unique.
+
+**Fosses.** Un fosse est un **creux** : on descend sous le bord de
+plateforme d'au moins `prof_fosse`, puis on remonte d'autant. Ne tester
+que la descente rend le critere vrai partout des que la route est en
+devers, le versant aval etant plus bas de plusieurs metres sur toute la
+fenetre de recherche.
 
 **Rayon de courbure.** Il est ajuste par un cercle des moindres carres
 sur une fenetre de `base_courbure` metres, et non sur trois stations

@@ -64,7 +64,7 @@ deplacement par rapport a une geometrie de reference (BD TOPO).</p>
 <span>  prof_fosse <span class="op">=</span> <span class="fl">0.2</span>,</span>
 <span>  liss_travers <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  liss_long <span class="op">=</span> <span class="fl">5</span>,</span>
-<span>  methode_largeur <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"planeite"</span>, <span class="st">"gradient"</span><span class="op">)</span>,</span>
+<span>  methode_largeur <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"chaussee"</span>, <span class="st">"planeite"</span>, <span class="st">"gradient"</span><span class="op">)</span>,</span>
 <span>  tol_planeite <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span>  base_courbure <span class="op">=</span> <span class="fl">30</span>,</span>
 <span>  reference <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -107,8 +107,9 @@ sous couvert dense (voir Details). Defaut 3 et 5.</p></dd>
 
 
 <dt id="arg-methode-largeur">methode_largeur<a class="anchor" aria-label="anchor" href="#arg-methode-largeur"></a></dt>
-<dd><p><code>"planeite"</code> (defaut) ou <code>"gradient"</code> (methode
-historique) ; voir Details.</p></dd>
+<dd><p><code>"chaussee"</code> (defaut, retranche l'accotement),
+<code>"planeite"</code> (la plateforme entiere) ou <code>"gradient"</code> (methode historique) ;
+voir Details.</p></dd>
 
 
 <dt id="arg-tol-planeite">tol_planeite<a class="anchor" aria-label="anchor" href="#arg-tol-planeite"></a></dt>
@@ -135,6 +136,9 @@ d'origine) pour le <code>DEPLACEMENT</code> ; <code>NULL</code> pour l'omettre.<
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Une liste : <code>stations</code> (<code>sf</code> <code>POINT</code> avec <code>LARGEUR_ROULABLE</code>,
+<code>BORD_G</code> et <code>BORD_D</code> (distance de l'axe a chaque bord, m – leur somme fait
+la largeur), <code>BORDS_CHAUSSEE</code> (methode <code>"chaussee"</code> seulement : nombre de
+cotes ou la rupture chaussee/accotement a ete resolue),
 <code>DEVERS</code>, <code>FOSSES</code>, <code>PENTE_LONG</code>, et si fournis <code>CONFIANCE_MNT</code>,
 <code>DEPLACEMENT</code>), et <code>resume</code> (metriques globales : <code>LARGEUR_ROULABLE_MED</code>,
 <code>PENTE_LONG_MOY</code>, <code>PENTE_LONG_MAX</code>, <code>RAYON_COURBURE_MIN</code>,
@@ -174,6 +178,42 @@ bombement</strong>, soit <code>bombement x largeur / 2</code>. Une route de 6 m 
 18 cm) est tronquee a 4,4 m et demande 0,20. Le bombement, symetrique, n'est
 pas un devers : <code>DEVERS</code> ne retient que l'inclinaison d'ensemble, celle qui
 compte pour la stabilite d'un chargement.</p>
+<p><strong>Chaussee ou plateforme : ce que la largeur mesure.</strong> <code>"planeite"</code> s'arrete
+la ou la surface quitte le plan de chaussee, donc il <strong>retient l'accotement</strong>
+tant que celui-ci reste dans <code>tol_planeite</code> : il mesure la <em>plateforme</em>. Sur
+un profil de synthese de chaussee 4,00 m, il rend 3,89 m sans accotement,
+4,75 m avec 0,5 m a 6 %, 5,57 m avec 1,0 m a 6 %, 6,54 m avec 1,5 m a 4 %.</p>
+<p><code>"chaussee"</code> (defaut) va plus loin : entre l'axe et le bord de plateforme, le
+profil compte au plus deux segments – la chaussee, puis l'accotement, plus
+penche. Une droite brisee a deux segments est ajustee et le bord retenu est
+l'<strong>intersection des deux droites</strong>. Sur les memes profils :</p><table class="table table"><tr><td>profil (chaussee 4,00 m)</td><td><code>"planeite"</code></td><td><code>"chaussee"</code></td></tr><tr><td>sans accotement</td><td>3,89 m</td><td>3,89 m</td></tr><tr><td>accotement 0,5 m a 6 %</td><td>4,75 m</td><td>3,67 m</td></tr><tr><td>accotement 1,0 m a 6 %</td><td>5,57 m</td><td><strong>4,00 m</strong></td></tr><tr><td>accotement 1,0 m a 10 %</td><td>5,14 m</td><td><strong>4,00 m</strong></td></tr><tr><td>accotement 1,5 m a 12 %</td><td>4,95 m</td><td>3,67 m</td></tr></table><p><strong>Ce qu'elle ne sait pas faire, et ce qu'elle fait alors.</strong> La rupture n'est
+retenue que si elle est significative (test F contre une droite unique) et
+contrastee. Deux situations lui echappent : un accotement dont la pente est
+trop proche du bombement (4 % contre 3 % : indiscernables sur un MNT), et un
+bruit de MNT superieur a environ 5 cm, qui noie la rupture. Dans ces cas elle
+<strong>rend le bord de plateforme</strong> plutot qu'un bord invente, et <code>BORDS_CHAUSSEE</code>
+compte les cotes (0, 1 ou 2) ou la rupture a effectivement ete resolue.
+Lire cette colonne avant d'interpreter la largeur : sur l'extrait Lidar HD
+livre avec le paquet, MNT a 50 cm sous couvert, elle vaut 0 a 162 stations
+sur 222.</p>
+<p>L'ajustement se fait sur le profil <strong>brut</strong>, non lisse : le lissage arrondit
+la rupture et la regression segmentee lit cet arrondi comme un segment. Elle
+demande en revanche un echantillonnage transversal fin (<code>pas_travers</code> &lt;= 0,25
+m) : a 0,5 m il n'y a pas assez de points pour deux droites.</p>
+<p>Consequence directe sur une route de montagne en deblai-remblai : les deux
+bords ne se comportent pas de la meme facon. Sur l'extrait Lidar HD livre
+avec le paquet, la position du bord amont, adossee a un talus de deblai
+construit, a un ecart interquartile de 0,50 m le long du troncon ; le bord
+aval, sur remblai, de 1,00 a 1,25 m. La variation est <strong>lisse</strong> (le bord se
+deplace d'une seule maille d'echantillonnage entre stations voisines,
+autocorrelation 0,44 a 0,68) : c'est la geometrie de l'accotement qui varie,
+pas la mesure qui saute. <code>BORD_G</code> et <code>BORD_D</code> sont renvoyes separement pour
+que cette dissymetrie reste lisible au lieu d'etre noyee dans une largeur
+unique.</p>
+<p><strong>Fosses.</strong> Un fosse est un <strong>creux</strong> : on descend sous le bord de plateforme
+d'au moins <code>prof_fosse</code>, puis on remonte d'autant. Ne tester que la descente
+rend le critere vrai partout des que la route est en devers, le versant aval
+etant plus bas de plusieurs metres sur toute la fenetre de recherche.</p>
 <p><strong>Rayon de courbure.</strong> Il est ajuste par un cercle des moindres carres sur
 une fenetre de <code>base_courbure</code> metres, et non sur trois stations
 consecutives. La quantification du trace vectorise (un sommet par cellule)
