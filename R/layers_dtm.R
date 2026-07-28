@@ -29,6 +29,22 @@ DSR_CANAUX_DTM <- c(
 )
 
 
+# Vocabulaire des canaux OPTIQUES, derives de l'ortho et non du lidar. Ils
+# entrent dans la pile au meme titre que les canaux geomorphologiques, avec un
+# atout propre : n'etant pas issus du nuage, ils ne partagent aucune erreur avec
+# lui. Une conductivite apprise sur geomorpho + optique s'appuie donc sur deux
+# acquisitions independantes plutot que sur deux lectures de la meme.
+#
+# Contrepartie a connaitre : les modeles de hauteur de canopee predits depuis
+# l'ortho (Open-Canopy et derives) travaillent a une maille de l'ordre de 1,5 m.
+# C'est suffisant pour DISCRIMINER (le role d'un canal de conductivite), pas
+# pour MESURER une largeur de chaussee (voir canopee.R).
+#' @noRd
+DSR_CANAUX_OPTIQUES <- c(
+  "chm", "mnh", "ndvi", "gndvi", "savi", "ndwi"
+)
+
+
 #' Construire la grille de reference d'une dalle
 #'
 #' Toutes les sorties raster du paquet, quelle que soit leur origine (MNT via
@@ -83,6 +99,21 @@ dsr_grille_reference <- function(mnt, res = DSR_RES_MULTIECHELLE) {
 #' bandes `svf`, `openness_pos` et `openness_neg` (memes noms que le vocabulaire
 #' interne). Alimente-le avec la grille de reference 1 m de la dalle et
 #' l'alignement est exact.
+#'
+#' @details
+#' **Canaux optiques.** Le vocabulaire accepte aussi des canaux derives de
+#' l'ortho et non du lidar : `chm`, `mnh`, `ndvi`, `gndvi`, `savi`, `ndwi`. Leur
+#' interet propre pour une conductivite apprise ([dsr_apprendre_conductivite()])
+#' est de ne partager **aucune erreur** avec le nuage : le modele s'appuie alors
+#' sur deux acquisitions independantes au lieu de deux lectures de la meme. Un
+#' pipeline de hauteur de canopee predite depuis la BD ORTHO (RVB + IRC) fournit
+#' directement `chm`, `ndvi`, `gndvi`, `savi` et `ndwi` ; le NDVI se calcule
+#' aussi sur place avec [dsr_ndvi()].
+#'
+#' Contrepartie : ces modeles travaillent a une maille de l'ordre de 1,5 m, plus
+#' grossiere que la grille de reference. Le reechantillonnage vers 1 m est
+#' signale et ne cree pas d'information -- un tel canal sert a **discriminer**,
+#' jamais a mesurer une largeur (voir [dsr_gabarit_lateral()]).
 #'
 #' @param couches Liste **nommee** : nom de canal -> chemin de GeoTIFF ou
 #'   `SpatRaster`. Les noms attendus figurent dans [DSR_CANAUX_DTM] ; les
@@ -160,6 +191,7 @@ dsr_canaux_externes <- function(couches, reference,
     }
     meth_r <- if (!is.null(methodes) && nom %in% names(methodes)) methodes[[nom]] else methode
     dsr_avertir_angle(nom, meth_r)
+    dsr_avertir_maille(nom, r, grille)
     dsr_aligner(r, grille, meth_r)
   }
 
@@ -170,11 +202,12 @@ dsr_canaux_externes <- function(couches, reference,
   # Signaler les noms hors vocabulaire (faute de frappe probable), sans bloquer.
   # On tolere le suffixe multi-echelle "_<rayon>".
   bases <- sub("_[0-9]+$", "", names(couches))
-  inconnus <- names(couches)[!bases %in% DSR_CANAUX_DTM]
+  connus <- c(DSR_CANAUX_DTM, DSR_CANAUX_OPTIQUES)
+  inconnus <- names(couches)[!bases %in% connus]
   if (length(inconnus)) {
     dsr_inform(c(
       "i" = "Canaux hors vocabulaire courant (verifier l'orthographe) : {.val {inconnus}}.",
-      "i" = "Vocabulaire connu : {.val {DSR_CANAUX_DTM}}."
+      "i" = "Vocabulaire connu : {.val {connus}}."
     ))
   }
   out
@@ -515,6 +548,24 @@ dsr_avertir_angle <- function(nom, methode) {
       "i" = 'Preferer {.code methodes = list("{nom}" = "near")}.'
     ))
   }
+}
+
+
+# Un canal plus grossier que la grille de reference est reechantillonne vers le
+# haut : l'operation est licite (il faut bien une grille commune) mais elle
+# n'ajoute aucune information. Le signaler, parce qu'apres alignement plus rien
+# dans la pile ne distingue un canal a 1,5 m d'un canal a 1 m -- et que c'est
+# exactement le piege des CHM predits depuis l'ortho.
+#' @noRd
+dsr_avertir_maille <- function(nom, r, grille) {
+  rs <- terra::res(r)[1]
+  gs <- terra::res(grille)[1]
+  if (!is.finite(rs) || !is.finite(gs) || rs <= 1.2 * gs) return(invisible())
+  dsr_inform(c(
+    "!" = "Canal {.val {nom}} : maille source {round(rs, 2)} m sur une grille a {round(gs, 2)} m.",
+    "i" = "Le reechantillonnage n'ajoute aucune information ; le canal reste utilisable pour discriminer, pas pour mesurer."
+  ))
+  invisible()
 }
 
 

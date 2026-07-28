@@ -8,8 +8,8 @@ dsr_trafficability(stations, seuils = dsr_seuils_grumier())
 }
 \arguments{
 \item{stations}{Le \code{sf} \code{stations} de \code{\link[=dsr_measure]{dsr_measure()}} (colonnes
-\code{LARGEUR_ROULABLE}, \code{PENTE_LONG}, \code{RAYON_COURBURE} ; \code{GABARIT_LIBRE}
-optionnel).}
+\code{LARGEUR_ROULABLE}, \code{PENTE_LONG}, \code{RAYON_COURBURE} ; \code{GABARIT_LIBRE},
+\code{SURPLOMB} et \code{HAUT_SURPLOMB} optionnels).}
 
 \item{seuils}{Seuils d'aptitude ; defaut \code{\link[=dsr_seuils_grumier]{dsr_seuils_grumier()}}.}
 }
@@ -24,6 +24,21 @@ le gabarit libre (\code{\link[=dsr_gabarit_libre]{dsr_gabarit_libre()}}) en un v
 qui le rend exploitable sur le terrain, le \code{MOTIF_INAPTITUDE} : \strong{quel critere
 bloque, et ou} (BRIEF section 3.7). Un booleen sans motif est inutilisable.
 }
+\details{
+Cinq criteres, dont trois toujours evalues (\code{largeur}, \code{pente}, \code{rayon}) et
+deux qui ne le sont que si les colonnes correspondantes sont presentes :
+\itemize{
+\item \code{gabarit} -- hauteur libre sous branches (\code{\link[=dsr_gabarit_libre]{dsr_gabarit_libre()}}, sur le
+nuage classe) inferieure a \code{gabarit_min} ;
+\item \code{surplomb} -- houppier empietant sur l'emprise \strong{et} situe sous
+\code{gabarit_min} (\code{\link[=dsr_gabarit_lateral]{dsr_gabarit_lateral()}}, sur un modele de hauteur de
+canopee). L'empietement seul ne bloque rien : un couvert ferme a 20 m
+au-dessus d'une route ne gene aucun grumier.
+}
+
+Un critere non evaluable (\code{NA}) ne declare jamais d'inaptitude.
+}
 \seealso{
-\code{\link[=dsr_measure]{dsr_measure()}}, \code{\link[=dsr_gabarit_libre]{dsr_gabarit_libre()}}, \code{\link[=dsr_seuils_grumier]{dsr_seuils_grumier()}}.
+\code{\link[=dsr_measure]{dsr_measure()}}, \code{\link[=dsr_gabarit_libre]{dsr_gabarit_libre()}}, \code{\link[=dsr_gabarit_lateral]{dsr_gabarit_lateral()}},
+\code{\link[=dsr_seuils_grumier]{dsr_seuils_grumier()}}.
 }

@@ -1,5 +1,62 @@
 # dessertR (developpement)
 
+## Canal optique : une seconde source, independante du lidar
+
+Jusqu'ici tout venait du meme nuage de points. Les canaux derives de l'ortho
+(BD ORTHO RVB + IRC, et les modeles de hauteur de canopee predits depuis
+celle-ci) ne partagent **aucune erreur** avec le lidar : c'est ce qui manquait
+depuis qu'on a ecarte les traces produites par ALSroads, qui n'etaient qu'une
+seconde lecture de la meme acquisition.
+
+* `dsr_gabarit_lateral()` : largeur de la trouee de canopee centree sur l'axe,
+  distance au bord de trouee de chaque cote, et — si la largeur roulable est
+  fournie — le **surplomb**, c'est-a-dire de combien les houppiers empietent sur
+  l'emprise. Repond a *ou elaguer*, ce qu'aucune sortie ne disait.
+* `dsr_trafficability()` gagne le critere **lateral** qui lui manquait : il ne
+  verifiait que pente, devers, rayon, largeur et gabarit vertical. Le critere
+  n'est pas l'empietement seul mais l'empietement **bas** (`SURPLOMB > 0` **et**
+  `HAUT_SURPLOMB < gabarit_min`) : un couvert ferme a 20 m au-dessus d'une route
+  ne gene aucun grumier, et en faire une inaptitude declarerait inapte la
+  quasi-totalite des routes forestieres.
+* `dsr_ndvi()` et `dsr_largeur_ndvi()` : signature spectrale du mineral, avec
+  seuil determine par la methode d'Otsu plutot qu'impose — un seuil fixe depend
+  du millesime, de la saison et de l'exposition. Le NDVI est la seule grandeur
+  optique calculee sur les pixels **natifs** de l'ortho (20 cm), donc la seule
+  a l'echelle d'une chaussee forestiere.
+* `dsr_canaux_externes()` accepte le vocabulaire optique (`chm`, `mnh`, `ndvi`,
+  `gndvi`, `savi`, `ndwi`) et **signale un canal plus grossier que la grille de
+  reference**. Apres alignement, plus rien dans la pile ne distingue un canal a
+  1,5 m d'un canal a 1 m ; le message le rappelle au moment ou l'information est
+  encore disponible.
+
+**Ce qui ne change pas, et ne doit pas changer.** La largeur de chaussee se
+mesure sur le MNT. Une trouee de canopee n'est pas une chaussee : sous futaie
+mature elle est plus etroite (les houppiers debordent), sur une coupe rase elle
+est beaucoup plus large. L'ecart n'est pas constant, il est correle a la
+structure du peuplement riverain, donc il change tout au long du troncon. Un
+decalage constant se calibre ; celui-la non — on mesurerait surtout l'age du
+peuplement voisin. `LARGEUR_DEGAGEE` et `LARGEUR_NDVI` n'alimentent pas
+`dsr_calibrer_largeur()`.
+
+Deux limites a connaitre avant d'y lire une mesure fine :
+
+* Un modele de hauteur de canopee predit depuis l'ortho travaille a une maille
+  de l'ordre de **1,5 m**. Une chaussee de 4 m n'y couvre que 2,7 cellules. La
+  sortie se lit a l'echelle du troncon, pas au decimetre. Sureechantillonne a
+  0,20 m, un tel raster *declare* une maille fine sans porter l'information
+  correspondante — le paquet ne peut pas le detecter et ne signale que la
+  resolution declaree.
+* `HAUT_SURPLOMB` est un indicateur **permissif** : un modele de hauteur de
+  canopee donne le sommet du houppier, pas le dessous de la branche. Il attrape
+  a coup sur la regeneration et les rejets de bord de route (le cas dominant) et
+  rate les branches basses des grands arbres. Seul `dsr_gabarit_libre()`, sur le
+  nuage classe, donne le dessous de branche.
+
+### Corrige
+
+* `dsr_trafficability()` echouait sur un trace d'une seule station (`vapply`
+  degradait la matrice de criteres en vecteur).
+
 ## Emprise normative Certu (fiche 1.7)
 
 * `dsr_emprise_certu()` : largeur de chaussee et emprise d'un troncon d'apres

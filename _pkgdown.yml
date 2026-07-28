@@ -52,6 +52,11 @@ reference:
       - dsr_profils
       - dsr_calibrer_largeur
       - dsr_emprise_certu
+  - title: Canal optique (ortho)
+    contents:
+      - dsr_ndvi
+      - dsr_largeur_ndvi
+      - dsr_gabarit_lateral
   - title: Praticabilite (grumier)
     contents:
       - dsr_trafficability

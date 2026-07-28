@@ -51,6 +51,20 @@ portage valide de la Relief Visualization Toolbox et qui rend directement les
 bandes \code{svf}, \code{openness_pos} et \code{openness_neg} (memes noms que le vocabulaire
 interne). Alimente-le avec la grille de reference 1 m de la dalle et
 l'alignement est exact.
+
+\strong{Canaux optiques.} Le vocabulaire accepte aussi des canaux derives de
+l'ortho et non du lidar : \code{chm}, \code{mnh}, \code{ndvi}, \code{gndvi}, \code{savi}, \code{ndwi}. Leur
+interet propre pour une conductivite apprise (\code{\link[=dsr_apprendre_conductivite]{dsr_apprendre_conductivite()}})
+est de ne partager \strong{aucune erreur} avec le nuage : le modele s'appuie alors
+sur deux acquisitions independantes au lieu de deux lectures de la meme. Un
+pipeline de hauteur de canopee predite depuis la BD ORTHO (RVB + IRC) fournit
+directement \code{chm}, \code{ndvi}, \code{gndvi}, \code{savi} et \code{ndwi} ; le NDVI se calcule
+aussi sur place avec \code{\link[=dsr_ndvi]{dsr_ndvi()}}.
+
+Contrepartie : ces modeles travaillent a une maille de l'ordre de 1,5 m, plus
+grossiere que la grille de reference. Le reechantillonnage vers 1 m est
+signale et ne cree pas d'information -- un tel canal sert a \strong{discriminer},
+jamais a mesurer une largeur (voir \code{\link[=dsr_gabarit_lateral]{dsr_gabarit_lateral()}}).
 }
 \examples{
 \donttest{

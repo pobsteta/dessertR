@@ -27,7 +27,9 @@ reference imparfait :
 - **mesurer** ce que la BD TOPO ne dit pas : largeur roulable, fosses, devers,
   pente longitudinale, rayon de courbure, gabarit libre sous branches ;
 - **qualifier la praticabilite**, en particulier l'aptitude au grumier, avec le
-  motif d'inaptitude et sa localisation ;
+  motif d'inaptitude et sa localisation, gabarit vertical **et** lateral ;
+- **situer l'elagage** : ou les houppiers empietent sur l'emprise, et de
+  combien ;
 - **diagnostiquer l'etat** en separant le signal geomorphologique (l'empreinte
   de la route dans le terrain, memoire longue) du signal de surface (l'emprise
   est-elle encore degagee) ; c'est la divergence entre les deux qui revele les
@@ -63,6 +65,14 @@ recale  <- dsr_repositionner(roads, sigma_geo, theta = pile[["theta"]],
 
 # 5. Mesure et praticabilite
 m       <- dsr_measure(recale[1, ], mnt, pas = 2, base_courbure = 30)
+
+# 5 bis. Canal optique (facultatif) : ou les houppiers debordent sur l'emprise.
+#        Le CHM vient de l'ortho, pas du lidar : deux sources independantes.
+chm     <- terra::rast("…/chm_predit.tif")
+lat     <- dsr_gabarit_lateral(recale[1, ], chm, largeur = m$stations)
+m$stations$SURPLOMB      <- lat$SURPLOMB
+m$stations$HAUT_SURPLOMB <- lat$HAUT_SURPLOMB
+
 apte    <- dsr_trafficability(m$stations, dsr_seuils_grumier())
 
 # 6. Detection de ce que la reference ignore
@@ -73,7 +83,7 @@ reseau  <- dsr_reseau(detecte, reseau_public = roads)
 dsr_export_gpkg(list(desserte = recale, stations = m$stations), "sortie.gpkg")
 ```
 
-## Trois partis pris
+## Quatre partis pris
 
 **Ne pas fusionner les signaux en un score unique.** `sigma_geo` dit qu'une
 route a marque le terrain, `sigma_surf` dit que l'emprise est encore degagee.
@@ -92,6 +102,14 @@ scene de controle portant une piste reelle et une trace fossile de meme
 signature geomorphologique, la detection sans `sigma_surf` remonte les deux ;
 avec `sigma_surf`, seule la piste reelle sort.
 
+**Un second avis n'en est un que s'il est independant.** Tout ce qui precede
+sort du meme nuage de points. Les canaux derives de l'ortho — NDVI, et les
+modeles de hauteur de canopee predits depuis la BD ORTHO — ne partagent aucune
+erreur avec le lidar, ce qui est exactement ce qui manquait a une desserte
+issue d'un autre algorithme applique au *meme* nuage. Independant ne veut pas
+dire interchangeable : ces canaux servent a **discriminer** et a situer le
+surplomb, jamais a mesurer une largeur de chaussee.
+
 ## Ce qui est mesure, et avec quelle fiabilite
 
 Les chiffres ci-dessous viennent de profils et de traces de **synthese, de
@@ -104,7 +122,9 @@ une validation terrain.
 | Devers | restitue a ±0,005 ; distingue du bombement de drainage, qui est symetrique |
 | Rayon de courbure | ajuste par cercle des moindres carres sur 30 m ; le cercle circonscrit a trois stations sous-estime d'un ordre de grandeur sur un trace vectorise |
 | Fosses (0/1/2) | detectes par creux lateral au-dela du bord de plateforme |
-| Gabarit libre | mesure directement sur le nuage classe, absent des bases existantes |
+| Gabarit libre (vertical) | mesure directement sur le nuage classe, absent des bases existantes |
+| Surplomb (lateral) | empietement des houppiers sur l'emprise, depuis un modele de hauteur de canopee ; hauteur lue **permissive** (sommet du houppier, pas dessous de branche) |
+| Largeur de la plage minerale (NDVI) | second avis independant du lidar, seuil determine par Otsu ; muet sur piste enherbee ou ombragee |
 | Etat de la desserte | valide sur dalle reelle : les routes actives ressortent `en_service` |
 
 Deux reglages meritent attention avant tout usage metier :
@@ -123,6 +143,7 @@ Deux reglages meritent attention avant tout usage metier :
 | Position planimetrique | **BD TOPO**, sans reserve — c'est le socle du recalage |
 | Existence d'un troncon | **BD TOPO** — base de la precision/rappel sur la detection |
 | Largeur | **aucune source cartographique** ; il faut un releve |
+| Trouee de canopee, NDVI | **second avis, jamais reference** — voir ci-dessous |
 
 `LARGEUR_DE_CHAUSSEE` de la BD TOPO est un attribut **declaratif**, souvent
 defaute par classe et vide sur `Chemin` et `Sentier` — soit precisement notre
@@ -134,6 +155,17 @@ equivalent — est disqualifiee **par construction** :
 [`dsr_calibrer_largeur()`](https://pobsteta.github.io/dessertR/reference/dsr_calibrer_largeur.html)
 retient le reglage qui *minimise* l'ecart, donc s'y caler ne mesurerait pas le
 biais de l'autre methode, ça le **reproduirait**.
+
+Une trouee de canopee tombe sous le meme interdit, pour une autre raison : ce
+n'est pas une chaussee. Sous futaie mature elle est plus etroite, les houppiers
+debordent ; sur une coupe rase elle est beaucoup plus large. L'ecart n'est pas
+constant, il est correle a la structure du peuplement riverain, donc il change
+tout au long du troncon. Un decalage constant se calibre ; celui-la non — on
+mesurerait surtout l'age du peuplement voisin. S'ajoute une contrainte
+d'echelle : un modele de hauteur de canopee predit depuis l'ortho travaille a
+une maille de l'ordre de **1,5 m**, ou une chaussee de 4 m ne couvre que 2,7
+cellules. `LARGEUR_DEGAGEE` et `LARGEUR_NDVI` n'alimentent donc pas
+`dsr_calibrer_largeur()`.
 
 Avec une vraie verite terrain (decametre, GNSS, photo-interpretation sur ortho
 THR), `dsr_calibrer_largeur()` balaie une grille de parametres et renvoie biais,
