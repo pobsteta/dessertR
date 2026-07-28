@@ -72,6 +72,8 @@
 
 - [`dsr_pathfinder()`](https://pobsteta.github.io/dessertR/reference/dsr_pathfinder.md)
   : Trace de moindre cout anisotrope entre deux points
+- [`dsr_repositionner()`](https://pobsteta.github.io/dessertR/reference/dsr_repositionner.md)
+  : Repositionner un reseau de reference sous contrainte
 
 ## Mesure de la geometrie
 
