@@ -72,3 +72,10 @@
 
 - [`dsr_pathfinder()`](https://pobsteta.github.io/dessertR/reference/dsr_pathfinder.md)
   : Trace de moindre cout anisotrope entre deux points
+
+## Mesure de la geometrie
+
+- [`dsr_measure()`](https://pobsteta.github.io/dessertR/reference/dsr_measure.md)
+  : Mesurer la geometrie de la desserte le long d'un trace
+- [`dsr_profils()`](https://pobsteta.github.io/dessertR/reference/dsr_profils.md)
+  : Profils transversaux le long d'un trace
