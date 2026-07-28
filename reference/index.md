@@ -101,3 +101,12 @@
   : Dedupliquer les traces paralleles
 - [`dsr_sfnetwork()`](https://pobsteta.github.io/dessertR/reference/dsr_sfnetwork.md)
   : Exporter le reseau en objet sfnetworks
+
+## Export et rapport
+
+- [`dsr_export_gpkg()`](https://pobsteta.github.io/dessertR/reference/dsr_export_gpkg.md)
+  : Exporter les couches d'un massif en GeoPackage
+- [`dsr_qml_categorise()`](https://pobsteta.github.io/dessertR/reference/dsr_qml_categorise.md)
+  : Ecrire un style QGIS categorise (.qml)
+- [`dsr_rapport()`](https://pobsteta.github.io/dessertR/reference/dsr_rapport.md)
+  : Rapport de synthese d'un traitement
