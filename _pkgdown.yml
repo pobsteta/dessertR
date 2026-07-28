@@ -44,3 +44,9 @@ reference:
     contents:
       - dsr_measure
       - dsr_profils
+  - title: Praticabilite (grumier)
+    contents:
+      - dsr_trafficability
+      - dsr_gabarit_libre
+      - dsr_places
+      - dsr_seuils_grumier

@@ -17,6 +17,9 @@
 #' @param pas Espacement des profils le long du trace, en metres. Defaut 2.
 #' @param demi_largeur Demi-largeur des profils, en metres. Defaut 8.
 #' @param pas_travers Pas d'echantillonnage transversal, en metres. Defaut 0.5.
+#' @param methode Interpolation de l'extraction : `"bilinear"` (defaut, pour un
+#'   MNT continu) ou `"simple"` (plus proche voisin, pour une grille a trous
+#'   comme la hauteur de sursol).
 #'
 #' @return Une liste : `stations` (`sf` `POINT` des centres, avec `chainage`),
 #'   `offsets` (positions transversales, m), `z` (matrice `stations x offsets`
@@ -24,7 +27,9 @@
 #'   unitaire par station).
 #' @seealso [dsr_measure()].
 #' @export
-dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5) {
+dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5,
+                        methode = c("bilinear", "simple")) {
+  methode <- match.arg(methode)
   if (is.list(trace) && !is.null(trace$trace)) trace <- trace$trace
   if (!inherits(mnt, "SpatRaster")) dsr_abort("{.arg mnt} doit etre un {.cls SpatRaster}.")
   if (terra::nlyr(mnt) > 1L) mnt <- mnt[[1]]
@@ -66,7 +71,7 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
   # Interpolation bilineaire : sans quoi un echantillonnage transversal plus fin
   # que la maille du MNT donne un profil en escalier (gradient corrompu).
   z <- matrix(
-    terra::extract(mnt, cbind(as.vector(px), as.vector(py)), method = "bilinear")[, 1],
+    terra::extract(mnt, cbind(as.vector(px), as.vector(py)), method = methode)[, 1],
     ns, no
   )
 
@@ -154,11 +159,14 @@ dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
   pente[1] <- g[1]; pente[ns] <- g[ns - 1]
   pente[2:(ns - 1)] <- (g[1:(ns - 2)] + g[2:(ns - 1)]) / 2
 
+  rayon <- dsr_rayon_courbure_vec(xy <- sf::st_coordinates(pr$stations)[, 1:2])
+
   st <- pr$stations
   st$LARGEUR_ROULABLE <- larg
   st$DEVERS <- dev
   st$FOSSES <- fos
   st$PENTE_LONG <- pente
+  st$RAYON_COURBURE <- rayon
 
   if (!is.null(confiance)) {
     st$CONFIANCE_MNT <- terra::extract(confiance[[1]], sf::st_coordinates(st))[, 1]
@@ -172,7 +180,7 @@ dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
     LARGEUR_ROULABLE_MED = stats::median(larg, na.rm = TRUE),
     PENTE_LONG_MOY = mean(abs(pente), na.rm = TRUE),
     PENTE_LONG_MAX = max(abs(pente), na.rm = TRUE),
-    RAYON_COURBURE_MIN = dsr_rayon_courbure_min(sf::st_coordinates(st)[, 1:2]),
+    RAYON_COURBURE_MIN = min(rayon[is.finite(rayon)], Inf),
     SINUOSITE = dsr_sinuosite(sf::st_coordinates(st)[, 1:2])
   )
   list(stations = st, resume = resume)
@@ -231,25 +239,22 @@ dsr_lisser <- function(v, w) {
 }
 
 
-# Rayon de courbure minimal d'une polyligne (m), via le cercle circonscrit a
-# chaque triplet de sommets consecutifs.
+# Rayon de courbure par sommet (m), via le cercle circonscrit a chaque triplet
+# de sommets consecutifs ; Inf aux extremites et sur les alignements.
 #' @noRd
-dsr_rayon_courbure_min <- function(xy) {
+dsr_rayon_courbure_vec <- function(xy) {
   n <- nrow(xy)
-  if (n < 3L) return(Inf)
-  rmin <- Inf
+  r <- rep(Inf, n)
+  if (n < 3L) return(r)
   for (i in 2:(n - 1)) {
     a <- sqrt(sum((xy[i, ] - xy[i - 1, ])^2))
     b <- sqrt(sum((xy[i + 1, ] - xy[i, ])^2))
-    c <- sqrt(sum((xy[i + 1, ] - xy[i - 1, ])^2))
+    cc <- sqrt(sum((xy[i + 1, ] - xy[i - 1, ])^2))
     aire <- abs((xy[i, 1] - xy[i - 1, 1]) * (xy[i + 1, 2] - xy[i - 1, 2]) -
       (xy[i + 1, 1] - xy[i - 1, 1]) * (xy[i, 2] - xy[i - 1, 2])) / 2
-    if (aire > 1e-9) {
-      r <- (a * b * c) / (4 * aire)
-      if (r < rmin) rmin <- r
-    }
+    if (aire > 1e-9) r[i] <- (a * b * cc) / (4 * aire)
   }
-  rmin
+  r
 }
 
 

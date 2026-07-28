@@ -4,7 +4,14 @@
 \alias{dsr_profils}
 \title{Profils transversaux le long d'un trace}
 \usage{
-dsr_profils(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5)
+dsr_profils(
+  trace,
+  mnt,
+  pas = 2,
+  demi_largeur = 8,
+  pas_travers = 0.5,
+  methode = c("bilinear", "simple")
+)
 }
 \arguments{
 \item{trace}{Un \code{sf}/\code{sfc} \code{LINESTRING} (ou l'element \code{trace} de
@@ -17,6 +24,10 @@ dsr_profils(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5)
 \item{demi_largeur}{Demi-largeur des profils, en metres. Defaut 8.}
 
 \item{pas_travers}{Pas d'echantillonnage transversal, en metres. Defaut 0.5.}
+
+\item{methode}{Interpolation de l'extraction : \code{"bilinear"} (defaut, pour un
+MNT continu) ou \code{"simple"} (plus proche voisin, pour une grille a trous
+comme la hauteur de sursol).}
 }
 \value{
 Une liste : \code{stations} (\code{sf} \code{POINT} des centres, avec \code{chainage}),
