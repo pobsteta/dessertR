@@ -321,8 +321,15 @@ dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 
   resume <- list(
     LARGEUR_ROULABLE_MED = stats::median(larg, na.rm = TRUE),
-    PENTE_LONG_MOY = mean(abs(pente), na.rm = TRUE),
-    PENTE_LONG_MAX = max(abs(pente), na.rm = TRUE),
+    PENTE_LONG_MOY = if (any(is.finite(pente))) {
+      mean(abs(pente[is.finite(pente)]))
+    } else NA_real_,
+    # Ecarter les NA AVANT le maximum, pas par na.rm : un MNT sans valeur sous
+    # le trace -- troncon hors emprise, trou de donnee -- rendait -Inf avec un
+    # avertissement, la ou NA_real_ dit exactement ce qui s'est passe.
+    PENTE_LONG_MAX = if (any(is.finite(pente))) {
+      max(abs(pente[is.finite(pente)]))
+    } else NA_real_,
     RAYON_COURBURE_MIN = min(rayon[is.finite(rayon)], Inf),
     RAYON_COURBURE_P05 = if (any(is.finite(rayon))) {
       unname(stats::quantile(rayon[is.finite(rayon)], 0.05))

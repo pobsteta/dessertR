@@ -439,3 +439,63 @@ test_that("dsr_calibrer_largeur classe les methodes sur une verite connue", {
   expect_equal(r$methode_largeur[1], "chaussee")
   expect_lt(r$mae[1], r$mae[2])
 })
+
+
+test_that("dsr_calibrer_largeur stratifie par confiance du MNT", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  # La stratification repond a « la largeur se degrade-t-elle la ou le sol est
+  # mal vu ? ». Elle exige une couche de confiance ; sans elle, une seule ligne
+  # par jeu de parametres.
+  mnt <- terra::rast(nrows = 120, ncols = 120, xmin = 0, xmax = 60, ymin = 0,
+    ymax = 60, resolution = 0.5, crs = "EPSG:2154")
+  xy <- terra::xyFromCell(mnt, seq_len(terra::ncell(mnt)))
+  terra::values(mnt) <- 100 + profil_accotement(xy[, 2] - 30, W = 4, epaule = 1)
+
+  # Densite de points sol : faible sur la premiere moitie, forte sur la seconde.
+  conf <- terra::rast(mnt)
+  terra::values(conf) <- ifelse(xy[, 1] < 30, 1, 8)
+
+  lig <- sf::st_sfc(sf::st_linestring(cbind(c(5, 55), c(30, 30))), crs = 2154)
+  r <- dsr_calibrer_largeur(sf::st_sf(geometry = lig), mnt,
+    sf::st_sf(largeur_m = 4, geometry = lig), "largeur_m",
+    grille = data.frame(tol_planeite = 0.10),
+    long_min = 30, pas_travers = 0.25, confiance = conf,
+    seuils_confiance = c(0, 2, 5, Inf))
+
+  # Deux strates peuplees (1 pt/m2 et 8 pt/m2), la troisieme vide est omise.
+  expect_equal(nrow(r), 2L)
+  expect_false(any(is.na(r$strate)))
+  expect_equal(sum(r$n), 26L)
+})
+
+test_that("dsr_calibrer_largeur refuse un jeu sans largeur de reference", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  # Cas tres concret : LARGEUR_DE_CHAUSSEE de la BD TOPO est frequemment vide
+  # ou nulle sur Chemin et Sentier. Il n y a alors rien a quoi se comparer, et
+  # mieux vaut le dire que rendre un tableau vide.
+  mnt <- terra::rast(nrows = 40, ncols = 40, xmin = 0, xmax = 20, ymin = 0,
+    ymax = 20, resolution = 0.5, crs = "EPSG:2154")
+  terra::values(mnt) <- 100
+  lig <- sf::st_sfc(sf::st_linestring(cbind(c(2, 18), c(10, 10))), crs = 2154)
+  expect_error(
+    dsr_calibrer_largeur(sf::st_sf(geometry = lig), mnt,
+      sf::st_sf(largeur_m = 0, geometry = lig), "largeur_m",
+      grille = data.frame(tol_planeite = 0.10), long_min = 5),
+    "Aucune station appariee"
+  )
+})
+
+test_that("dsr_measure ne rale pas sur un MNT sans valeur sous le trace", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  mnt <- terra::rast(nrows = 40, ncols = 40, xmin = 0, xmax = 20, ymin = 0,
+    ymax = 20, resolution = 0.5, crs = "EPSG:2154")
+  terra::values(mnt) <- NA_real_
+  tr <- sf::st_sf(geometry = sf::st_sfc(
+    sf::st_linestring(cbind(c(2, 18), c(10, 10))), crs = 2154))
+  expect_silent(m <- dsr_measure(tr, mnt, pas = 2))
+  expect_true(is.na(m$resume$PENTE_LONG_MAX))
+  expect_true(is.na(m$resume$PENTE_LONG_MOY))
+})

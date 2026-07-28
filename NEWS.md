@@ -18,6 +18,13 @@ produit trois observations.
   atteignant un bord de dalle, donc sur tout massif. Le verdict etait deja bon
   (aucun fosse) ; ce sont des milliers d'avertissements qui noyaient ceux qui
   comptent.
+* `dsr_measure()` rendait `PENTE_LONG_MAX = -Inf` avec un avertissement quand
+  le MNT n'a aucune valeur sous le trace (troncon hors emprise, trou de
+  donnee). Il rend `NA`, qui dit ce qui s'est passe.
+* `dsr_calibrer_largeur()` n'avait aucun test. Elle en a quatre, dont la
+  stratification par confiance du MNT -- le mecanisme qui repond a « la largeur
+  se degrade-t-elle la ou le sol est mal vu ? » -- qui n'avait jamais ete
+  executee.
 
 ### Observe, puis corrige dans les sections suivantes
 
