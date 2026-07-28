@@ -90,3 +90,14 @@
   : Detecter les elargissements (places de depot / retournement)
 - [`dsr_seuils_grumier()`](https://pobsteta.github.io/dessertR/reference/dsr_seuils_grumier.md)
   : Seuils d'aptitude au grumier par defaut
+
+## Reseau (topologie)
+
+- [`dsr_reseau()`](https://pobsteta.github.io/dessertR/reference/dsr_reseau.md)
+  : Construire un reseau topologiquement coherent
+- [`dsr_coller_noeuds()`](https://pobsteta.github.io/dessertR/reference/dsr_coller_noeuds.md)
+  : Coller les extremites proches sur des noeuds partages
+- [`dsr_dedupe_paralleles()`](https://pobsteta.github.io/dessertR/reference/dsr_dedupe_paralleles.md)
+  : Dedupliquer les traces paralleles
+- [`dsr_sfnetwork()`](https://pobsteta.github.io/dessertR/reference/dsr_sfnetwork.md)
+  : Exporter le reseau en objet sfnetworks
