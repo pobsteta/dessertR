@@ -1,4 +1,14 @@
-# dessertR (developpement)
+# dessertR 1.0.0
+
+Premiere version complete. La chaine fonctionnelle du BRIEF est implementee de
+bout en bout (catalogage, canal geomorphologique + nuage, conductivite
+`sigma_geo` / `sigma_surf`, pathfinder anisotrope Rust, repositionnement
+contraint par la BD TOPO, etat par divergence, mesure de la geometrie,
+praticabilite grumier, topologie reseau, detection hors reference vectorisee,
+conductivite apprise, canal optique, export GPKG/QGIS), avec noyau Rust, jeu de
+validation reproductible sur donnees Lidar HD reelles et dalle d'exemple
+versionnee.
+
 
 ## Premier passage du harnais de validation sur donnee reelle
 

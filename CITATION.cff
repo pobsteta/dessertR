@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "Si vous utilisez ce logiciel, merci de citer la methode d'origine."
 title: dessertR
-version: "0.1.0"
+version: "1.0.0"
 abstract: >-
   Correction, mesure et qualification de la desserte forestiere a partir des
   donnees Lidar HD de l'IGN et de la BD TOPO.
