@@ -86,15 +86,29 @@ dsr_gabarit_libre <- function(trace, dalle, demi_largeur_route = 1.5,
 #' qui le rend exploitable sur le terrain, le `MOTIF_INAPTITUDE` : **quel critere
 #' bloque, et ou** (BRIEF section 3.7). Un booleen sans motif est inutilisable.
 #'
+#' @details
+#' Cinq criteres, dont trois toujours evalues (`largeur`, `pente`, `rayon`) et
+#' deux qui ne le sont que si les colonnes correspondantes sont presentes :
+#'
+#' - `gabarit` -- hauteur libre sous branches ([dsr_gabarit_libre()], sur le
+#'   nuage classe) inferieure a `gabarit_min` ;
+#' - `surplomb` -- houppier empietant sur l'emprise **et** situe sous
+#'   `gabarit_min` ([dsr_gabarit_lateral()], sur un modele de hauteur de
+#'   canopee). L'empietement seul ne bloque rien : un couvert ferme a 20 m
+#'   au-dessus d'une route ne gene aucun grumier.
+#'
+#' Un critere non evaluable (`NA`) ne declare jamais d'inaptitude.
+#'
 #' @param stations Le `sf` `stations` de [dsr_measure()] (colonnes
-#'   `LARGEUR_ROULABLE`, `PENTE_LONG`, `RAYON_COURBURE` ; `GABARIT_LIBRE`
-#'   optionnel).
+#'   `LARGEUR_ROULABLE`, `PENTE_LONG`, `RAYON_COURBURE` ; `GABARIT_LIBRE`,
+#'   `SURPLOMB` et `HAUT_SURPLOMB` optionnels).
 #' @param seuils Seuils d'aptitude ; defaut [dsr_seuils_grumier()].
 #'
 #' @return Une liste : `stations` (les memes, avec `APTE_GRUMIER` logique et
 #'   `MOTIF_INAPTITUDE` -- criteres bloquants separes par `+`, `""` si apte) et
 #'   `resume` (part de longueur apte et compte par motif).
-#' @seealso [dsr_measure()], [dsr_gabarit_libre()], [dsr_seuils_grumier()].
+#' @seealso [dsr_measure()], [dsr_gabarit_libre()], [dsr_gabarit_lateral()],
+#'   [dsr_seuils_grumier()].
 #' @export
 dsr_trafficability <- function(stations, seuils = dsr_seuils_grumier()) {
   if (!inherits(stations, "sf")) {
@@ -114,8 +128,22 @@ dsr_trafficability <- function(stations, seuils = dsr_seuils_grumier()) {
   if ("GABARIT_LIBRE" %in% names(stations)) {
     criteres$gabarit <- stations$GABARIT_LIBRE < seuils$gabarit_min
   }
+  # Critere LATERAL : un houppier qui empiete sur l'emprise ne bloque que s'il
+  # est BAS. Un couvert ferme a 20 m au-dessus d'une route ne gene aucun
+  # grumier -- en faire une inaptitude declarerait inapte la quasi-totalite des
+  # routes forestieres. D'ou la conjonction : empietement ET hauteur sous le
+  # gabarit. Meme seuil que le critere vertical, c'est la meme contrainte.
+  if (all(c("SURPLOMB", "HAUT_SURPLOMB") %in% names(stations))) {
+    criteres$surplomb <- stations$SURPLOMB > 0 &
+      stations$HAUT_SURPLOMB < seuils$gabarit_min
+  }
 
-  mat <- vapply(criteres, function(x) isTRUE_vec(x), logical(nrow(stations)))
+  # vapply degrade en vecteur quand il n'y a qu'une station : forcer la matrice,
+  # sans quoi apply() echoue sur un trace d'une seule station.
+  mat <- matrix(
+    vapply(criteres, function(x) isTRUE_vec(x), logical(nrow(stations))),
+    nrow = nrow(stations), dimnames = list(NULL, names(criteres))
+  )
   motif <- apply(mat, 1, function(r) paste(names(criteres)[r], collapse = "+"))
   apte <- motif == ""
 
