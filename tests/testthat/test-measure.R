@@ -259,3 +259,72 @@ test_that("la detection de fosse reste muette quand la fenetre est hors emprise"
   )
   expect_equal(m$fosses, 0L)
 })
+
+
+# Profil en travers de synthese : chaussee bombee de largeur W, fosse et talus
+# de deblai d'un cote, remblai de l'autre -- la geometrie d'une route de
+# montagne, ou le critere de fosse par simple descente echoue.
+profil_montagne <- function(x, W = 4, bomb = 0.03, deblai = 0.6, remblai = -0.6,
+                            fosse = 0.5, larg_fosse = 0.8) {
+  h <- W / 2
+  vapply(x, function(u) {
+    if (abs(u) <= h) return(-bomb * abs(u))
+    d <- abs(u) - h
+    zb <- -bomb * h
+    if (u < 0) {
+      if (d <= larg_fosse) zb - fosse * sin(pi * d / larg_fosse)
+      else zb + deblai * (d - larg_fosse)
+    } else {
+      zb + remblai * d
+    }
+  }, numeric(1))
+}
+
+test_that("un versant qui descend sans remonter n'est pas un fosse", {
+  off <- seq(-8, 8, by = 0.25)
+  ic <- which.min(abs(off))
+  zi <- dessertR:::dsr_lisser(profil_montagne(off), 3)
+  m <- dessertR:::dsr_mesurer_profil(zi, off, ic, seuil_devers = 0.15,
+    prof_fosse = 0.2)
+  # Fosse amont seulement : le remblai aval descend de plusieurs metres mais ne
+  # remonte jamais. Le critere par simple descente en declarait deux.
+  expect_equal(m$fosses, 1L)
+})
+
+test_that("un fosse de chaque cote est bien compte deux fois", {
+  off <- seq(-8, 8, by = 0.25)
+  ic <- which.min(abs(off))
+  # Profil symetrique : le cote amont (fosse + deblai) mire des deux cotes.
+  sym <- profil_montagne(-abs(off))
+  zi <- dessertR:::dsr_lisser(sym, 3)
+  m <- dessertR:::dsr_mesurer_profil(zi, off, ic, seuil_devers = 0.15,
+    prof_fosse = 0.2)
+  expect_equal(m$fosses, 2L)
+})
+
+test_that("aucun fosse n'est declare sur un deblai sec", {
+  off <- seq(-8, 8, by = 0.25)
+  ic <- which.min(abs(off))
+  zi <- dessertR:::dsr_lisser(profil_montagne(off, fosse = 0), 3)
+  m <- dessertR:::dsr_mesurer_profil(zi, off, ic, seuil_devers = 0.15,
+    prof_fosse = 0.2)
+  expect_equal(m$fosses, 0L)
+})
+
+test_that("dsr_measure rend les deux bords, et leur somme fait la largeur", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  mnt <- terra::rast(nrows = 60, ncols = 60, xmin = 0, xmax = 60, ymin = 0,
+    ymax = 60, resolution = 1, crs = "EPSG:2154")
+  xy <- terra::xyFromCell(mnt, seq_len(terra::ncell(mnt)))
+  # Plateforme plate de 4 m centree sur y = 30, talus de part et d'autre.
+  d <- abs(xy[, 2] - 30)
+  terra::values(mnt) <- ifelse(d <= 2, 100, 100 - 0.6 * (d - 2))
+  tr <- sf::st_sf(geometry = sf::st_sfc(
+    sf::st_linestring(cbind(c(5, 55), c(30, 30))), crs = 2154))
+  m <- dsr_measure(tr, mnt, pas = 2, pas_travers = 0.25)
+  expect_true(all(c("BORD_G", "BORD_D") %in% names(m$stations)))
+  expect_equal(m$stations$BORD_G + m$stations$BORD_D,
+    m$stations$LARGEUR_ROULABLE, tolerance = 1e-8)
+  expect_true(all(m$stations$BORD_G > 0 & m$stations$BORD_D > 0))
+})

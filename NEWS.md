@@ -19,25 +19,53 @@ produit trois observations.
   (aucun fosse) ; ce sont des milliers d'avertissements qui noyaient ceux qui
   comptent.
 
+## Fosses : un creux, pas une descente
+
+`FOSSES` exige maintenant que le profil **descende puis remonte** de
+`prof_fosse` de part et d'autre d'un point bas, au lieu de se contenter de la
+descente. Un versant qui descend sans jamais remonter n'est plus un fosse.
+
+Sur l'extrait Lidar HD livre avec le paquet, le compte passe de 211 fosses
+declares sur 222 stations a **zero** — et zero est la bonne reponse : le profil
+median montre une plateforme de -1,5 a +2,5 m puis une descente **monotone**
+jusqu'a -3,31 m a 8 m de l'axe, sans aucun creux. Cote amont le terrain remonte
+des le bord : le talus de deblai attaque directement, sans fosse.
+
+Ce que cela ne prouve pas : que le detecteur trouve les vrais fosses. Zero
+detection sur une route qui n'en a pas ne dit rien de ce point. Ce sont les
+profils de synthese qui l'etablissent — fosse d'un cote, des deux cotes, aucun,
+et un fosse plus faible que le seuil.
+
+## Largeur : les deux bords sont renvoyes separement
+
+`dsr_measure()` ajoute `BORD_G` et `BORD_D`, distance de l'axe a chaque bord de
+plateforme (leur somme fait `LARGEUR_ROULABLE`). Une largeur unique masquait une
+dissymetrie qui est, sur route de montagne, la premiere chose a regarder.
+
+Precision sur ce que la largeur mesure, et qui manquait a la documentation :
+l'estimateur s'arrete la ou la surface quitte le plan de chaussee, donc il
+**retient l'accotement** tant que celui-ci reste dans `tol_planeite`. Sur un
+profil de synthese de chaussee 4,00 m, il rend 3,89 m sans accotement, 4,75 m
+avec un accotement de 0,5 m a 6 %, 6,54 m avec 1,5 m a 4 %. Ce n'est pas une
+erreur : un accotement a 4 % est roulable, et la grandeur mesuree est la
+**plateforme**, pas la chaussee au sens du profil en travers normatif. L'ecart
+entre les deux se tranche avec le gestionnaire, pas au seuil.
+
 ### Observe
 
 * **Le controle ordinal passe** : `Route empierree` 3,00 m contre `Chemin`
   2,09 m. Premiere confirmation sur donnee reelle que la mesure de largeur est
   coherente -- coherente, pas calibree.
-* **`FOSSES` n'est pas exploitable en devers.** Le critere cherche un creux
-  sous le bord de plateforme dans une fenetre de 4 m. Sur une route en
-  deblai-remblai, le versant aval est plus bas que le bord de 3 m : la
-  condition est satisfaite partout. Mesure sur le troncon 1 : axe a +3,19 m
-  du bord amont et a -2,96 m du bord aval, et un fosse declare a 68 stations
-  sur 70. Ce n'est pas un fosse, c'est le versant.
-* **Le bruit de largeur vient du bord AVAL, pas des deux.** Sur les deux
-  troncons de route empierree, l'ecart interquartile de la position du bord
-  vaut 0,50 m cote amont contre 1,00 a 1,25 m cote aval. Le talus de deblai
-  amont est une rupture franche, que le critere de planeite saisit nettement ;
-  la crete du remblai aval prolonge le plan de chaussee avant de decrocher, et
-  l'estimateur deborde sur l'accotement d'une quantite variable. La largeur est
-  donc biaisee LARGE en montagne, en sens inverse du biais de grille, sans que
-  les deux se compensent de facon previsible.
+* **`FOSSES` n'etait pas exploitable en devers** — corrige ci-dessous. Le
+  critere ne testait que la descente sous le bord de plateforme dans une
+  fenetre de 4 m. Sur une route en deblai-remblai le versant aval est plus bas
+  de 3 m : la condition etait vraie partout. Mesure sur le troncon 1 : axe a
+  +3,19 m du bord amont et a -2,96 m du bord aval, fosse declare a 68 stations
+  sur 70. Ce n'etait pas un fosse, c'etait le versant.
+* **Les deux bords de plateforme ne se comportent pas pareil.** Ecart
+  interquartile de la position du bord le long du troncon : 0,50 m cote amont,
+  1,00 a 1,25 m cote aval, sur les deux troncons de route empierree. C'est
+  desormais lisible dans les sorties (`BORD_G`, `BORD_D`).
 
 ## Canal optique : une seconde source, independante du lidar
 

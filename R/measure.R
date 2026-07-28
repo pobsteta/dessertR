@@ -147,6 +147,32 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 #' pas un devers : `DEVERS` ne retient que l'inclinaison d'ensemble, celle qui
 #' compte pour la stabilite d'un chargement.
 #'
+#' **Ce que la largeur inclut, et pourquoi les deux bords sont renvoyes a part.**
+#' L'estimateur s'arrete la ou la surface quitte le plan de chaussee, donc il
+#' retient l'accotement tant que celui-ci reste dans `tol_planeite`. Sur un
+#' profil de synthese de chaussee 4,00 m, la largeur mesuree vaut 3,89 m sans
+#' accotement, 4,75 m avec un accotement de 0,5 m a 6 %, 6,54 m avec 1,5 m a
+#' 4 %. Ce n'est pas une erreur de mesure : un accotement a 4 % est roulable, et
+#' la grandeur mesuree est la **plateforme**, pas la chaussee au sens du profil
+#' en travers normatif. L'ecart entre les deux se tranche avec le gestionnaire
+#' (voir [dsr_emprise_certu()]), pas au seuil.
+#'
+#' Consequence directe sur une route de montagne en deblai-remblai : les deux
+#' bords ne se comportent pas de la meme facon. Sur l'extrait Lidar HD livre
+#' avec le paquet, la position du bord amont, adossee a un talus de deblai
+#' construit, a un ecart interquartile de 0,50 m le long du troncon ; le bord
+#' aval, sur remblai, de 1,00 a 1,25 m. La variation est **lisse** (le bord se
+#' deplace d'une seule maille d'echantillonnage entre stations voisines,
+#' autocorrelation 0,44 a 0,68) : c'est la geometrie de l'accotement qui varie,
+#' pas la mesure qui saute. `BORD_G` et `BORD_D` sont renvoyes separement pour
+#' que cette dissymetrie reste lisible au lieu d'etre noyee dans une largeur
+#' unique.
+#'
+#' **Fosses.** Un fosse est un **creux** : on descend sous le bord de plateforme
+#' d'au moins `prof_fosse`, puis on remonte d'autant. Ne tester que la descente
+#' rend le critere vrai partout des que la route est en devers, le versant aval
+#' etant plus bas de plusieurs metres sur toute la fenetre de recherche.
+#'
 #' **Rayon de courbure.** Il est ajuste par un cercle des moindres carres sur
 #' une fenetre de `base_courbure` metres, et non sur trois stations
 #' consecutives. La quantification du trace vectorise (un sommet par cellule)
@@ -190,7 +216,8 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 #'   [dsr_layers_pc()]) pour `CONFIANCE_MNT` ; `NULL` pour l'omettre.
 #'
 #' @return Une liste : `stations` (`sf` `POINT` avec `LARGEUR_ROULABLE`,
-#'   `DEVERS`, `FOSSES`, `PENTE_LONG`, et si fournis `CONFIANCE_MNT`,
+#'   `BORD_G` et `BORD_D` (distance de l'axe a chaque bord, m -- leur somme fait
+#'   la largeur), `DEVERS`, `FOSSES`, `PENTE_LONG`, et si fournis `CONFIANCE_MNT`,
 #'   `DEPLACEMENT`), et `resume` (metriques globales : `LARGEUR_ROULABLE_MED`,
 #'   `PENTE_LONG_MOY`, `PENTE_LONG_MAX`, `RAYON_COURBURE_MIN`,
 #'   `RAYON_COURBURE_P05`, `SINUOSITE`).
@@ -221,11 +248,13 @@ dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
   ic <- which.min(abs(offsets)) # colonne du centre (offset ~ 0)
 
   larg <- numeric(ns); dev <- numeric(ns); fos <- integer(ns)
+  bg <- numeric(ns); bd <- numeric(ns)
   for (i in seq_len(ns)) {
     zi <- dsr_lisser(z[i, ], liss_travers) # attenue le bruit du MNT sous couvert
     m <- dsr_mesurer_profil(zi, offsets, ic, seuil_devers, prof_fosse,
       methode = methode_largeur, tol_planeite = tol_planeite)
     larg[i] <- m$largeur; dev[i] <- m$devers; fos[i] <- m$fosses
+    bg[i] <- m$bord_g; bd[i] <- m$bord_d
   }
 
   # Pente longitudinale locale (dz/ds) au centre du trace, sur z lisse.
@@ -246,6 +275,8 @@ dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 
   st <- pr$stations
   st$LARGEUR_ROULABLE <- larg
+  st$BORD_G <- bg
+  st$BORD_D <- bd
   st$DEVERS <- dev
   st$FOSSES <- fos
   st$PENTE_LONG <- pente
@@ -293,24 +324,37 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
     .dsr_largeur_gradient(zi, offsets, ic, seuil_devers)
   }
   if (m$largeur <= 0) {
-    return(list(largeur = 0, devers = m$devers, fosses = 0L))
+    return(list(largeur = 0, devers = m$devers, fosses = 0L,
+      bord_g = NA_real_, bord_d = NA_real_))
   }
 
   fenetre <- max(1L, round(4 / pt))
   fosse <- function(edge, dir) {
     idx <- edge + dir * seq_len(fenetre)
     idx <- idx[idx >= 1 & idx <= no]
-    # Ecarter les NA AVANT le minimum, pas par na.rm : une fenetre entierement
-    # hors emprise du MNT -- le cas de tout troncon qui atteint le bord de
-    # dalle, donc de tout massif -- rendrait Inf avec un avertissement. Le
-    # verdict etait deja bon (aucun fosse), mais des milliers d'avertissements
-    # noient ceux qui comptent.
+    # Ecarter les NA AVANT toute reduction, pas par na.rm : une fenetre
+    # entierement hors emprise du MNT -- le cas de tout troncon qui atteint le
+    # bord de dalle, donc de tout massif -- declenchait un avertissement par
+    # station.
     idx <- idx[!is.na(zi[idx])]
-    if (length(idx) == 0L) return(0L)
-    as.integer((zi[edge] - min(zi[idx])) > prof_fosse)
+    if (length(idx) < 2L || is.na(zi[edge])) return(0L)
+
+    # Un fosse est un CREUX : on descend sous le bord de plateforme, puis on
+    # remonte. Se contenter de la descente -- « un point plus bas que le bord
+    # de `prof_fosse` » -- rend vrai partout des que la route est en devers :
+    # le versant aval est plus bas de plusieurs metres sur toute la fenetre.
+    # Mesure sur l'extrait Lidar HD livre avec le paquet, route de montagne en
+    # deblai-remblai : un fosse etait declare a 68 stations sur 70. Ce n'etait
+    # pas un fosse, c'etait le versant.
+    z <- zi[idx]
+    # Plus haut point situe AU-DELA de chaque candidat : c'est la contre-berge.
+    apres <- rev(cummax(rev(z)))
+    creux <- (zi[edge] - z) >= prof_fosse & (apres - z) >= prof_fosse
+    as.integer(any(creux))
   }
   list(largeur = m$largeur, devers = m$devers,
-    fosses = fosse(m$il, -1L) + fosse(m$ir, 1L))
+    fosses = fosse(m$il, -1L) + fosse(m$ir, 1L),
+    bord_g = -m$xg, bord_d = m$xd)
 }
 
 
@@ -333,7 +377,8 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
   k <- max(2L, as.integer(round(base_plan / pt)))
   win <- max(1L, ic - k):min(no, ic + k)
   ok <- is.finite(zi[win])
-  if (sum(ok) < 3L) return(list(largeur = 0, devers = NA_real_, il = ic, ir = ic))
+  if (sum(ok) < 3L) return(list(largeur = 0, devers = NA_real_, il = ic, ir = ic,
+      xg = NA_real_, xd = NA_real_))
 
   fit <- stats::lm.fit(cbind(1, offsets[win][ok]), zi[win][ok])
   res <- zi - (fit$coefficients[1] + fit$coefficients[2] * offsets)
@@ -363,7 +408,7 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
   }
   g <- bord(-1L); d <- bord(1L)
   list(largeur = max(0, d$pos - g$pos), devers = unname(fit$coefficients[2]),
-    il = g$idx, ir = d$idx)
+    il = g$idx, ir = d$idx, xg = g$pos, xd = d$pos)
 }
 
 
@@ -387,7 +432,8 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
   deb <- fin - rr$lengths + 1L
   segs <- which(rr$values)
   if (length(segs) == 0L) {
-    return(list(largeur = 0, devers = NA_real_, il = ic, ir = ic))
+    return(list(largeur = 0, devers = NA_real_, il = ic, ir = ic,
+      xg = NA_real_, xd = NA_real_))
   }
   contient <- vapply(segs, function(k) deb[k] <= ic && ic <= fin[k], logical(1))
   k <- if (any(contient)) segs[which(contient)[1]] else {
@@ -397,7 +443,8 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
   }
   il <- deb[k]; ir <- fin[k]
   list(largeur = offsets[ir] - offsets[il],
-    devers = mean(grad[il:ir], na.rm = TRUE), il = il, ir = ir)
+    devers = mean(grad[il:ir], na.rm = TRUE), il = il, ir = ir,
+    xg = offsets[il], xd = offsets[ir])
 }
 
 

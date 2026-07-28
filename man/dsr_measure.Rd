@@ -58,7 +58,8 @@ d'origine) pour le \code{DEPLACEMENT} ; \code{NULL} pour l'omettre.}
 }
 \value{
 Une liste : \code{stations} (\code{sf} \code{POINT} avec \code{LARGEUR_ROULABLE},
-\code{DEVERS}, \code{FOSSES}, \code{PENTE_LONG}, et si fournis \code{CONFIANCE_MNT},
+\code{BORD_G} et \code{BORD_D} (distance de l'axe a chaque bord, m -- leur somme fait
+la largeur), \code{DEVERS}, \code{FOSSES}, \code{PENTE_LONG}, et si fournis \code{CONFIANCE_MNT},
 \code{DEPLACEMENT}), et \code{resume} (metriques globales : \code{LARGEUR_ROULABLE_MED},
 \code{PENTE_LONG_MOY}, \code{PENTE_LONG_MAX}, \code{RAYON_COURBURE_MIN},
 \code{RAYON_COURBURE_P05}, \code{SINUOSITE}).
@@ -125,6 +126,32 @@ bombement}, soit \verb{bombement x largeur / 2}. Une route de 6 m bombee a 3 \%
 18 cm) est tronquee a 4,4 m et demande 0,20. Le bombement, symetrique, n'est
 pas un devers : \code{DEVERS} ne retient que l'inclinaison d'ensemble, celle qui
 compte pour la stabilite d'un chargement.
+
+\strong{Ce que la largeur inclut, et pourquoi les deux bords sont renvoyes a part.}
+L'estimateur s'arrete la ou la surface quitte le plan de chaussee, donc il
+retient l'accotement tant que celui-ci reste dans \code{tol_planeite}. Sur un
+profil de synthese de chaussee 4,00 m, la largeur mesuree vaut 3,89 m sans
+accotement, 4,75 m avec un accotement de 0,5 m a 6 \%, 6,54 m avec 1,5 m a
+4 \%. Ce n'est pas une erreur de mesure : un accotement a 4 \% est roulable, et
+la grandeur mesuree est la \strong{plateforme}, pas la chaussee au sens du profil
+en travers normatif. L'ecart entre les deux se tranche avec le gestionnaire
+(voir \code{\link[=dsr_emprise_certu]{dsr_emprise_certu()}}), pas au seuil.
+
+Consequence directe sur une route de montagne en deblai-remblai : les deux
+bords ne se comportent pas de la meme facon. Sur l'extrait Lidar HD livre
+avec le paquet, la position du bord amont, adossee a un talus de deblai
+construit, a un ecart interquartile de 0,50 m le long du troncon ; le bord
+aval, sur remblai, de 1,00 a 1,25 m. La variation est \strong{lisse} (le bord se
+deplace d'une seule maille d'echantillonnage entre stations voisines,
+autocorrelation 0,44 a 0,68) : c'est la geometrie de l'accotement qui varie,
+pas la mesure qui saute. \code{BORD_G} et \code{BORD_D} sont renvoyes separement pour
+que cette dissymetrie reste lisible au lieu d'etre noyee dans une largeur
+unique.
+
+\strong{Fosses.} Un fosse est un \strong{creux} : on descend sous le bord de plateforme
+d'au moins \code{prof_fosse}, puis on remonte d'autant. Ne tester que la descente
+rend le critere vrai partout des que la route est en devers, le versant aval
+etant plus bas de plusieurs metres sur toute la fenetre de recherche.
 
 \strong{Rayon de courbure.} Il est ajuste par un cercle des moindres carres sur
 une fenetre de \code{base_courbure} metres, et non sur trois stations
