@@ -59,3 +59,36 @@ test_that("theta non aligne sur sigma_geo est refuse", {
   th <- make_grid(25, 0)
   expect_error(dsr_pathfinder(sg, 1, 400, theta = th), "aligne")
 })
+
+test_that("dsr_repositionner : respecte la contrainte laterale et conserve tout", {
+  skip_if_not_installed("terra"); skip_if_not_installed("sf")
+  n <- 60
+  sg <- terra::rast(nrows = n, ncols = n, xmin = 0, xmax = n, ymin = 0, ymax = n,
+    crs = "EPSG:2154")
+  terra::values(sg) <- 0.05
+  xy <- terra::xyFromCell(sg, seq_len(terra::ncell(sg)))
+  sg[abs(xy[, 2] - 30) < 1] <- 0.7    # axe reel proche de la BD TOPO
+  sg[abs(xy[, 2] - 45) < 1] <- 0.95   # leurre parallele fort a 15 m
+  reseau <- sf::st_sf(id = 1:2, geometry = sf::st_sfc(
+    sf::st_linestring(cbind(c(2, 58), c(30, 30))),
+    sf::st_linestring(cbind(c(2, 58), c(50, 50))), crs = 2154))
+
+  r <- dsr_repositionner(reseau, sg, deviation_max = 10, attraction = 1)
+  # aucun troncon perdu
+  expect_equal(nrow(r), nrow(reseau))
+  # jamais au-dela de la contrainte (le leurre a 15 m est hors d'atteinte)
+  expect_true(all(r$DEPLACEMENT_MAX[r$RECALE] <= 10 + 1e-6))
+  expect_true(all(c("DEPLACEMENT_MAX", "DEPLACEMENT_MOY", "RECALE") %in% names(r)))
+})
+
+test_that("dsr_repositionner : replie sur l'axe si le pathfinder echoue", {
+  skip_if_not_installed("terra"); skip_if_not_installed("sf")
+  sg <- terra::rast(nrows = 20, ncols = 20, xmin = 0, xmax = 20, ymin = 0,
+    ymax = 20, crs = "EPSG:2154")
+  terra::values(sg) <- NA_real_ # aucune conductivite -> pathfinder impossible
+  reseau <- sf::st_sf(id = 1, geometry = sf::st_sfc(
+    sf::st_linestring(cbind(c(2, 18), c(10, 10))), crs = 2154))
+  r <- dsr_repositionner(reseau, sg, deviation_max = 10)
+  expect_equal(nrow(r), 1)          # conserve
+  expect_false(r$RECALE[1])         # repli sur l'origine
+})

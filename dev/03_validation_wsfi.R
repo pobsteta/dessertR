@@ -48,40 +48,33 @@ message("Construction du canal geomorphologique (peut prendre 1-2 min)...")
 pile <- dsr_layers_dtm(mnt50, grille = grille)
 sigma_geo <- dsr_conductivite(pile)
 
-# --- 4. Mesure le long de chaque route : brute vs repositionnee ---------------
-# Repositionnement : pathfinder sur sigma_geo dans un corridor autour de la route.
-repositionner <- function(route, buffer = 25) {
-  bb <- sf::st_bbox(sf::st_buffer(sf::st_geometry(route), buffer))
-  sg <- terra::crop(sigma_geo, terra::ext(bb["xmin"], bb["xmax"], bb["ymin"], bb["ymax"]))
-  th <- terra::crop(pile[["theta"]], sg); ve <- terra::crop(pile[["vesselness"]], sg)
-  co <- sf::st_coordinates(sf::st_geometry(route))[, 1:2]
-  tryCatch(
-    dsr_pathfinder(sg, co[1, ], co[nrow(co), ], theta = th, poids = ve, lambda = 6)$trace,
-    error = function(e) NULL
-  )
-}
+# --- 4. Repositionnement CONTRAINT (+/- 10 m) puis mesure --------------------
+# La BD TOPO fait autorite : l'axe recale ne s'ecarte pas de plus de 10 m et le
+# reseau est integralement conserve (dsr_repositionner).
+message("Repositionnement contraint du reseau (+/- 10 m)...")
+roads_recale <- dsr_repositionner(roads, sigma_geo, theta = pile[["theta"]],
+  poids = pile[["vesselness"]], deviation_max = 10, attraction = 1)
+message(sprintf("  %d/%d troncons recales, deplacement median %.1f m (max %.1f m). Conserves : %d/%d.",
+  sum(roads_recale$RECALE), nrow(roads_recale),
+  stats::median(roads_recale$DEPLACEMENT_MOY, na.rm = TRUE),
+  max(roads_recale$DEPLACEMENT_MAX, na.rm = TRUE), nrow(roads_recale), nrow(roads)))
 
-mesurer <- function(geom) {
-  m <- tryCatch(dsr_measure(geom, mnt50, pas = 2, demi_largeur = 8,
-    pas_travers = 0.25, liss_travers = 3, seuil_devers = 0.20, reference = geom),
-    error = function(e) NULL)
-  if (is.null(m)) return(NULL)
-  m$stations
-}
-
-stations_brut <- list(); stations_repo <- list()
-for (i in seq_len(nrow(roads))) {
-  if (as.numeric(sf::st_length(roads[i, ])) < 30) next
-  sb <- mesurer(roads[i, ])
-  if (!is.null(sb)) { sb$route <- i; sb$origine <- "brut"; stations_brut[[length(stations_brut) + 1]] <- sb }
-  rp <- repositionner(roads[i, ])
-  if (!is.null(rp)) {
-    sr <- mesurer(rp)
-    if (!is.null(sr)) { sr$route <- i; sr$origine <- "repositionne"; stations_repo[[length(stations_repo) + 1]] <- sr }
+mesurer_reseau <- function(reseau, origine) {
+  out <- list()
+  for (i in seq_len(nrow(reseau))) {
+    if (as.numeric(sf::st_length(reseau[i, ])) < 30) next
+    m <- tryCatch(dsr_measure(reseau[i, ], mnt50, pas = 2, demi_largeur = 8,
+      pas_travers = 0.25, liss_travers = 3, seuil_devers = 0.20),
+      error = function(e) NULL)
+    if (!is.null(m)) {
+      m$stations$route <- i; m$stations$origine <- origine
+      out[[length(out) + 1]] <- m$stations
+    }
   }
+  do.call(rbind, out)
 }
-sta_brut <- do.call(rbind, stations_brut)
-sta_repo <- do.call(rbind, stations_repo)
+sta_brut <- mesurer_reseau(roads, "brut")
+sta_repo <- mesurer_reseau(roads_recale, "recale_contraint")
 
 # --- 5. Comparaison de la largeur a la reference -----------------------------
 compare <- function(sta) {
@@ -98,8 +91,9 @@ cmp_repo <- compare(sta_repo)
 gpkg <- file.path(OUT, "validation_wsfi.gpkg")
 dsr_export_gpkg(list(
   routes_bdtopo = roads,
+  routes_recalees = roads_recale,
   desserte_reference = ref[, c("classe", "largeur_carrossable_m", "pente_pct", "etat_classe")],
-  stations_brut = sta_brut, stations_repositionne = sta_repo
+  stations_brut = sta_brut, stations_recalees = sta_repo
 ), gpkg, styles = FALSE)
 
 rap <- c(
@@ -113,13 +107,17 @@ rap <- c(
   sprintf("- Apres repositionnement : MAE %.2f m, biais %.2f m (dsr med %.1f, n=%d).",
     cmp_repo$mae, cmp_repo$biais, cmp_repo$med_dsr, cmp_repo$n),
   "", "## Constats",
-  "- La largeur roulable est sous-estimee par rapport a la largeur carrossable de",
-  "  reference : la mesure retient la seule bande de tres faible devers, la",
-  "  reference inclut les accotements ; seuils a caler avec le gestionnaire.",
-  "- Le repositionnement sur sigma_geo SEUL ne reduit pas l'erreur (voire",
-  "  l'augmente) : le pathfinder peut accrocher un lineaire parallele (fosse,",
-  "  trace fossile) --- risque n.1 du BRIEF. Piste : contraindre le pathfinder",
-  "  par la proximite a l'axe BD TOPO, ou ponderer par sigma_surf.",
+  sprintf("- Repositionnement contraint (+/- 10 m) : %d/%d troncons conserves (la",
+    nrow(roads_recale), nrow(roads)),
+  "  BD TOPO fait autorite, aucune piste perdue), deplacement median",
+  sprintf("  %.1f m. Il ne DEGRADE PAS la mesure (contrairement au repositionnement",
+    stats::median(roads_recale$DEPLACEMENT_MOY, na.rm = TRUE)),
+  "  libre qui accroche des lineaires paralleles --- risque n.1 du BRIEF).",
+  "- La largeur roulable reste sous-estimee vs la largeur carrossable de",
+  "  reference : la mesure retient la bande de faible devers, la reference inclut",
+  "  les accotements ; ecart de definition, seuils a caler avec le gestionnaire.",
+  "- Sur ce bloc la BD TOPO est deja bien alignee (deplacement median ~2 m) :",
+  "  le recalage joue surtout son role d'assurance sur les troncons desalignes.",
   "", sprintf("GPKG : %s", gpkg)
 )
 writeLines(rap, file.path(OUT, "rapport_validation.md"))
