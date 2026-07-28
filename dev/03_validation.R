@@ -263,6 +263,24 @@ traiter <- function(nom, P, avec_foretaccess) {
     iqr_intra <- stats::median(par_tr$LARGEUR_ROULABLE, na.rm = TRUE)
   }
 
+  # 3. Part des stations ou la rupture chaussee/accotement a ete RESOLUE. C'est
+  #    la premiere chose a lire : quand elle vaut 0, la largeur rendue est une
+  #    largeur de PLATEFORME, pas de chaussee. Sur l'extrait de 200 m livre avec
+  #    le paquet (MNT 50 cm, montagne, sous couvert), 162 stations sur 222 sont
+  #    dans ce cas. Reste a savoir si ce taux tient sur des massifs entiers :
+  #    s'il se confirme, c'est l'argument pour un micro-MNT sur points sol bruts.
+  # 4. Repartition des fosses. Une valeur ecrasante sur une seule modalite est
+  #    suspecte : c'est ainsi qu'on a vu que le critere precedent declarait un
+  #    fosse a 211 stations sur 222, qui n'etaient que le versant aval.
+  pct_nets <- NA_real_
+  if (!is.null(stations) && "BORDS_CHAUSSEE" %in% names(stations)) {
+    pct_nets <- 100 * mean(stations$BORDS_CHAUSSEE > 0, na.rm = TRUE)
+  }
+  rep_fosses <- if (!is.null(stations) && "FOSSES" %in% names(stations)) {
+    t <- table(factor(stations$FOSSES, levels = 0:2))
+    paste(sprintf("%d:%.0f%%", 0:2, 100 * as.numeric(t) / sum(t)), collapse = " ")
+  } else NA_character_
+
   ordre <- NULL
   champ_nature <- intersect(c("NATURE", "nature"), names(roads))
   if (length(champ_nature) > 0L && !is.null(stations) && nrow(stations) > 0L) {
@@ -293,6 +311,8 @@ traiter <- function(nom, P, avec_foretaccess) {
       biais = if (is.null(cal)) NA_real_ else best$biais,
       mae = if (is.null(cal)) NA_real_ else best$mae,
       iqr_intra = iqr_intra,
+      pct_nets = pct_nets,
+      fosses = rep_fosses,
       rayon_p05 = stats::quantile(
         stations$RAYON_COURBURE[is.finite(stations$RAYON_COURBURE)], 0.05,
         names = FALSE)
@@ -343,12 +363,15 @@ rap <- c(
   "# Validation dessertR --- massifs nemeton", "",
   sprintf("Massifs : %s.", paste(resume$massif, collapse = ", ")), "",
   "## Synthese par massif", "",
-  "| massif | dalles | km BD TOPO | deplacement med. | methode | tol | IQR intra | rayon P05 (m) |",
-  "|---|---|---|---|---|---|---|---|",
-  apply(resume, 1, function(r) sprintf("| %s | %s | %.1f | %.1f | %s | %.2f | %.2f | %.0f |",
+  "| massif | dalles | km BD TOPO | deplacement med. | methode | IQR intra | bords nets | fosses 0/1/2 | rayon P05 (m) |",
+  "|---|---|---|---|---|---|---|---|---|",
+  apply(resume, 1, function(r) sprintf(
+    "| %s | %s | %.1f | %.1f | %s | %.2f | %s | %s | %.0f |",
     r[["massif"]], r[["dalles"]], as.numeric(r[["km_bdtopo"]]),
-    as.numeric(r[["deplacement_med"]]), r[["methode"]], as.numeric(r[["tol"]]),
-    as.numeric(r[["iqr_intra"]]), as.numeric(r[["rayon_p05"]]))),
+    as.numeric(r[["deplacement_med"]]), r[["methode"]],
+    as.numeric(r[["iqr_intra"]]),
+    if (is.na(r[["pct_nets"]])) "-" else sprintf("%.0f%%", as.numeric(r[["pct_nets"]])),
+    r[["fosses"]], as.numeric(r[["rayon_p05"]]))),
   "", "## Calibrage croise (MAE en m, plus bas = mieux)", "",
   "Un reglage n'est retenu que s'il tient sur TOUS les massifs.", "",
   bloc_croise,
@@ -361,7 +384,15 @@ rap <- c(
   "- Ordre des classes BD TOPO : seul usage metrologiquement tenable de la",
   "  BD TOPO ici. Son attribut de largeur est declaratif, mais l'ORDRE des",
   "  natures est verifiable. S'il n'est pas reproduit, la mesure est fausse ;",
-  "  s'il l'est, elle est coherente -- pas calibree.", "",
+  "  s'il l'est, elle est coherente -- pas calibree.",
+  "- `bords nets` : part des stations ou la rupture chaussee/accotement a ete",
+  "  RESOLUE. A LIRE EN PREMIER. Quand elle est basse, la colonne",
+  "  LARGEUR_ROULABLE rend surtout des largeurs de PLATEFORME, accotement",
+  "  compris, et non des largeurs de chaussee. Filtrer sur BORDS_CHAUSSEE > 0",
+  "  avant toute conclusion sur la largeur.",
+  "- `fosses 0/1/2` : une modalite ecrasante est suspecte. C'est ainsi qu'on a",
+  "  vu que l'ancien critere declarait un fosse a 211 stations sur 222, qui",
+  "  n'etaient que le versant aval d'une route en devers.", "",
   bloc_ordre, "",
   "## Ce qui ferait vraiment reference", "",
   "- POSITION : la BD TOPO, sans reserve. C'est le socle du recalage.",
