@@ -8,7 +8,14 @@ Preleve, tous les `pas` metres le long d'un trace, un profil d'altitude
 ## Usage
 
 ``` r
-dsr_profils(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5)
+dsr_profils(
+  trace,
+  mnt,
+  pas = 2,
+  demi_largeur = 8,
+  pas_travers = 0.5,
+  methode = c("bilinear", "simple")
+)
 ```
 
 ## Arguments
@@ -33,6 +40,12 @@ dsr_profils(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5)
 - pas_travers:
 
   Pas d'echantillonnage transversal, en metres. Defaut 0.5.
+
+- methode:
+
+  Interpolation de l'extraction : `"bilinear"` (defaut, pour un MNT
+  continu) ou `"simple"` (plus proche voisin, pour une grille a trous
+  comme la hauteur de sursol).
 
 ## Value
 

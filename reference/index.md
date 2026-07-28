@@ -79,3 +79,14 @@
   : Mesurer la geometrie de la desserte le long d'un trace
 - [`dsr_profils()`](https://pobsteta.github.io/dessertR/reference/dsr_profils.md)
   : Profils transversaux le long d'un trace
+
+## Praticabilite (grumier)
+
+- [`dsr_trafficability()`](https://pobsteta.github.io/dessertR/reference/dsr_trafficability.md)
+  : Aptitude au grumier et motif d'inaptitude
+- [`dsr_gabarit_libre()`](https://pobsteta.github.io/dessertR/reference/dsr_gabarit_libre.md)
+  : Gabarit libre sous branches le long d'un trace
+- [`dsr_places()`](https://pobsteta.github.io/dessertR/reference/dsr_places.md)
+  : Detecter les elargissements (places de depot / retournement)
+- [`dsr_seuils_grumier()`](https://pobsteta.github.io/dessertR/reference/dsr_seuils_grumier.md)
+  : Seuils d'aptitude au grumier par defaut

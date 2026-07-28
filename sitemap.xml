@@ -14,6 +14,7 @@
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_divergence.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_etat.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_etat_trace.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_gabarit_libre.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_grille_reference.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_layers_dtm.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_layers_pc.html</loc></url>
@@ -22,12 +23,15 @@
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_parse_dalle.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_pathfinder.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_pente.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_places.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_profils.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_rugosite.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_seuils_grumier.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_sigma_surf.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_slrm.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_specs_geomorpho.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_specs_surface.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_trafficability.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_vesselness.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/index.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/pathfinder_anisotrope.html</loc></url>
