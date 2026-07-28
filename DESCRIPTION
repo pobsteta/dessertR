@@ -27,6 +27,7 @@ Imports:
     terra,
     tools
 Suggests:
+    igraph,
     knitr,
     lasR,
     mirai,

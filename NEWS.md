@@ -1,5 +1,15 @@
 # dessertR (developpement)
 
+## Coherence topologique du reseau (lot 6)
+
+* `dsr_reseau()` : assemble une collection de traces en reseau valide (BRIEF
+  section 3.8) -- collage des noeuds partages ([dsr_coller_noeuds()]),
+  deduplication des paralleles ([dsr_dedupe_paralleles()]), analyse des
+  composantes et rattachement au reseau public (une desserte qui ne debouche
+  nulle part est signalee). Noyau `igraph`.
+* `dsr_sfnetwork()` : export en objet `sfnetwork` (graphe spatial valide) quand
+  `sfnetworks` est disponible.
+
 ## Praticabilite grumier (lot 5)
 
 * `dsr_gabarit_libre()` : hauteur libre sous branches le long du trace, calculee
