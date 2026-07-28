@@ -63,6 +63,8 @@
 
 - [`dsr_etat()`](https://pobsteta.github.io/dessertR/reference/dsr_etat.md)
   : Etat de la desserte par croisement des deux conductivites
+- [`dsr_etat_trace()`](https://pobsteta.github.io/dessertR/reference/dsr_etat_trace.md)
+  : Etat de la desserte le long d'un trace
 - [`dsr_divergence()`](https://pobsteta.github.io/dessertR/reference/dsr_divergence.md)
   : Divergence des canaux de conductivite
 
