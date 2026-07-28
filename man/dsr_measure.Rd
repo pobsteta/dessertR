@@ -75,9 +75,32 @@ deplacement par rapport a une geometrie de reference (BD TOPO).
 La finesse des mesures depend directement de la qualite du MNT. Sous couvert
 dense, le MNT interpole a partir de points sol epars presente un bruit
 vertical decimetrique a metrique (BRIEF, risque n.3) qui degrade la largeur
-roulable et la pente longitudinale : d'ou le lissage (\code{liss_travers},
-\code{liss_long}) et l'interet, pour la mesure fine, de descendre au MNT 50 cm et
-de recalculer un micro-MNT sur les seuls points sol de l'emprise (a venir).
+roulable et la pente longitudinale, d'ou le lissage (\code{liss_travers},
+\code{liss_long}).
+
+\strong{Ce que coute la grille.} La largeur est mesuree sur le MNT, donc sur un
+produit \strong{interpole} : le bord de plateforme est une ligne de rupture, et
+c'est precisement ce qu'une interpolation arrondit. Sur une plateforme de
+synthese de 4,00 m, selon la grille dont on part :\tabular{ll}{
+   source \tab largeur mesuree \cr
+   MNT 50 cm (cellules moyennees) \tab 3,56 m (-0,44) \cr
+   micro-MNT 25 cm, memes points \tab 3,66 m (-0,34) \cr
+   points sol bruts, sans grille \tab 3,78 m (-0,22) \cr
+   profil parfait, echantillonne fin \tab 3,99 m (-0,01) \cr
+}
+
+
+Deux enseignements. D'abord l'estimateur lui-meme est \strong{juste} : sur une
+donnee propre il retrouve la largeur au centimetre. Ensuite le
+micro-MNT sur points sol bruts evoque au BRIEF section 3.6 vaut environ
+\strong{0,2 m} — reel, mais plus modeste que ce que le brief laissait attendre.
+
+Fait contre-intuitif : le biais ne bouge pas quand la densite de points sol
+passe de 20 a 1 point par metre carre. Pour \emph{cette} mesure, ce n'est pas le
+nombre de points qui coute, c'est le fait de passer par une grille. (La
+simulation moyenne les points par cellule ; un MNT IGN interpole par TIN
+preserve mieux les lignes de rupture, l'ecart reel est donc probablement plus
+faible.)
 
 \strong{Largeur roulable.} \code{"planeite"} ajuste le plan de chaussee sur une fenetre
 centrale puis s'ecarte tant que la surface reste a moins de \code{tol_planeite} de

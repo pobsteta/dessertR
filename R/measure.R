@@ -96,9 +96,32 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 #' La finesse des mesures depend directement de la qualite du MNT. Sous couvert
 #' dense, le MNT interpole a partir de points sol epars presente un bruit
 #' vertical decimetrique a metrique (BRIEF, risque n.3) qui degrade la largeur
-#' roulable et la pente longitudinale : d'ou le lissage (`liss_travers`,
-#' `liss_long`) et l'interet, pour la mesure fine, de descendre au MNT 50 cm et
-#' de recalculer un micro-MNT sur les seuls points sol de l'emprise (a venir).
+#' roulable et la pente longitudinale, d'ou le lissage (`liss_travers`,
+#' `liss_long`).
+#'
+#' **Ce que coute la grille.** La largeur est mesuree sur le MNT, donc sur un
+#' produit **interpole** : le bord de plateforme est une ligne de rupture, et
+#' c'est precisement ce qu'une interpolation arrondit. Sur une plateforme de
+#' synthese de 4,00 m, selon la grille dont on part :
+#'
+#' | source | largeur mesuree |
+#' |---|---|
+#' | MNT 50 cm (cellules moyennees) | 3,56 m (-0,44) |
+#' | micro-MNT 25 cm, memes points | 3,66 m (-0,34) |
+#' | points sol bruts, sans grille | 3,78 m (-0,22) |
+#' | profil parfait, echantillonne fin | 3,99 m (-0,01) |
+#'
+#' Deux enseignements. D'abord l'estimateur lui-meme est **juste** : sur une
+#' donnee propre il retrouve la largeur au centimetre. Ensuite le
+#' micro-MNT sur points sol bruts evoque au BRIEF section 3.6 vaut environ
+#' **0,2 m** — reel, mais plus modeste que ce que le brief laissait attendre.
+#'
+#' Fait contre-intuitif : le biais ne bouge pas quand la densite de points sol
+#' passe de 20 a 1 point par metre carre. Pour *cette* mesure, ce n'est pas le
+#' nombre de points qui coute, c'est le fait de passer par une grille. (La
+#' simulation moyenne les points par cellule ; un MNT IGN interpole par TIN
+#' preserve mieux les lignes de rupture, l'ecart reel est donc probablement plus
+#' faible.)
 #'
 #' **Largeur roulable.** `"planeite"` ajuste le plan de chaussee sur une fenetre
 #' centrale puis s'ecarte tant que la surface reste a moins de `tol_planeite` de

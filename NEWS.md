@@ -24,6 +24,15 @@ connue.
   que pour ce pas et ce niveau de bruit — l'ancien estimateur n'etait pas
   calibrable. `tol_planeite` a lui une lecture physique : il doit depasser la
   fleche du bombement (`bombement x largeur / 2`).
+* **Ce que coute la grille.** La largeur sort du MNT, donc d'un produit
+  interpole, et le bord de plateforme est justement une ligne de rupture. Sur
+  une plateforme de synthese de 4,00 m : MNT 50 cm 3,56 m, micro-MNT 25 cm
+  3,66 m, points sol bruts 3,78 m, profil parfait finement echantillonne
+  3,99 m. L'estimateur est donc **juste** sur une donnee propre, et le
+  micro-MNT sur points bruts evoque au BRIEF section 3.6 vaut environ **0,2 m**
+  — reel, mais plus modeste qu'annonce. Contre-intuitif : le biais ne bouge pas
+  quand la densite de points sol passe de 20 a 1 pt/m2. Pour cette mesure, ce
+  n'est pas le nombre de points qui coute, c'est le passage par une grille.
 * **Devers** — desormais la pente du plan ajuste. Il est distingue du bombement
   de drainage, qui est symetrique et ne cree aucun devers net.
 * **Rayon de courbure** — `base_courbure` (defaut 30 m) : ajustement d'un cercle
