@@ -31,7 +31,8 @@ test_that("dsr_layers_pc refuse une dalle inexistante", {
 test_that("dsr_layers_pc produit les canaux attendus (si donnees disponibles)", {
   skip_if_not_installed("lasR")
   dalle <- Sys.getenv("DSR_DALLE_TEST", "")
-  skip_if(dalle == "" || !file.exists(dalle), "Aucune dalle de test (DSR_DALLE_TEST).")
+  if (dalle == "") dalle <- system.file("extdata", "exemple_nuage.laz", package = "dessertR")
+  skip_if(dalle == "" || !file.exists(dalle), "Aucune dalle de test disponible.")
 
   pc <- dsr_layers_pc(dalle, res = 2,
     emprise = NULL, sousetage = c(0.3, 3))

@@ -1,15 +1,22 @@
 # Jeu de donnees d'exemple
 
-A constituer au lot 0. Contenu vise, taille totale sous 5 Mo pour rester
-installable :
+Secteur de 200 x 200 m extrait d'un bloc Lidar HD reel (montagne, Lambert-93),
+centre sur un **franchissement route x cours d'eau** (test des ponts). Genere par
+`data-raw/make_example.R`. Total < 3,5 Mo.
 
-- une dalle LAZ ecretee a quelques centaines de milliers de points, sur un
-  secteur forestier comportant au moins une route empierree, une piste et un
-  franchissement de cours d'eau ;
-- les dalles MNT et MNH correspondantes, croppees sur la meme emprise ;
-- l'extrait BD TOPO correspondant : `troncon_de_route`,
-  `troncon_hydrographique`, `zone_de_vegetation`.
+- `exemple_nuage.laz` : nuage classe ecrete (~327 000 points, LAS 1.4).
+- `exemple_mnt.tif` / `exemple_mnh.tif` : MNT et MNH a 50 cm, memes emprises.
+- `exemple_bdtopo.gpkg` : extrait BD TOPO, couches `troncon_de_route` (4) et
+  `troncon_hydrographique` (1).
 
-Donnees IGN sous licence ouverte Etalab : la redistribution est autorisee.
-Verifier la formulation exacte de la mention d'attribution a porter dans le
-fichier `LICENSE.note` et dans le README du paquet.
+Utilisation :
+
+```r
+laz <- system.file("extdata", "exemple_nuage.laz", package = "dessertR")
+mnt <- terra::rast(system.file("extdata", "exemple_mnt.tif", package = "dessertR"))
+roads <- sf::st_read(system.file("extdata", "exemple_bdtopo.gpkg", package = "dessertR"),
+                     "troncon_de_route")
+```
+
+Donnees IGN Lidar HD et BD TOPO sous licence ouverte Etalab 2.0 : redistribution
+autorisee. Voir `LICENSE.note` pour l'attribution.
