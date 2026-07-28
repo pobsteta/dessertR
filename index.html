@@ -63,7 +63,9 @@
 <li>
 <strong>mesurer</strong> ce que la BD TOPO ne dit pas : largeur roulable, fosses, devers, pente longitudinale, rayon de courbure, gabarit libre sous branches ;</li>
 <li>
-<strong>qualifier la praticabilite</strong>, en particulier l’aptitude au grumier, avec le motif d’inaptitude et sa localisation ;</li>
+<strong>qualifier la praticabilite</strong>, en particulier l’aptitude au grumier, avec le motif d’inaptitude et sa localisation, gabarit vertical <strong>et</strong> lateral ;</li>
+<li>
+<strong>situer l’elagage</strong> : ou les houppiers empietent sur l’emprise, et de combien ;</li>
 <li>
 <strong>diagnostiquer l’etat</strong> en separant le signal geomorphologique (l’empreinte de la route dans le terrain, memoire longue) du signal de surface (l’emprise est-elle encore degagee) ; c’est la divergence entre les deux qui revele les troncons abandonnes ou recolonises ;</li>
 <li>
@@ -99,6 +101,14 @@
 <span></span>
 <span><span class="co"># 5. Mesure et praticabilite</span></span>
 <span><span class="va">m</span>       <span class="op">&lt;-</span> <span class="fu"><a href="reference/dsr_measure.html">dsr_measure</a></span><span class="op">(</span><span class="va">recale</span><span class="op">[</span><span class="fl">1</span>, <span class="op">]</span>, <span class="va">mnt</span>, pas <span class="op">=</span> <span class="fl">2</span>, base_courbure <span class="op">=</span> <span class="fl">30</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 5 bis. Canal optique (facultatif) : ou les houppiers debordent sur l'emprise.</span></span>
+<span><span class="co">#        Le CHM vient de l'ortho, pas du lidar : deux sources independantes.</span></span>
+<span><span class="va">chm</span>     <span class="op">&lt;-</span> <span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/rast.html" class="external-link">rast</a></span><span class="op">(</span><span class="st">"…/chm_predit.tif"</span><span class="op">)</span></span>
+<span><span class="va">lat</span>     <span class="op">&lt;-</span> <span class="fu"><a href="reference/dsr_gabarit_lateral.html">dsr_gabarit_lateral</a></span><span class="op">(</span><span class="va">recale</span><span class="op">[</span><span class="fl">1</span>, <span class="op">]</span>, <span class="va">chm</span>, largeur <span class="op">=</span> <span class="va">m</span><span class="op">$</span><span class="va">stations</span><span class="op">)</span></span>
+<span><span class="va">m</span><span class="op">$</span><span class="va">stations</span><span class="op">$</span><span class="va">SURPLOMB</span>      <span class="op">&lt;-</span> <span class="va">lat</span><span class="op">$</span><span class="va">SURPLOMB</span></span>
+<span><span class="va">m</span><span class="op">$</span><span class="va">stations</span><span class="op">$</span><span class="va">HAUT_SURPLOMB</span> <span class="op">&lt;-</span> <span class="va">lat</span><span class="op">$</span><span class="va">HAUT_SURPLOMB</span></span>
+<span></span>
 <span><span class="va">apte</span>    <span class="op">&lt;-</span> <span class="fu"><a href="reference/dsr_trafficability.html">dsr_trafficability</a></span><span class="op">(</span><span class="va">m</span><span class="op">$</span><span class="va">stations</span>, <span class="fu"><a href="reference/dsr_seuils_grumier.html">dsr_seuils_grumier</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 6. Detection de ce que la reference ignore</span></span>
@@ -109,11 +119,12 @@
 <span><span class="fu"><a href="reference/dsr_export_gpkg.html">dsr_export_gpkg</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>desserte <span class="op">=</span> <span class="va">recale</span>, stations <span class="op">=</span> <span class="va">m</span><span class="op">$</span><span class="va">stations</span><span class="op">)</span>, <span class="st">"sortie.gpkg"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="trois-partis-pris">Trois partis pris<a class="anchor" aria-label="anchor" href="#trois-partis-pris"></a>
+<h2 id="quatre-partis-pris">Quatre partis pris<a class="anchor" aria-label="anchor" href="#quatre-partis-pris"></a>
 </h2>
 <p><strong>Ne pas fusionner les signaux en un score unique.</strong> <code>sigma_geo</code> dit qu’une route a marque le terrain, <code>sigma_surf</code> dit que l’emprise est encore degagee. Leur croisement distingue une route en service d’une route recolonisee et d’une trouee sans route — ce qu’un score composite ne peut pas faire. Le pathfinder tourne sur <code>sigma_geo</code>, robuste a la vegetation.</p>
 <p><strong>La reference fait autorite en planimetrie.</strong> En France la BD TOPO est deja precise ; le repositionnement libre accroche des lineaires paralleles (fosses, lignes, cloisonnements). <code><a href="reference/dsr_repositionner.html">dsr_repositionner()</a></code> recale sous contrainte de deviation et conserve integralement le reseau : aucun troncon n’est perdu.</p>
 <p><strong>Le nuage tranche les traces fossiles.</strong> Le sol forestier francais est sature de linearites anciennes que le canal geomorphologique allume toutes. Sur une scene de controle portant une piste reelle et une trace fossile de meme signature geomorphologique, la detection sans <code>sigma_surf</code> remonte les deux ; avec <code>sigma_surf</code>, seule la piste reelle sort.</p>
+<p><strong>Un second avis n’en est un que s’il est independant.</strong> Tout ce qui precede sort du meme nuage de points. Les canaux derives de l’ortho — NDVI, et les modeles de hauteur de canopee predits depuis la BD ORTHO — ne partagent aucune erreur avec le lidar, ce qui est exactement ce qui manquait a une desserte issue d’un autre algorithme applique au <em>meme</em> nuage. Independant ne veut pas dire interchangeable : ces canaux servent a <strong>discriminer</strong> et a situer le surplomb, jamais a mesurer une largeur de chaussee.</p>
 </div>
 <div class="section level2">
 <h2 id="ce-qui-est-mesure-et-avec-quelle-fiabilite">Ce qui est mesure, et avec quelle fiabilite<a class="anchor" aria-label="anchor" href="#ce-qui-est-mesure-et-avec-quelle-fiabilite"></a>
@@ -146,8 +157,16 @@
 <td>detectes par creux lateral au-dela du bord de plateforme</td>
 </tr>
 <tr>
-<td>Gabarit libre</td>
+<td>Gabarit libre (vertical)</td>
 <td>mesure directement sur le nuage classe, absent des bases existantes</td>
+</tr>
+<tr>
+<td>Surplomb (lateral)</td>
+<td>empietement des houppiers sur l’emprise, depuis un modele de hauteur de canopee ; hauteur lue <strong>permissive</strong> (sommet du houppier, pas dessous de branche)</td>
+</tr>
+<tr>
+<td>Largeur de la plage minerale (NDVI)</td>
+<td>second avis independant du lidar, seuil determine par Otsu ; muet sur piste enherbee ou ombragee</td>
 </tr>
 <tr>
 <td>Etat de la desserte</td>
@@ -191,10 +210,16 @@
 <td>
 <strong>aucune source cartographique</strong> ; il faut un releve</td>
 </tr>
+<tr>
+<td>Trouee de canopee, NDVI</td>
+<td>
+<strong>second avis, jamais reference</strong> — voir ci-dessous</td>
+</tr>
 </tbody>
 </table>
 <p><code>LARGEUR_DE_CHAUSSEE</code> de la BD TOPO est un attribut <strong>declaratif</strong>, souvent defaute par classe et vide sur <code>Chemin</code> et <code>Sentier</code> — soit precisement notre cas d’usage. Elle sert de controle <strong>ordinal</strong> (la largeur mesuree doit se ranger dans l’ordre des natures), jamais de metre etalon.</p>
 <p>Et la sortie d’un traitement anterieur — desserte corrigee par ALSroads ou equivalent — est disqualifiee <strong>par construction</strong> : <a href="https://pobsteta.github.io/dessertR/reference/dsr_calibrer_largeur.html"><code>dsr_calibrer_largeur()</code></a> retient le reglage qui <em>minimise</em> l’ecart, donc s’y caler ne mesurerait pas le biais de l’autre methode, ça le <strong>reproduirait</strong>.</p>
+<p>Une trouee de canopee tombe sous le meme interdit, pour une autre raison : ce n’est pas une chaussee. Sous futaie mature elle est plus etroite, les houppiers debordent ; sur une coupe rase elle est beaucoup plus large. L’ecart n’est pas constant, il est correle a la structure du peuplement riverain, donc il change tout au long du troncon. Un decalage constant se calibre ; celui-la non — on mesurerait surtout l’age du peuplement voisin. S’ajoute une contrainte d’echelle : un modele de hauteur de canopee predit depuis l’ortho travaille a une maille de l’ordre de <strong>1,5 m</strong>, ou une chaussee de 4 m ne couvre que 2,7 cellules. <code>LARGEUR_DEGAGEE</code> et <code>LARGEUR_NDVI</code> n’alimentent donc pas <code><a href="reference/dsr_calibrer_largeur.html">dsr_calibrer_largeur()</a></code>.</p>
 <p>Avec une vraie verite terrain (decametre, GNSS, photo-interpretation sur ortho THR), <code><a href="reference/dsr_calibrer_largeur.html">dsr_calibrer_largeur()</a></code> balaie une grille de parametres et renvoie biais, MAE et RMSE. Sans elle, <code>dev/03_validation.R</code> se limite aux diagnostics de coherence — dispersion intra-troncon, ordre des classes — qui disent si la mesure est reproductible et plausible, pas si elle est juste.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="va">DSR_INVENTAIRE</span><span class="op">=</span>1 <span class="ex">Rscript</span> dev/03_validation.R   <span class="co"># que voit-on ?</span></span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="ex">Rscript</span> dev/03_validation.R                    <span class="co"># tout traiter</span></span></code></pre></div>

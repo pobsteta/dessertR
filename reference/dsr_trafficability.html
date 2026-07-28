@@ -57,8 +57,8 @@ bloque, et ou</strong> (BRIEF section 3.7). Un booleen sans motif est inutilisab
 
 <dl><dt id="arg-stations">stations<a class="anchor" aria-label="anchor" href="#arg-stations"></a></dt>
 <dd><p>Le <code>sf</code> <code>stations</code> de <code><a href="dsr_measure.html">dsr_measure()</a></code> (colonnes
-<code>LARGEUR_ROULABLE</code>, <code>PENTE_LONG</code>, <code>RAYON_COURBURE</code> ; <code>GABARIT_LIBRE</code>
-optionnel).</p></dd>
+<code>LARGEUR_ROULABLE</code>, <code>PENTE_LONG</code>, <code>RAYON_COURBURE</code> ; <code>GABARIT_LIBRE</code>,
+<code>SURPLOMB</code> et <code>HAUT_SURPLOMB</code> optionnels).</p></dd>
 
 
 <dt id="arg-seuils">seuils<a class="anchor" aria-label="anchor" href="#arg-seuils"></a></dt>
@@ -72,8 +72,20 @@ optionnel).</p></dd>
 <code>resume</code> (part de longueur apte et compte par motif).</p>
     </div>
     <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>Cinq criteres, dont trois toujours evalues (<code>largeur</code>, <code>pente</code>, <code>rayon</code>) et
+deux qui ne le sont que si les colonnes correspondantes sont presentes :</p><ul><li><p><code>gabarit</code> – hauteur libre sous branches (<code><a href="dsr_gabarit_libre.html">dsr_gabarit_libre()</a></code>, sur le
+nuage classe) inferieure a <code>gabarit_min</code> ;</p></li>
+<li><p><code>surplomb</code> – houppier empietant sur l'emprise <strong>et</strong> situe sous
+<code>gabarit_min</code> (<code><a href="dsr_gabarit_lateral.html">dsr_gabarit_lateral()</a></code>, sur un modele de hauteur de
+canopee). L'empietement seul ne bloque rien : un couvert ferme a 20 m
+au-dessus d'une route ne gene aucun grumier.</p></li>
+</ul><p>Un critere non evaluable (<code>NA</code>) ne declare jamais d'inaptitude.</p>
+    </div>
+    <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dsr_measure.html">dsr_measure()</a></code>, <code><a href="dsr_gabarit_libre.html">dsr_gabarit_libre()</a></code>, <code><a href="dsr_seuils_grumier.html">dsr_seuils_grumier()</a></code>.</p></div>
+    <div class="dont-index"><p><code><a href="dsr_measure.html">dsr_measure()</a></code>, <code><a href="dsr_gabarit_libre.html">dsr_gabarit_libre()</a></code>, <code><a href="dsr_gabarit_lateral.html">dsr_gabarit_lateral()</a></code>,
+<code><a href="dsr_seuils_grumier.html">dsr_seuils_grumier()</a></code>.</p></div>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

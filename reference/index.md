@@ -96,6 +96,15 @@
 - [`dsr_emprise_certu()`](https://pobsteta.github.io/dessertR/reference/dsr_emprise_certu.md)
   : Emprise routiere normative (methode Certu, fiche 1.7)
 
+## Canal optique (ortho)
+
+- [`dsr_ndvi()`](https://pobsteta.github.io/dessertR/reference/dsr_ndvi.md)
+  : Indice de vegetation normalise (NDVI) depuis une ortho infrarouge
+- [`dsr_largeur_ndvi()`](https://pobsteta.github.io/dessertR/reference/dsr_largeur_ndvi.md)
+  : Largeur de la plage minerale par NDVI le long d'un trace
+- [`dsr_gabarit_lateral()`](https://pobsteta.github.io/dessertR/reference/dsr_gabarit_lateral.md)
+  : Largeur de la trouee de canopee et surplomb le long d'un trace
+
 ## Praticabilite (grumier)
 
 - [`dsr_trafficability()`](https://pobsteta.github.io/dessertR/reference/dsr_trafficability.md)

@@ -66,6 +66,23 @@ directement les bandes `svf`, `openness_pos` et `openness_neg` (memes
 noms que le vocabulaire interne). Alimente-le avec la grille de
 reference 1 m de la dalle et l'alignement est exact.
 
+**Canaux optiques.** Le vocabulaire accepte aussi des canaux derives de
+l'ortho et non du lidar : `chm`, `mnh`, `ndvi`, `gndvi`, `savi`, `ndwi`.
+Leur interet propre pour une conductivite apprise
+([`dsr_apprendre_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_apprendre_conductivite.md))
+est de ne partager **aucune erreur** avec le nuage : le modele s'appuie
+alors sur deux acquisitions independantes au lieu de deux lectures de la
+meme. Un pipeline de hauteur de canopee predite depuis la BD ORTHO
+(RVB + IRC) fournit directement `chm`, `ndvi`, `gndvi`, `savi` et `ndwi`
+; le NDVI se calcule aussi sur place avec
+[`dsr_ndvi()`](https://pobsteta.github.io/dessertR/reference/dsr_ndvi.md).
+
+Contrepartie : ces modeles travaillent a une maille de l'ordre de 1,5 m,
+plus grossiere que la grille de reference. Le reechantillonnage vers 1 m
+est signale et ne cree pas d'information – un tel canal sert a
+**discriminer**, jamais a mesurer une largeur (voir
+[`dsr_gabarit_lateral()`](https://pobsteta.github.io/dessertR/reference/dsr_gabarit_lateral.md)).
+
 ## See also
 
 [`dsr_grille_reference()`](https://pobsteta.github.io/dessertR/reference/dsr_grille_reference.md).
