@@ -452,6 +452,23 @@ dsr_sinuosite <- function(xy) {
 #' impression.
 #'
 #' @details
+#' **Ce qui peut servir de reference, et ce qui ne le peut pas.** Le calibrage
+#' retient le reglage qui **minimise l'ecart** : pointer cette fonction vers la
+#' sortie d'un autre algorithme ne mesure donc pas un biais, il le *reproduit* —
+#' on selectionne les parametres qui imitent le mieux l'autre methode, defauts
+#' compris. Une reference doit etre **independante de toute mesure automatique**
+#' : releve au decametre, GNSS, ou photo-interpretation sur ortho THR.
+#'
+#' Deux sources tentantes qui n'en sont pas :
+#'
+#' * la **largeur declarative d'une base cartographique** (`LARGEUR_DE_CHAUSSEE`
+#'   de la BD TOPO, par exemple) est souvent defautee par classe et vide sur les
+#'   chemins et sentiers — elle ne soutient pas un calibrage au decimetre. Elle
+#'   reste utile comme controle **ordinal** : la largeur mesuree doit se ranger
+#'   dans l'ordre des classes ;
+#' * la **sortie d'un traitement anterieur** (desserte corrigee par ALSroads ou
+#'   equivalent) est disqualifiee par construction.
+#'
 #' **Le calibrage ne peut pas commencer par le seuil.** Avec
 #' `methode_largeur = "gradient"`, le biais depend du pas transversal et du
 #' lissage autant que de `seuil_devers` : la valeur trouvee ne vaudrait que pour
@@ -476,7 +493,8 @@ dsr_sinuosite <- function(xy) {
 #'
 #' @param traces `sf` des troncons a mesurer.
 #' @param mnt Le MNT (`SpatRaster`).
-#' @param reference `sf` portant la largeur de reference.
+#' @param reference `sf` portant une largeur de reference **mesuree
+#'   independamment** (voir Details) — pas la sortie d'un autre algorithme.
 #' @param champ_largeur Nom de la colonne de `reference` portant la largeur (m).
 #' @param grille `data.frame` des combinaisons a essayer ; une colonne par
 #'   argument de [dsr_measure()] a faire varier. `NULL` (defaut) balaie

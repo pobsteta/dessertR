@@ -116,11 +116,30 @@ Deux reglages meritent attention avant tout usage metier :
   Sur un arc de rayon vrai 60 m quantifie au metre puis lisse, la mediane des
   rayons vaut 16,6 m a trois stations, 49 m sur base 20 m, 60 m sur base 50 m.
 
+### Ce qui fait reference, et pour quoi
+
+| Usage | Reference |
+|---|---|
+| Position planimetrique | **BD TOPO**, sans reserve — c'est le socle du recalage |
+| Existence d'un troncon | **BD TOPO** — base de la precision/rappel sur la detection |
+| Largeur | **aucune source cartographique** ; il faut un releve |
+
+`LARGEUR_DE_CHAUSSEE` de la BD TOPO est un attribut **declaratif**, souvent
+defaute par classe et vide sur `Chemin` et `Sentier` — soit precisement notre
+cas d'usage. Elle sert de controle **ordinal** (la largeur mesuree doit se
+ranger dans l'ordre des natures), jamais de metre etalon.
+
+Et la sortie d'un traitement anterieur — desserte corrigee par ALSroads ou
+equivalent — est disqualifiee **par construction** :
 [`dsr_calibrer_largeur()`](https://pobsteta.github.io/dessertR/reference/dsr_calibrer_largeur.html)
-balaie une grille de parametres contre une largeur de reference et renvoie
-biais, MAE et RMSE — pour arbitrer sur des chiffres. `dev/03_validation.R`
-l'applique a tous les massifs disponibles et publie le tableau croise : un
-reglage qui gagne sur un massif et perd sur les autres n'est pas un reglage.
+retient le reglage qui *minimise* l'ecart, donc s'y caler ne mesurerait pas le
+biais de l'autre methode, ça le **reproduirait**.
+
+Avec une vraie verite terrain (decametre, GNSS, photo-interpretation sur ortho
+THR), `dsr_calibrer_largeur()` balaie une grille de parametres et renvoie biais,
+MAE et RMSE. Sans elle, `dev/03_validation.R` se limite aux diagnostics de
+coherence — dispersion intra-troncon, ordre des classes — qui disent si la
+mesure est reproductible et plausible, pas si elle est juste.
 
 ```sh
 DSR_INVENTAIRE=1 Rscript dev/03_validation.R   # que voit-on ?
@@ -134,11 +153,14 @@ sous-ensemble.
 
 ## Ce qui reste a faire
 
-1. **Calibrer la largeur sur le terrain.** L'estimateur est stabilise, le biais
-   residuel est faible et constant — reste a savoir s'il traduit une erreur de
-   mesure ou un **ecart de definition** : la largeur roulable retient la bande
-   de faible devers, une largeur carrossable de gestionnaire inclut souvent les
-   accotements. Cette question se tranche avec le gestionnaire, pas au seuil.
+1. **Obtenir une verite terrain sur la largeur.** C'est le vrai verrou :
+   l'estimateur est stabilise et son erreur bornee sur profils de synthese, mais
+   aucune source disponible ne permet de le calibrer. Ni la BD TOPO (attribut
+   declaratif), ni une desserte issue d'un autre algorithme (circulaire). Il
+   faut un releve. Restera ensuite a distinguer l'erreur de mesure de l'**ecart
+   de definition** : la largeur roulable retient la bande de faible devers,
+   une largeur carrossable de gestionnaire inclut souvent les accotements —
+   cette question-la se tranche avec le gestionnaire, pas au seuil.
 2. **Valider sur des massifs contrastes.** Feuillus de plaine, resineux de
    montagne, plateau calcaire — ce dernier est le test decisif du canal
    geomorphologique, la ou les chemins creux et les traces fossiles abondent.

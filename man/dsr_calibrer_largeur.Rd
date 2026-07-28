@@ -21,7 +21,8 @@ dsr_calibrer_largeur(
 
 \item{mnt}{Le MNT (\code{SpatRaster}).}
 
-\item{reference}{\code{sf} portant la largeur de reference.}
+\item{reference}{\code{sf} portant une largeur de reference \strong{mesuree
+independamment} (voir Details) — pas la sortie d'un autre algorithme.}
 
 \item{champ_largeur}{Nom de la colonne de \code{reference} portant la largeur (m).}
 
@@ -53,6 +54,24 @@ trie du meilleur au pire, pour arbitrer sur des chiffres plutot que sur une
 impression.
 }
 \details{
+\strong{Ce qui peut servir de reference, et ce qui ne le peut pas.} Le calibrage
+retient le reglage qui \strong{minimise l'ecart} : pointer cette fonction vers la
+sortie d'un autre algorithme ne mesure donc pas un biais, il le \emph{reproduit} —
+on selectionne les parametres qui imitent le mieux l'autre methode, defauts
+compris. Une reference doit etre \strong{independante de toute mesure automatique}
+: releve au decametre, GNSS, ou photo-interpretation sur ortho THR.
+
+Deux sources tentantes qui n'en sont pas :
+\itemize{
+\item la \strong{largeur declarative d'une base cartographique} (\code{LARGEUR_DE_CHAUSSEE}
+de la BD TOPO, par exemple) est souvent defautee par classe et vide sur les
+chemins et sentiers — elle ne soutient pas un calibrage au decimetre. Elle
+reste utile comme controle \strong{ordinal} : la largeur mesuree doit se ranger
+dans l'ordre des classes ;
+\item la \strong{sortie d'un traitement anterieur} (desserte corrigee par ALSroads ou
+equivalent) est disqualifiee par construction.
+}
+
 \strong{Le calibrage ne peut pas commencer par le seuil.} Avec
 \code{methode_largeur = "gradient"}, le biais depend du pas transversal et du
 lissage autant que de \code{seuil_devers} : la valeur trouvee ne vaudrait que pour

@@ -40,6 +40,9 @@ connue.
   par confiance du MNT. Un biais constant a MAE faible signale un ecart de
   **definition** (la reference inclut-elle les accotements ?), pas une erreur de
   mesure — la distinction est documentee, elle se tranche avec le gestionnaire.
+  La fonction avertit desormais sur ce qui peut faire reference : elle retient
+  le reglage qui **minimise** l'ecart, donc la pointer vers la sortie d'un autre
+  algorithme ne mesurerait pas le biais de celui-ci, elle le **reproduirait**.
 * `dev/03_validation.R` remplace `dev/03_validation_wsfi.R` : il **decouvre** les
   projets nemeton exploitables au lieu d'en coder un en dur, les traite tous, et
   publie un tableau de calibrage croise. Un reglage qui gagne sur un massif et
