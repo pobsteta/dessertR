@@ -35,6 +35,7 @@ reference:
   - title: Etat de la desserte
     contents:
       - dsr_etat
+      - dsr_etat_trace
       - dsr_divergence
   - title: Recherche de trace
     contents:

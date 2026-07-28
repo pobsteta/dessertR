@@ -1,5 +1,14 @@
 # dessertR (developpement)
 
+## Etat le long du trace (lot 4)
+
+* `dsr_etat_trace()` : echantillonne `sigma_geo` / `sigma_surf` le long d'un
+  trace ([dsr_pathfinder()] ou geometrie BD TOPO), classe l'etat par troncon et
+  resume la repartition (longueur et pourcentage par etat). C'est la lecture
+  pertinente de l'etat -- en raster plein il est bruite, le long du trace retenu
+  il devient interpretable (BRIEF section 3.4). La classification est factorisee
+  avec `dsr_etat()`. Valide sur dalle reelle.
+
 ## Pathfinder anisotrope (lot 4)
 
 * `dsr_pathfinder()` : recherche de trace de moindre cout sur `sigma_geo`, avec
