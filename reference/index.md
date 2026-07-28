@@ -112,3 +112,8 @@
   : Ecrire un style QGIS categorise (.qml)
 - [`dsr_rapport()`](https://pobsteta.github.io/dessertR/reference/dsr_rapport.md)
   : Rapport de synthese d'un traitement
+
+## Detection hors reference
+
+- [`dsr_detecter()`](https://pobsteta.github.io/dessertR/reference/dsr_detecter.md)
+  : Detecter la desserte hors reference
