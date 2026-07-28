@@ -1,5 +1,15 @@
 # dessertR (developpement)
 
+## Repositionnement contraint par la BD TOPO (lot 4)
+
+* `dsr_repositionner()` : recale un reseau de reference (BD TOPO) sur le MNT
+  lidar via le pathfinder, **sans jamais s'ecarter de plus de `deviation_max`
+  metres de l'axe d'origine** (couloir dur + attraction douce vers l'axe). La
+  reference fait autorite : le reseau est **integralement conserve** (repli sur
+  la geometrie d'origine si le pathfinder echoue). Corrige le probleme revele par
+  la validation (le repositionnement libre accroche des lineaires paralleles --
+  risque n.1 du BRIEF) : le recalage contraint ne degrade plus la mesure.
+
 ## Jeu de validation (lot 1)
 
 * `dev/03_validation_wsfi.R` : harnais de validation sur un bloc reel de 4 dalles

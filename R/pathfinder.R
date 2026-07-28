@@ -91,6 +91,106 @@ dsr_pathfinder <- function(sigma_geo, depart, arrivee, theta = NULL, poids = NUL
 }
 
 
+#' Repositionner un reseau de reference sous contrainte
+#'
+#' Recale chaque troncon d'un reseau de reference (BD TOPO) sur le MNT lidar via
+#' le pathfinder, **sans jamais s'ecarter de plus de `deviation_max` metres de
+#' l'axe d'origine** (couloir dur) et en etant attire vers cet axe (contrainte
+#' douce). La reference fait autorite : la validation a montre qu'un
+#' repositionnement libre sur `sigma_geo` accroche des lineaires paralleles
+#' (fosses, traces fossiles, risque n.1 du BRIEF) et degrade la mesure. La
+#' contrainte l'empeche.
+#'
+#' La **totalite du reseau de reference est conservee** : si le pathfinder
+#' echoue sur un troncon, on garde sa geometrie d'origine. Le recalage ne peut
+#' donc que deplacer un axe dans son couloir, jamais en supprimer.
+#'
+#' @param reseau Un `sf` de `LINESTRING` (reseau de reference, p. ex. BD TOPO).
+#' @param sigma_geo Conductivite geomorphologique ([dsr_conductivite()]),
+#'   `SpatRaster`.
+#' @param theta,poids Orientation et force d'anisotropie ([dsr_layers_dtm()]),
+#'   alignes sur `sigma_geo` ; `NULL` -> isotrope.
+#' @param deviation_max Ecart lateral maximal a l'axe d'origine, en metres.
+#'   Defaut 10.
+#' @param attraction Force du rappel vers l'axe (0 = aucun ; plus grand = plus
+#'   colle a l'axe). Defaut 1.
+#' @param lambda,mu,sigma_min Parametres du pathfinder ([dsr_pathfinder()]).
+#'
+#' @return Le `sf` d'entree, geometries recalees, avec les colonnes
+#'   `DEPLACEMENT_MAX` et `DEPLACEMENT_MOY` (ecart a l'axe d'origine, m) et
+#'   `RECALE` (logique : `FALSE` = repli sur l'origine).
+#' @seealso [dsr_pathfinder()], [dsr_conductivite()], [dsr_measure()].
+#' @export
+dsr_repositionner <- function(reseau, sigma_geo, theta = NULL, poids = NULL,
+                              deviation_max = 10, attraction = 1,
+                              lambda = 4, mu = 2, sigma_min = 0.05) {
+  if (!inherits(reseau, "sf")) dsr_abort("{.arg reseau} doit etre un {.cls sf}.")
+  if (!inherits(sigma_geo, "SpatRaster")) {
+    dsr_abort("{.arg sigma_geo} doit etre un {.cls SpatRaster}.")
+  }
+  g <- sf::st_geometry(reseau)
+  n <- length(g)
+  geoms <- vector("list", n)
+  dmax <- rep(NA_real_, n); dmoy <- rep(NA_real_, n); recale <- rep(FALSE, n)
+
+  for (i in seq_len(n)) {
+    axe <- g[i]
+    res <- dsr_recaler_une(axe, sigma_geo, theta, poids, deviation_max,
+      attraction, lambda, mu, sigma_min)
+    if (is.null(res)) {
+      geoms[[i]] <- axe[[1]] # repli : conserver l'axe BD TOPO
+    } else {
+      geoms[[i]] <- res
+      pts <- sf::st_cast(sf::st_sfc(res, crs = sf::st_crs(reseau)), "POINT")
+      d <- as.numeric(sf::st_distance(pts, axe))
+      dmax[i] <- max(d); dmoy[i] <- mean(d); recale[i] <- TRUE
+    }
+  }
+
+  out <- sf::st_set_geometry(reseau, sf::st_sfc(geoms, crs = sf::st_crs(reseau)))
+  out$DEPLACEMENT_MAX <- dmax
+  out$DEPLACEMENT_MOY <- dmoy
+  out$RECALE <- recale
+  out
+}
+
+
+# Recaler un axe unique dans son couloir +/- deviation_max. Renvoie un
+# LINESTRING (sfg) ou NULL en cas d'echec.
+#' @noRd
+dsr_recaler_une <- function(axe, sigma_geo, theta, poids, deviation_max,
+                            attraction, lambda, mu, sigma_min) {
+  bb <- sf::st_bbox(sf::st_buffer(axe, deviation_max + 5))
+  e <- terra::ext(bb[["xmin"]], bb[["xmax"]], bb[["ymin"]], bb[["ymax"]])
+  sg <- tryCatch(terra::crop(sigma_geo, e), error = function(err) NULL)
+  if (is.null(sg) || terra::ncell(sg) < 4L) return(NULL)
+
+  # Distance a l'axe : couloir dur (NA au-dela) + attraction douce vers l'axe.
+  ax <- terra::rasterize(terra::vect(sf::st_as_sf(axe)), sg, field = 1)
+  dist <- terra::distance(ax)
+  sgv <- terra::values(sg, mat = FALSE)
+  dv <- terra::values(dist, mat = FALSE)
+  eff <- sgv / (1 + attraction * (dv / deviation_max)^2)
+  # Resserrer d'une diagonale de maille : `dist` mesure au centre des cellules de
+  # l'axe rasterise (sous-estime la distance a la ligne d'un demi-pixel). Sans
+  # cela un sommet recale pourrait depasser `deviation_max` de ~une maille.
+  seuil <- deviation_max - sqrt(2) * terra::res(sg)[1]
+  eff[is.na(dv) | dv > seuil] <- NA
+  if (all(is.na(eff))) return(NULL)
+  sg_eff <- terra::setValues(sg, eff)
+
+  th <- if (!is.null(theta)) terra::crop(theta, sg) else NULL
+  pv <- if (!is.null(poids)) terra::crop(poids, sg) else NULL
+
+  co <- sf::st_coordinates(axe)[, 1:2, drop = FALSE]
+  tr <- tryCatch(
+    dsr_pathfinder(sg_eff, co[1, ], co[nrow(co), ], theta = th, poids = pv,
+      lambda = lambda, mu = mu, sigma_min = sigma_min)$trace,
+    error = function(err) NULL)
+  if (is.null(tr)) NULL else sf::st_geometry(tr)[[1]]
+}
+
+
 # Extraire les valeurs d'un raster en verifiant qu'il est aligne sur la
 # reference (grille et emprise identiques).
 #' @noRd
