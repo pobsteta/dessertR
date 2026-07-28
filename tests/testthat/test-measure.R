@@ -242,3 +242,260 @@ test_that("dsr_calibrer_largeur : garde-fous", {
   expect_error(dsr_calibrer_largeur(tr, mnt, ref, "absente"), "absente")
   expect_error(dsr_calibrer_largeur("pas un sf", mnt, ref, "largeur_m"), "sf")
 })
+
+
+test_that("la detection de fosse reste muette quand la fenetre est hors emprise", {
+  # Tout troncon qui atteint le bord de dalle donne des profils partiellement
+  # NA. Le verdict etait deja bon (aucun fosse) mais chaque station emettait un
+  # avertissement, ce qui noie ceux qui comptent.
+  offsets <- seq(-8, 8, by = 0.5)
+  zi <- rep(NA_real_, length(offsets))
+  centre <- abs(offsets) <= 2
+  zi[centre] <- 100
+  ic <- which.min(abs(offsets))
+  expect_silent(
+    m <- dessertR:::dsr_mesurer_profil(zi, offsets, ic, seuil_devers = 0.15,
+      prof_fosse = 0.2)
+  )
+  expect_equal(m$fosses, 0L)
+})
+
+
+# Profil en travers de synthese : chaussee bombee de largeur W, fosse et talus
+# de deblai d'un cote, remblai de l'autre -- la geometrie d'une route de
+# montagne, ou le critere de fosse par simple descente echoue.
+profil_montagne <- function(x, W = 4, bomb = 0.03, deblai = 0.6, remblai = -0.6,
+                            fosse = 0.5, larg_fosse = 0.8) {
+  h <- W / 2
+  vapply(x, function(u) {
+    if (abs(u) <= h) return(-bomb * abs(u))
+    d <- abs(u) - h
+    zb <- -bomb * h
+    if (u < 0) {
+      if (d <= larg_fosse) zb - fosse * sin(pi * d / larg_fosse)
+      else zb + deblai * (d - larg_fosse)
+    } else {
+      zb + remblai * d
+    }
+  }, numeric(1))
+}
+
+test_that("un versant qui descend sans remonter n'est pas un fosse", {
+  off <- seq(-8, 8, by = 0.25)
+  ic <- which.min(abs(off))
+  zi <- dessertR:::dsr_lisser(profil_montagne(off), 3)
+  m <- dessertR:::dsr_mesurer_profil(zi, off, ic, seuil_devers = 0.15,
+    prof_fosse = 0.2)
+  # Fosse amont seulement : le remblai aval descend de plusieurs metres mais ne
+  # remonte jamais. Le critere par simple descente en declarait deux.
+  expect_equal(m$fosses, 1L)
+})
+
+test_that("un fosse de chaque cote est bien compte deux fois", {
+  off <- seq(-8, 8, by = 0.25)
+  ic <- which.min(abs(off))
+  # Profil symetrique : le cote amont (fosse + deblai) mire des deux cotes.
+  sym <- profil_montagne(-abs(off))
+  zi <- dessertR:::dsr_lisser(sym, 3)
+  m <- dessertR:::dsr_mesurer_profil(zi, off, ic, seuil_devers = 0.15,
+    prof_fosse = 0.2)
+  expect_equal(m$fosses, 2L)
+})
+
+test_that("aucun fosse n'est declare sur un deblai sec", {
+  off <- seq(-8, 8, by = 0.25)
+  ic <- which.min(abs(off))
+  zi <- dessertR:::dsr_lisser(profil_montagne(off, fosse = 0), 3)
+  m <- dessertR:::dsr_mesurer_profil(zi, off, ic, seuil_devers = 0.15,
+    prof_fosse = 0.2)
+  expect_equal(m$fosses, 0L)
+})
+
+test_that("dsr_measure rend les deux bords, et leur somme fait la largeur", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  mnt <- terra::rast(nrows = 60, ncols = 60, xmin = 0, xmax = 60, ymin = 0,
+    ymax = 60, resolution = 1, crs = "EPSG:2154")
+  xy <- terra::xyFromCell(mnt, seq_len(terra::ncell(mnt)))
+  # Plateforme plate de 4 m centree sur y = 30, talus de part et d'autre.
+  d <- abs(xy[, 2] - 30)
+  terra::values(mnt) <- ifelse(d <= 2, 100, 100 - 0.6 * (d - 2))
+  tr <- sf::st_sf(geometry = sf::st_sfc(
+    sf::st_linestring(cbind(c(5, 55), c(30, 30))), crs = 2154))
+  m <- dsr_measure(tr, mnt, pas = 2, pas_travers = 0.25)
+  expect_true(all(c("BORD_G", "BORD_D") %in% names(m$stations)))
+  expect_equal(m$stations$BORD_G + m$stations$BORD_D,
+    m$stations$LARGEUR_ROULABLE, tolerance = 1e-8)
+  expect_true(all(m$stations$BORD_G > 0 & m$stations$BORD_D > 0))
+})
+
+
+# Profil avec ACCOTEMENT : chaussee bombee de largeur W, puis un accotement
+# plus penche, puis le talus. C'est l'accotement que la methode "chaussee" doit
+# retrancher et que "planeite" retient.
+profil_accotement <- function(x, W = 4, bomb = 0.03, epaule = 1,
+                              pente_epaule = -0.06, talus = -0.6) {
+  h <- W / 2
+  vapply(x, function(u) {
+    a <- abs(u)
+    if (a <= h) return(-bomb * a)
+    d <- a - h
+    zb <- -bomb * h
+    if (d <= epaule) zb + pente_epaule * d
+    else zb + pente_epaule * epaule + talus * (d - epaule)
+  }, numeric(1))
+}
+
+mesurer <- function(z, methode, pt = 0.25) {
+  off <- seq(-8, 8, by = pt)
+  dessertR:::dsr_mesurer_profil(dessertR:::dsr_lisser(z, 3), off,
+    which.min(abs(off)), 0.15, 0.2, methode = methode, zb = z)
+}
+
+test_that('"chaussee" retranche l accotement que "planeite" retient', {
+  off <- seq(-8, 8, by = 0.25)
+  z <- profil_accotement(off, W = 4, epaule = 1, pente_epaule = -0.06)
+  plat <- mesurer(z, "planeite")
+  ch <- mesurer(z, "chaussee")
+  expect_gt(plat$largeur, 5)              # la plateforme inclut l accotement
+  expect_equal(ch$largeur, 4, tolerance = 0.1)
+  expect_equal(ch$bords_nets, 2L)         # rupture resolue des deux cotes
+})
+
+test_that('"chaussee" ne retranche rien quand il n y a pas d accotement', {
+  off <- seq(-8, 8, by = 0.25)
+  z <- profil_accotement(off, W = 4, epaule = 0)
+  plat <- mesurer(z, "planeite")
+  ch <- mesurer(z, "chaussee")
+  expect_equal(ch$largeur, plat$largeur, tolerance = 1e-8)
+  expect_equal(ch$bords_nets, 0L)
+})
+
+test_that('"chaussee" retombe sur la plateforme quand le bruit noie la rupture', {
+  set.seed(3)
+  off <- seq(-8, 8, by = 0.25)
+  z <- profil_accotement(off, W = 4, epaule = 1) + rnorm(length(off), 0, 0.05)
+  plat <- mesurer(z, "planeite")
+  ch <- mesurer(z, "chaussee")
+  # Mieux vaut rendre la plateforme, en le disant, qu inventer un bord.
+  expect_equal(ch$largeur, plat$largeur, tolerance = 1e-8)
+  expect_equal(ch$bords_nets, 0L)
+})
+
+test_that('"chaussee" suit la largeur reelle de la chaussee', {
+  off <- seq(-8, 8, by = 0.25)
+  l <- vapply(c(3, 4, 5), function(W) {
+    mesurer(profil_accotement(off, W = W, epaule = 1), "chaussee")$largeur
+  }, numeric(1))
+  expect_equal(l, c(3, 4, 5), tolerance = 0.15)
+})
+
+test_that("dsr_measure expose BORDS_CHAUSSEE pour la seule methode chaussee", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  mnt <- terra::rast(nrows = 60, ncols = 60, xmin = 0, xmax = 60, ymin = 0,
+    ymax = 60, resolution = 0.5, crs = "EPSG:2154")
+  xy <- terra::xyFromCell(mnt, seq_len(terra::ncell(mnt)))
+  terra::values(mnt) <- 100 + profil_accotement(xy[, 2] - 30, W = 4, epaule = 1)
+  tr <- sf::st_sf(geometry = sf::st_sfc(
+    sf::st_linestring(cbind(c(5, 55), c(30, 30))), crs = 2154))
+  expect_true("BORDS_CHAUSSEE" %in%
+    names(dsr_measure(tr, mnt, pas = 2, pas_travers = 0.25)$stations))
+  expect_false("BORDS_CHAUSSEE" %in%
+    names(dsr_measure(tr, mnt, pas = 2, pas_travers = 0.25,
+      methode_largeur = "planeite")$stations))
+})
+
+test_that('"chaussee" degrade proprement sur un profil sans chaussee', {
+  off <- seq(-8, 8, by = 0.25)
+  z <- rep(NA_real_, length(off))
+  m <- mesurer(z, "chaussee")
+  expect_equal(m$largeur, 0)
+  expect_equal(m$bords_nets, 0L)
+})
+
+
+test_that("dsr_calibrer_largeur classe les methodes sur une verite connue", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  # Chaussee de 4 m avec 1 m d'accotement a 6 % : "planeite" mesure la
+  # plateforme, "chaussee" la chaussee. La verite terrain dit 4 m.
+  mnt <- terra::rast(nrows = 120, ncols = 120, xmin = 0, xmax = 60, ymin = 0,
+    ymax = 60, resolution = 0.5, crs = "EPSG:2154")
+  xy <- terra::xyFromCell(mnt, seq_len(terra::ncell(mnt)))
+  terra::values(mnt) <- 100 + profil_accotement(xy[, 2] - 30, W = 4, epaule = 1)
+  lig <- sf::st_sfc(sf::st_linestring(cbind(c(5, 55), c(30, 30))), crs = 2154)
+  tr <- sf::st_sf(geometry = lig)
+  ref <- sf::st_sf(largeur_m = 4, geometry = lig)
+
+  r <- dsr_calibrer_largeur(tr, mnt, ref, "largeur_m",
+    grille = expand.grid(methode_largeur = c("chaussee", "planeite"),
+      tol_planeite = 0.10, stringsAsFactors = FALSE),
+    long_min = 30, pas_travers = 0.25)
+
+  expect_equal(nrow(r), 2L)
+  expect_true(all(c("n", "biais", "mae", "rmse") %in% names(r)))
+  # Le tableau est trie par MAE croissante : "chaussee" doit sortir devant.
+  expect_equal(r$methode_largeur[1], "chaussee")
+  expect_lt(r$mae[1], r$mae[2])
+})
+
+
+test_that("dsr_calibrer_largeur stratifie par confiance du MNT", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  # La stratification repond a « la largeur se degrade-t-elle la ou le sol est
+  # mal vu ? ». Elle exige une couche de confiance ; sans elle, une seule ligne
+  # par jeu de parametres.
+  mnt <- terra::rast(nrows = 120, ncols = 120, xmin = 0, xmax = 60, ymin = 0,
+    ymax = 60, resolution = 0.5, crs = "EPSG:2154")
+  xy <- terra::xyFromCell(mnt, seq_len(terra::ncell(mnt)))
+  terra::values(mnt) <- 100 + profil_accotement(xy[, 2] - 30, W = 4, epaule = 1)
+
+  # Densite de points sol : faible sur la premiere moitie, forte sur la seconde.
+  conf <- terra::rast(mnt)
+  terra::values(conf) <- ifelse(xy[, 1] < 30, 1, 8)
+
+  lig <- sf::st_sfc(sf::st_linestring(cbind(c(5, 55), c(30, 30))), crs = 2154)
+  r <- dsr_calibrer_largeur(sf::st_sf(geometry = lig), mnt,
+    sf::st_sf(largeur_m = 4, geometry = lig), "largeur_m",
+    grille = data.frame(tol_planeite = 0.10),
+    long_min = 30, pas_travers = 0.25, confiance = conf,
+    seuils_confiance = c(0, 2, 5, Inf))
+
+  # Deux strates peuplees (1 pt/m2 et 8 pt/m2), la troisieme vide est omise.
+  expect_equal(nrow(r), 2L)
+  expect_false(any(is.na(r$strate)))
+  expect_equal(sum(r$n), 26L)
+})
+
+test_that("dsr_calibrer_largeur refuse un jeu sans largeur de reference", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  # Cas tres concret : LARGEUR_DE_CHAUSSEE de la BD TOPO est frequemment vide
+  # ou nulle sur Chemin et Sentier. Il n y a alors rien a quoi se comparer, et
+  # mieux vaut le dire que rendre un tableau vide.
+  mnt <- terra::rast(nrows = 40, ncols = 40, xmin = 0, xmax = 20, ymin = 0,
+    ymax = 20, resolution = 0.5, crs = "EPSG:2154")
+  terra::values(mnt) <- 100
+  lig <- sf::st_sfc(sf::st_linestring(cbind(c(2, 18), c(10, 10))), crs = 2154)
+  expect_error(
+    dsr_calibrer_largeur(sf::st_sf(geometry = lig), mnt,
+      sf::st_sf(largeur_m = 0, geometry = lig), "largeur_m",
+      grille = data.frame(tol_planeite = 0.10), long_min = 5),
+    "Aucune station appariee"
+  )
+})
+
+test_that("dsr_measure ne rale pas sur un MNT sans valeur sous le trace", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  mnt <- terra::rast(nrows = 40, ncols = 40, xmin = 0, xmax = 20, ymin = 0,
+    ymax = 20, resolution = 0.5, crs = "EPSG:2154")
+  terra::values(mnt) <- NA_real_
+  tr <- sf::st_sf(geometry = sf::st_sfc(
+    sf::st_linestring(cbind(c(2, 18), c(10, 10))), crs = 2154))
+  expect_silent(m <- dsr_measure(tr, mnt, pas = 2))
+  expect_true(is.na(m$resume$PENTE_LONG_MAX))
+  expect_true(is.na(m$resume$PENTE_LONG_MOY))
+})

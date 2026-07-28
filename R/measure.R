@@ -147,6 +147,57 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 #' pas un devers : `DEVERS` ne retient que l'inclinaison d'ensemble, celle qui
 #' compte pour la stabilite d'un chargement.
 #'
+#' **Chaussee ou plateforme : ce que la largeur mesure.** `"planeite"` s'arrete
+#' la ou la surface quitte le plan de chaussee, donc il **retient l'accotement**
+#' tant que celui-ci reste dans `tol_planeite` : il mesure la *plateforme*. Sur
+#' un profil de synthese de chaussee 4,00 m, il rend 3,89 m sans accotement,
+#' 4,75 m avec 0,5 m a 6 %, 5,57 m avec 1,0 m a 6 %, 6,54 m avec 1,5 m a 4 %.
+#'
+#' `"chaussee"` (defaut) va plus loin : entre l'axe et le bord de plateforme, le
+#' profil compte au plus deux segments -- la chaussee, puis l'accotement, plus
+#' penche. Une droite brisee a deux segments est ajustee et le bord retenu est
+#' l'**intersection des deux droites**. Sur les memes profils :
+#'
+#' | profil (chaussee 4,00 m) | `"planeite"` | `"chaussee"` |
+#' |---|---|---|
+#' | sans accotement | 3,89 m | 3,89 m |
+#' | accotement 0,5 m a 6 % | 4,75 m | 3,67 m |
+#' | accotement 1,0 m a 6 % | 5,57 m | **4,00 m** |
+#' | accotement 1,0 m a 10 % | 5,14 m | **4,00 m** |
+#' | accotement 1,5 m a 12 % | 4,95 m | 3,67 m |
+#'
+#' **Ce qu'elle ne sait pas faire, et ce qu'elle fait alors.** La rupture n'est
+#' retenue que si elle est significative (test F contre une droite unique) et
+#' contrastee. Deux situations lui echappent : un accotement dont la pente est
+#' trop proche du bombement (4 % contre 3 % : indiscernables sur un MNT), et un
+#' bruit de MNT superieur a environ 5 cm, qui noie la rupture. Dans ces cas elle
+#' **rend le bord de plateforme** plutot qu'un bord invente, et `BORDS_CHAUSSEE`
+#' compte les cotes (0, 1 ou 2) ou la rupture a effectivement ete resolue.
+#' Lire cette colonne avant d'interpreter la largeur : sur l'extrait Lidar HD
+#' livre avec le paquet, MNT a 50 cm sous couvert, elle vaut 0 a 162 stations
+#' sur 222.
+#'
+#' L'ajustement se fait sur le profil **brut**, non lisse : le lissage arrondit
+#' la rupture et la regression segmentee lit cet arrondi comme un segment. Elle
+#' demande en revanche un echantillonnage transversal fin (`pas_travers` <= 0,25
+#' m) : a 0,5 m il n'y a pas assez de points pour deux droites.
+#'
+#' Consequence directe sur une route de montagne en deblai-remblai : les deux
+#' bords ne se comportent pas de la meme facon. Sur l'extrait Lidar HD livre
+#' avec le paquet, la position du bord amont, adossee a un talus de deblai
+#' construit, a un ecart interquartile de 0,50 m le long du troncon ; le bord
+#' aval, sur remblai, de 1,00 a 1,25 m. La variation est **lisse** (le bord se
+#' deplace d'une seule maille d'echantillonnage entre stations voisines,
+#' autocorrelation 0,44 a 0,68) : c'est la geometrie de l'accotement qui varie,
+#' pas la mesure qui saute. `BORD_G` et `BORD_D` sont renvoyes separement pour
+#' que cette dissymetrie reste lisible au lieu d'etre noyee dans une largeur
+#' unique.
+#'
+#' **Fosses.** Un fosse est un **creux** : on descend sous le bord de plateforme
+#' d'au moins `prof_fosse`, puis on remonte d'autant. Ne tester que la descente
+#' rend le critere vrai partout des que la route est en devers, le versant aval
+#' etant plus bas de plusieurs metres sur toute la fenetre de recherche.
+#'
 #' **Rayon de courbure.** Il est ajuste par un cercle des moindres carres sur
 #' une fenetre de `base_courbure` metres, et non sur trois stations
 #' consecutives. La quantification du trace vectorise (un sommet par cellule)
@@ -177,8 +228,9 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 #' @param liss_travers,liss_long Fenetres de lissage (en echantillons) des
 #'   profils, transversale et longitudinale. Indispensables sur un MNT bruite
 #'   sous couvert dense (voir Details). Defaut 3 et 5.
-#' @param methode_largeur `"planeite"` (defaut) ou `"gradient"` (methode
-#'   historique) ; voir Details.
+#' @param methode_largeur `"chaussee"` (defaut, retranche l'accotement),
+#'   `"planeite"` (la plateforme entiere) ou `"gradient"` (methode historique) ;
+#'   voir Details.
 #' @param tol_planeite Ecart maximal (m) au plan de chaussee ajuste, methode
 #'   `"planeite"` seulement. Defaut 0.10.
 #' @param base_courbure Longueur (m) de la fenetre d'ajustement du cercle de
@@ -190,6 +242,9 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 #'   [dsr_layers_pc()]) pour `CONFIANCE_MNT` ; `NULL` pour l'omettre.
 #'
 #' @return Une liste : `stations` (`sf` `POINT` avec `LARGEUR_ROULABLE`,
+#'   `BORD_G` et `BORD_D` (distance de l'axe a chaque bord, m -- leur somme fait
+#'   la largeur), `BORDS_CHAUSSEE` (methode `"chaussee"` seulement : nombre de
+#'   cotes ou la rupture chaussee/accotement a ete resolue),
 #'   `DEVERS`, `FOSSES`, `PENTE_LONG`, et si fournis `CONFIANCE_MNT`,
 #'   `DEPLACEMENT`), et `resume` (metriques globales : `LARGEUR_ROULABLE_MED`,
 #'   `PENTE_LONG_MOY`, `PENTE_LONG_MAX`, `RAYON_COURBURE_MIN`,
@@ -209,7 +264,7 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5,
                         seuil_devers = 0.15, prof_fosse = 0.2,
                         liss_travers = 3, liss_long = 5,
-                        methode_largeur = c("planeite", "gradient"),
+                        methode_largeur = c("chaussee", "planeite", "gradient"),
                         tol_planeite = 0.10, base_courbure = 30,
                         reference = NULL, confiance = NULL) {
   methode_largeur <- match.arg(methode_largeur)
@@ -221,11 +276,13 @@ dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
   ic <- which.min(abs(offsets)) # colonne du centre (offset ~ 0)
 
   larg <- numeric(ns); dev <- numeric(ns); fos <- integer(ns)
+  bg <- numeric(ns); bd <- numeric(ns); nets <- integer(ns)
   for (i in seq_len(ns)) {
     zi <- dsr_lisser(z[i, ], liss_travers) # attenue le bruit du MNT sous couvert
     m <- dsr_mesurer_profil(zi, offsets, ic, seuil_devers, prof_fosse,
-      methode = methode_largeur, tol_planeite = tol_planeite)
+      methode = methode_largeur, tol_planeite = tol_planeite, zb = z[i, ])
     larg[i] <- m$largeur; dev[i] <- m$devers; fos[i] <- m$fosses
+    bg[i] <- m$bord_g; bd[i] <- m$bord_d; nets[i] <- m$bords_nets
   }
 
   # Pente longitudinale locale (dz/ds) au centre du trace, sur z lisse.
@@ -246,6 +303,9 @@ dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 
   st <- pr$stations
   st$LARGEUR_ROULABLE <- larg
+  st$BORD_G <- bg
+  st$BORD_D <- bd
+  if (identical(methode_largeur, "chaussee")) st$BORDS_CHAUSSEE <- nets
   st$DEVERS <- dev
   st$FOSSES <- fos
   st$PENTE_LONG <- pente
@@ -261,8 +321,15 @@ dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 
   resume <- list(
     LARGEUR_ROULABLE_MED = stats::median(larg, na.rm = TRUE),
-    PENTE_LONG_MOY = mean(abs(pente), na.rm = TRUE),
-    PENTE_LONG_MAX = max(abs(pente), na.rm = TRUE),
+    PENTE_LONG_MOY = if (any(is.finite(pente))) {
+      mean(abs(pente[is.finite(pente)]))
+    } else NA_real_,
+    # Ecarter les NA AVANT le maximum, pas par na.rm : un MNT sans valeur sous
+    # le trace -- troncon hors emprise, trou de donnee -- rendait -Inf avec un
+    # avertissement, la ou NA_real_ dit exactement ce qui s'est passe.
+    PENTE_LONG_MAX = if (any(is.finite(pente))) {
+      max(abs(pente[is.finite(pente)]))
+    } else NA_real_,
     RAYON_COURBURE_MIN = min(rayon[is.finite(rayon)], Inf),
     RAYON_COURBURE_P05 = if (any(is.finite(rayon))) {
       unname(stats::quantile(rayon[is.finite(rayon)], 0.05))
@@ -275,36 +342,140 @@ dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 
 # Mesurer un profil transversal : largeur roulable, devers, fosses lateraux.
 #
-# Deux estimateurs de largeur, voir dsr_measure(). Le critere de fosse est
-# commun : un creux au-dela du bord de plateforme, dans une fenetre de ~4 m,
-# plus bas que ce bord d'au moins `prof_fosse`.
+# Trois estimateurs de largeur, voir dsr_measure(). `zb` est le profil BRUT, non
+# lisse : la methode "chaussee" en a besoin (voir .dsr_largeur_chaussee).
+# Le critere de fosse est commun : un CREUX au-dela du bord de plateforme, dans
+# une fenetre de ~4 m.
 #' @noRd
 dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
-                               methode = c("planeite", "gradient"),
+                               methode = c("chaussee", "planeite", "gradient"),
                                tol_planeite = 0.10, base_plan = 1,
-                               tol_ecart = 2L) {
+                               tol_ecart = 2L, zb = NULL) {
   methode <- match.arg(methode)
   no <- length(offsets)
   pt <- offsets[2] - offsets[1]
+  if (is.null(zb)) zb <- zi
 
-  m <- if (identical(methode, "planeite")) {
-    .dsr_largeur_planeite(zi, offsets, ic, tol_planeite, base_plan, tol_ecart)
-  } else {
+  m <- switch(methode,
+    chaussee = .dsr_largeur_chaussee(zi, zb, offsets, ic, tol_planeite,
+      base_plan, tol_ecart),
+    planeite = .dsr_largeur_planeite(zi, offsets, ic, tol_planeite, base_plan,
+      tol_ecart),
     .dsr_largeur_gradient(zi, offsets, ic, seuil_devers)
-  }
+  )
   if (m$largeur <= 0) {
-    return(list(largeur = 0, devers = m$devers, fosses = 0L))
+    return(list(largeur = 0, devers = m$devers, fosses = 0L,
+      bord_g = NA_real_, bord_d = NA_real_,
+      bords_nets = if (is.null(m$nets)) NA_integer_ else m$nets))
   }
 
   fenetre <- max(1L, round(4 / pt))
   fosse <- function(edge, dir) {
     idx <- edge + dir * seq_len(fenetre)
     idx <- idx[idx >= 1 & idx <= no]
-    if (length(idx) == 0L) return(0L)
-    as.integer((zi[edge] - min(zi[idx], na.rm = TRUE)) > prof_fosse)
+    # Ecarter les NA AVANT toute reduction, pas par na.rm : une fenetre
+    # entierement hors emprise du MNT -- le cas de tout troncon qui atteint le
+    # bord de dalle, donc de tout massif -- declenchait un avertissement par
+    # station.
+    idx <- idx[!is.na(zi[idx])]
+    if (length(idx) < 2L || is.na(zi[edge])) return(0L)
+
+    # Un fosse est un CREUX : on descend sous le bord de plateforme, puis on
+    # remonte. Se contenter de la descente -- « un point plus bas que le bord
+    # de `prof_fosse` » -- rend vrai partout des que la route est en devers :
+    # le versant aval est plus bas de plusieurs metres sur toute la fenetre.
+    # Mesure sur l'extrait Lidar HD livre avec le paquet, route de montagne en
+    # deblai-remblai : un fosse etait declare a 68 stations sur 70. Ce n'etait
+    # pas un fosse, c'etait le versant.
+    z <- zi[idx]
+    # Plus haut point situe AU-DELA de chaque candidat : c'est la contre-berge.
+    apres <- rev(cummax(rev(z)))
+    creux <- (zi[edge] - z) >= prof_fosse & (apres - z) >= prof_fosse
+    as.integer(any(creux))
   }
   list(largeur = m$largeur, devers = m$devers,
-    fosses = fosse(m$il, -1L) + fosse(m$ir, 1L))
+    fosses = fosse(m$il, -1L) + fosse(m$ir, 1L),
+    bord_g = -m$xg, bord_d = m$xd,
+    bords_nets = if (is.null(m$nets)) NA_integer_ else m$nets)
+}
+
+
+# Largeur de CHAUSSEE (defaut). La recherche par planeite donne d'abord le bord
+# de PLATEFORME -- chaussee plus accotement, puisqu'un accotement reste dans
+# `tol` du plan de chaussee tant qu'il est peu penche. Entre l'axe et ce bord,
+# le profil compte au plus deux segments : la chaussee, puis l'accotement, plus
+# penche. On ajuste une droite brisee a deux segments et le bord de chaussee est
+# l'INTERSECTION des deux droites.
+#
+# Trois choix qui ont demande des mesures sur profils de synthese :
+#
+#   - l'ajustement se fait sur le profil BRUT, pas sur le profil lisse. Le
+#     lissage arrondit la rupture et la regression segmentee lit cet arrondi
+#     comme un segment : sur une chaussee de 4,00 m sans accotement, elle
+#     retranchait 0,46 m qui n'existaient pas. La regression segmentee est
+#     elle-meme un lisseur, elle n'a pas besoin qu'on lisse en amont.
+#   - le bord est l'intersection des deux droites, non le dernier echantillon du
+#     segment interne, qui tronquait d'un pas par cote.
+#   - la rupture n'est retenue que si elle est SIGNIFICATIVE (test F contre une
+#     droite unique) ET contrastee. Sans ces deux gardes, une chaussee sans
+#     accotement n'a rien a expliquer et la brisure se place n'importe ou.
+#
+# Quand la rupture n'est pas resolue, on rend le bord de plateforme plutot qu'un
+# bord invente, et `nets` dit sur combien de cotes elle l'a ete.
+#' @noRd
+.dsr_largeur_chaussee <- function(zi, zb, offsets, ic, tol, base_plan,
+                                  tol_ecart, demi_min = 0.75,
+                                  contraste = 0.012, f_min = 4) {
+  pl <- .dsr_largeur_planeite(zi, offsets, ic, tol, base_plan, tol_ecart)
+  if (pl$largeur <= 0) return(c(pl, list(nets = 0L)))
+
+  brisure <- function(dir, xbord, idx_bord) {
+    idx <- if (dir < 0L) rev(idx_bord:ic) else ic:idx_bord
+    idx <- idx[idx >= 1L & idx <= length(offsets)]
+    idx <- idx[is.finite(zb[idx])]
+    if (length(idx) < 8L) return(list(x = xbord, net = FALSE))
+    x <- abs(offsets[idx]); y <- zb[idx]
+
+    kmin <- max(3L, sum(x <= demi_min))
+    kmax <- length(x) - 3L
+    if (kmax <= kmin) return(list(x = xbord, net = FALSE))
+
+    ajuste <- function(k) {
+      a <- seq_len(k); b <- (k + 1L):length(x)
+      f1 <- stats::lm.fit(cbind(1, x[a]), y[a])
+      f2 <- stats::lm.fit(cbind(1, x[b]), y[b])
+      list(sse = sum(f1$residuals^2) + sum(f2$residuals^2),
+        a1 = f1$coefficients[1], p1 = f1$coefficients[2],
+        a2 = f2$coefficients[1], p2 = f2$coefficients[2])
+    }
+    ess <- lapply(kmin:kmax, ajuste)
+    best <- ess[[which.min(vapply(ess, `[[`, numeric(1), "sse"))]]
+
+    # Le second segment doit gagner RELATIVEMENT au bruit residuel : un rapport
+    # de SSE fixe devient impossible a satisfaire des que le MNT est bruite.
+    sse0 <- sum(stats::lm.fit(cbind(1, x), y)$residuals^2)
+    ddl <- length(x) - 4L
+    f <- if (ddl > 0L && best$sse > 0) {
+      ((sse0 - best$sse) / 2) / (best$sse / ddl)
+    } else 0
+    if (!is.finite(f) || f < f_min) return(list(x = xbord, net = FALSE))
+    if (!is.finite(best$p1) || !is.finite(best$p2) ||
+          abs(best$p2 - best$p1) < contraste ||
+          abs(best$p2) <= abs(best$p1)) {
+      return(list(x = xbord, net = FALSE))
+    }
+
+    xk <- unname((best$a1 - best$a2) / (best$p2 - best$p1))
+    if (!is.finite(xk) || xk < demi_min || xk > xbord) {
+      return(list(x = xbord, net = FALSE))
+    }
+    list(x = xk, net = TRUE)
+  }
+
+  g <- brisure(-1L, -pl$xg, pl$il)
+  d <- brisure(1L, pl$xd, pl$ir)
+  list(largeur = g$x + d$x, devers = pl$devers, il = pl$il, ir = pl$ir,
+    xg = -g$x, xd = d$x, nets = as.integer(g$net) + as.integer(d$net))
 }
 
 
@@ -327,7 +498,8 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
   k <- max(2L, as.integer(round(base_plan / pt)))
   win <- max(1L, ic - k):min(no, ic + k)
   ok <- is.finite(zi[win])
-  if (sum(ok) < 3L) return(list(largeur = 0, devers = NA_real_, il = ic, ir = ic))
+  if (sum(ok) < 3L) return(list(largeur = 0, devers = NA_real_, il = ic, ir = ic,
+      xg = NA_real_, xd = NA_real_))
 
   fit <- stats::lm.fit(cbind(1, offsets[win][ok]), zi[win][ok])
   res <- zi - (fit$coefficients[1] + fit$coefficients[2] * offsets)
@@ -357,7 +529,7 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
   }
   g <- bord(-1L); d <- bord(1L)
   list(largeur = max(0, d$pos - g$pos), devers = unname(fit$coefficients[2]),
-    il = g$idx, ir = d$idx)
+    il = g$idx, ir = d$idx, xg = g$pos, xd = d$pos)
 }
 
 
@@ -381,7 +553,8 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
   deb <- fin - rr$lengths + 1L
   segs <- which(rr$values)
   if (length(segs) == 0L) {
-    return(list(largeur = 0, devers = NA_real_, il = ic, ir = ic))
+    return(list(largeur = 0, devers = NA_real_, il = ic, ir = ic,
+      xg = NA_real_, xd = NA_real_))
   }
   contient <- vapply(segs, function(k) deb[k] <= ic && ic <= fin[k], logical(1))
   k <- if (any(contient)) segs[which(contient)[1]] else {
@@ -391,7 +564,8 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
   }
   il <- deb[k]; ir <- fin[k]
   list(largeur = offsets[ir] - offsets[il],
-    devers = mean(grad[il:ir], na.rm = TRUE), il = il, ir = ir)
+    devers = mean(grad[il:ir], na.rm = TRUE), il = il, ir = ir,
+    xg = offsets[il], xd = offsets[ir])
 }
 
 

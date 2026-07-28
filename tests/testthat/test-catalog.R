@@ -38,3 +38,14 @@ test_that("le corridor a la bonne surface a peu pres", {
   attendu <- 1000 * 80 + pi * 40^2
   expect_equal(as.numeric(sf::st_area(co)), attendu, tolerance = 0.01)
 })
+
+
+test_that("dsr_catalog diagnostique un catalogue vide plutot que d'echouer dans data.table", {
+  # Un bloc stocke sous une autre convention de nommage : tout est ecarte, et
+  # data.table::dcast repondait par une erreur interne indiagnosticable.
+  d <- file.path(tempdir(), "dsr_catalogue_vide")
+  dir.create(d, showWarnings = FALSE)
+  on.exit(unlink(d, recursive = TRUE), add = TRUE)
+  file.create(file.path(d, "nom_non_conventionnel.laz"))
+  expect_error(suppressMessages(dsr_catalog(laz = d)), "catalogue vide")
+})
