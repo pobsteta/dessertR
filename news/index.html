@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dessertR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -32,6 +32,256 @@
       <small>Source: <a href="https://github.com/pobsteta/dessertR/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.0.0" id="dessertr-100">dessertR 1.0.0<a class="anchor" aria-label="anchor" href="#dessertr-100"></a></h2>
+<p>Premiere version complete. La chaine fonctionnelle du BRIEF est implementee de bout en bout (catalogage, canal geomorphologique + nuage, conductivite <code>sigma_geo</code> / <code>sigma_surf</code>, pathfinder anisotrope Rust, repositionnement contraint par la BD TOPO, etat par divergence, mesure de la geometrie, praticabilite grumier, topologie reseau, detection hors reference vectorisee, conductivite apprise, canal optique, export GPKG/QGIS), avec noyau Rust, jeu de validation reproductible sur donnees Lidar HD reelles et dalle d’exemple versionnee.</p>
+<div class="section level3">
+<h3 id="premier-passage-du-harnais-de-validation-sur-donnee-reelle-1-0-0">Premier passage du harnais de validation sur donnee reelle<a class="anchor" aria-label="anchor" href="#premier-passage-du-harnais-de-validation-sur-donnee-reelle-1-0-0"></a></h3>
+<p>Le harnais <code>dev/03_validation.R</code> avait ete ecrit mais jamais execute. Un premier passage sur l’extrait Lidar HD livre avec le paquet (200 x 200 m, montagne, 4 troncons BD TOPO, 222 stations) a fait tomber deux defauts et produit trois observations.</p>
+<div class="section level4">
+<h4 id="corrige-1-0-0">Corrige<a class="anchor" aria-label="anchor" href="#corrige-1-0-0"></a></h4>
+<ul><li>
+<code><a href="../reference/dsr_catalog.html">dsr_catalog()</a></code> echouait sur <code>Can not cast an empty data.table</code> quand aucun nom de fichier ne suivait la convention Lidar HD. Le cas n’est pas theorique : il suffit qu’un bloc soit stocke sous une autre convention. Le message nomme maintenant le probleme, la cle attendue et les noms vus.</li>
+<li>La detection de fosse emettait un avertissement par station des qu’une fenetre laterale sortait de l’emprise du MNT – donc pour tout troncon atteignant un bord de dalle, donc sur tout massif. Le verdict etait deja bon (aucun fosse) ; ce sont des milliers d’avertissements qui noyaient ceux qui comptent.</li>
+<li>
+<code><a href="../reference/dsr_measure.html">dsr_measure()</a></code> rendait <code>PENTE_LONG_MAX = -Inf</code> avec un avertissement quand le MNT n’a aucune valeur sous le trace (troncon hors emprise, trou de donnee). Il rend <code>NA</code>, qui dit ce qui s’est passe.</li>
+<li>
+<code><a href="../reference/dsr_calibrer_largeur.html">dsr_calibrer_largeur()</a></code> n’avait aucun test. Elle en a quatre, dont la stratification par confiance du MNT – le mecanisme qui repond a « la largeur se degrade-t-elle la ou le sol est mal vu ? » – qui n’avait jamais ete executee.</li>
+</ul></div>
+<div class="section level4">
+<h4 id="observe-puis-corrige-dans-les-sections-suivantes-1-0-0">Observe, puis corrige dans les sections suivantes<a class="anchor" aria-label="anchor" href="#observe-puis-corrige-dans-les-sections-suivantes-1-0-0"></a></h4>
+<ul><li>
+<strong>Le controle ordinal passe</strong> : <code>Route empierree</code> ressort plus large que <code>Chemin</code> (2,83 m contre 2,07 m apres les corrections ci-dessous). Premiere confirmation sur donnee reelle que la mesure de largeur est coherente – coherente, pas calibree.</li>
+<li>
+<strong><code>FOSSES</code> n’etait pas exploitable en devers.</strong> Le critere ne testait que la descente sous le bord de plateforme dans une fenetre de 4 m. Sur une route en deblai-remblai le versant aval est plus bas de 3 m : la condition etait vraie partout. Mesure sur le troncon 1 : axe a +3,19 m du bord amont et a -2,96 m du bord aval, fosse declare a 68 stations sur 70.</li>
+<li>
+<strong>Les deux bords de plateforme ne se comportent pas pareil.</strong> Ecart interquartile de la position du bord le long du troncon : 0,50 m cote amont, 1,00 a 1,25 m cote aval. C’est ce qui a mis sur la piste de l’accotement.</li>
+</ul></div>
+</div>
+<div class="section level3">
+<h3 id="fosses--un-creux-pas-une-descente-1-0-0">Fosses : un creux, pas une descente<a class="anchor" aria-label="anchor" href="#fosses--un-creux-pas-une-descente-1-0-0"></a></h3>
+<p><code>FOSSES</code> exige maintenant que le profil <strong>descende puis remonte</strong> de <code>prof_fosse</code> de part et d’autre d’un point bas, au lieu de se contenter de la descente. Un versant qui descend sans jamais remonter n’est plus un fosse.</p>
+<p>Sur l’extrait Lidar HD livre avec le paquet, le compte passe de 211 fosses declares sur 222 stations a <strong>zero</strong> — et zero est la bonne reponse : le profil median montre une plateforme de -1,5 a +2,5 m puis une descente <strong>monotone</strong> jusqu’a -3,31 m a 8 m de l’axe, sans aucun creux. Cote amont le terrain remonte des le bord : le talus de deblai attaque directement, sans fosse.</p>
+<p>Ce que cela ne prouve pas : que le detecteur trouve les vrais fosses. Zero detection sur une route qui n’en a pas ne dit rien de ce point. Ce sont les profils de synthese qui l’etablissent — fosse d’un cote, des deux cotes, aucun, et un fosse plus faible que le seuil.</p>
+</div>
+<div class="section level3">
+<h3 id="la-largeur-mesure-la-chaussee-plus-la-plateforme-1-0-0">La largeur mesure la CHAUSSEE, plus la plateforme<a class="anchor" aria-label="anchor" href="#la-largeur-mesure-la-chaussee-plus-la-plateforme-1-0-0"></a></h3>
+<p><code>dsr_measure(methode_largeur = "chaussee")</code> devient le defaut. Entre l’axe et le bord de plateforme, le profil compte au plus deux segments – la chaussee, puis l’accotement, plus penche. Une droite brisee a deux segments est ajustee et le bord retenu est l’<strong>intersection des deux droites</strong>. Aucun seuil de pente : la donnee place la rupture.</p>
+<p>Sur profils de synthese, chaussee de 4,00 m :</p>
+<table class="table"><thead><tr><th>profil</th>
+<th>
+<code>"planeite"</code> (plateforme)</th>
+<th><code>"chaussee"</code></th>
+</tr></thead><tbody><tr><td>sans accotement</td>
+<td>3,89 m</td>
+<td>3,89 m</td>
+</tr><tr><td>accotement 0,5 m a 6 %</td>
+<td>4,75 m</td>
+<td>3,67 m</td>
+</tr><tr><td>accotement 1,0 m a 6 %</td>
+<td>5,57 m</td>
+<td><strong>4,00 m</strong></td>
+</tr><tr><td>accotement 1,0 m a 10 %</td>
+<td>5,14 m</td>
+<td><strong>4,00 m</strong></td>
+</tr><tr><td>accotement 1,5 m a 12 %</td>
+<td>4,95 m</td>
+<td>3,67 m</td>
+</tr></tbody></table><p>Sur l’extrait Lidar HD livre avec le paquet, l’ecart interquartile de la largeur au sein d’un meme troncon passe de <strong>1,08 m a 0,72 m</strong>, celui de la position du bord aval de 1,11 m a 0,78 m. Le controle ordinal tient : <code>Route empierree</code> 2,83 m contre <code>Chemin</code> 2,07 m.</p>
+<p><strong>Ce qu’elle ne sait pas faire.</strong> La rupture n’est retenue que si elle est significative (test F contre une droite unique) et contrastee. Deux situations lui echappent : un accotement dont la pente est trop proche du bombement (4 % contre 3 %, indiscernables sur un MNT) et un bruit de MNT superieur a environ 5 cm. Dans ces cas elle rend le bord de plateforme plutot qu’un bord invente, et la nouvelle colonne <code>BORDS_CHAUSSEE</code> compte les cotes (0, 1 ou 2) ou la rupture a ete resolue. <strong>Cette colonne se lit avant la largeur</strong> : sur l’extrait livre avec le paquet, MNT a 50 cm sous couvert, elle vaut 0 a 162 stations sur 222.</p>
+<p>Deux details etablis par la mesure : l’ajustement se fait sur le profil <strong>brut</strong> (le lissage arrondit la rupture, et la regression segmentee lit cet arrondi comme un segment – elle retranchait alors 0,46 m inexistants sur une chaussee sans accotement), et le bord est l’intersection des droites et non le dernier echantillon du segment interne, qui tronquait d’un pas par cote. La methode demande un <code>pas_travers</code> &lt;= 0,25 m : a 0,5 m il n’y a pas assez de points.</p>
+<p><code>"planeite"</code> reste disponible pour qui veut la plateforme.</p>
+</div>
+<div class="section level3">
+<h3 id="largeur--les-deux-bords-sont-renvoyes-separement-1-0-0">Largeur : les deux bords sont renvoyes separement<a class="anchor" aria-label="anchor" href="#largeur--les-deux-bords-sont-renvoyes-separement-1-0-0"></a></h3>
+<p><code><a href="../reference/dsr_measure.html">dsr_measure()</a></code> ajoute <code>BORD_G</code> et <code>BORD_D</code>, distance de l’axe a chaque bord de plateforme (leur somme fait <code>LARGEUR_ROULABLE</code>). Une largeur unique masquait une dissymetrie qui est, sur route de montagne, la premiere chose a regarder.</p>
+</div>
+<div class="section level3">
+<h3 id="canal-optique--une-seconde-source-independante-du-lidar-1-0-0">Canal optique : une seconde source, independante du lidar<a class="anchor" aria-label="anchor" href="#canal-optique--une-seconde-source-independante-du-lidar-1-0-0"></a></h3>
+<p>Jusqu’ici tout venait du meme nuage de points. Les canaux derives de l’ortho (BD ORTHO RVB + IRC, et les modeles de hauteur de canopee predits depuis celle-ci) ne partagent <strong>aucune erreur</strong> avec le lidar : c’est ce qui manquait depuis qu’on a ecarte les traces produites par ALSroads, qui n’etaient qu’une seconde lecture de la meme acquisition.</p>
+<ul><li>
+<code><a href="../reference/dsr_gabarit_lateral.html">dsr_gabarit_lateral()</a></code> : largeur de la trouee de canopee centree sur l’axe, distance au bord de trouee de chaque cote, et — si la largeur roulable est fournie — le <strong>surplomb</strong>, c’est-a-dire de combien les houppiers empietent sur l’emprise. Repond a <em>ou elaguer</em>, ce qu’aucune sortie ne disait.</li>
+<li>
+<code><a href="../reference/dsr_trafficability.html">dsr_trafficability()</a></code> gagne le critere <strong>lateral</strong> qui lui manquait : il ne verifiait que pente, devers, rayon, largeur et gabarit vertical. Le critere n’est pas l’empietement seul mais l’empietement <strong>bas</strong> (<code>SURPLOMB &gt; 0</code> <strong>et</strong> <code>HAUT_SURPLOMB &lt; gabarit_min</code>) : un couvert ferme a 20 m au-dessus d’une route ne gene aucun grumier, et en faire une inaptitude declarerait inapte la quasi-totalite des routes forestieres.</li>
+<li>
+<code><a href="../reference/dsr_ndvi.html">dsr_ndvi()</a></code> et <code><a href="../reference/dsr_largeur_ndvi.html">dsr_largeur_ndvi()</a></code> : signature spectrale du mineral, avec seuil determine par la methode d’Otsu plutot qu’impose — un seuil fixe depend du millesime, de la saison et de l’exposition. Le NDVI est la seule grandeur optique calculee sur les pixels <strong>natifs</strong> de l’ortho (20 cm), donc la seule a l’echelle d’une chaussee forestiere.</li>
+<li>
+<code><a href="../reference/dsr_canaux_externes.html">dsr_canaux_externes()</a></code> accepte le vocabulaire optique (<code>chm</code>, <code>mnh</code>, <code>ndvi</code>, <code>gndvi</code>, <code>savi</code>, <code>ndwi</code>) et <strong>signale un canal plus grossier que la grille de reference</strong>. Apres alignement, plus rien dans la pile ne distingue un canal a 1,5 m d’un canal a 1 m ; le message le rappelle au moment ou l’information est encore disponible.</li>
+</ul><p><strong>Ce qui ne change pas, et ne doit pas changer.</strong> La largeur de chaussee se mesure sur le MNT. Une trouee de canopee n’est pas une chaussee : sous futaie mature elle est plus etroite (les houppiers debordent), sur une coupe rase elle est beaucoup plus large. L’ecart n’est pas constant, il est correle a la structure du peuplement riverain, donc il change tout au long du troncon. Un decalage constant se calibre ; celui-la non — on mesurerait surtout l’age du peuplement voisin. <code>LARGEUR_DEGAGEE</code> et <code>LARGEUR_NDVI</code> n’alimentent pas <code><a href="../reference/dsr_calibrer_largeur.html">dsr_calibrer_largeur()</a></code>.</p>
+<p>Deux limites a connaitre avant d’y lire une mesure fine :</p>
+<ul><li>Un modele de hauteur de canopee predit depuis l’ortho travaille a une maille de l’ordre de <strong>1,5 m</strong>. Une chaussee de 4 m n’y couvre que 2,7 cellules. La sortie se lit a l’echelle du troncon, pas au decimetre. Sureechantillonne a 0,20 m, un tel raster <em>declare</em> une maille fine sans porter l’information correspondante — le paquet ne peut pas le detecter et ne signale que la resolution declaree.</li>
+<li>
+<code>HAUT_SURPLOMB</code> est un indicateur <strong>permissif</strong> : un modele de hauteur de canopee donne le sommet du houppier, pas le dessous de la branche. Il attrape a coup sur la regeneration et les rejets de bord de route (le cas dominant) et rate les branches basses des grands arbres. Seul <code><a href="../reference/dsr_gabarit_libre.html">dsr_gabarit_libre()</a></code>, sur le nuage classe, donne le dessous de branche.</li>
+</ul><div class="section level4">
+<h4 id="corrige-1-0-0-1">Corrige<a class="anchor" aria-label="anchor" href="#corrige-1-0-0-1"></a></h4>
+<ul><li>
+<code><a href="../reference/dsr_trafficability.html">dsr_trafficability()</a></code> echouait sur un trace d’une seule station (<code>vapply</code> degradait la matrice de criteres en vecteur).</li>
+</ul></div>
+</div>
+<div class="section level3">
+<h3 id="emprise-normative-certu-fiche-1-0-0">Emprise normative Certu (fiche 1.7)<a class="anchor" aria-label="anchor" href="#emprise-normative-certu-fiche-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_emprise_certu.html">dsr_emprise_certu()</a></code> : largeur de chaussee et emprise d’un troncon d’apres les largeurs standard de la fiche Certu/CETE 1.7 (2013), a partir des seuls attributs BD TOPO. Schemas <strong>v2 et v3</strong> detectes automatiquement ; en v3 le franchissement se deduit de <code>pos_sol</code>, et la correspondance des valeurs de <code>NATURE</code> est <strong>deduite, non officielle</strong> — les combinaisons non appariees sont signalees plutot que defautees en silence, la table de la fiche etant creuse.</li>
+<li>
+<strong>Ce n’est pas une reference pour calibrer la largeur, et ce ne peut pas l’etre.</strong> Pour <code>Chemin</code>, <code>Route empierree</code> et <code>Sentier</code> — toute la desserte forestiere — la fiche rend une <strong>constante de 2 m</strong>. S’y caler forcerait la mesure a 2 m partout, donc detruirait le signal que le paquet produit. La fiche pose d’ailleurs elle-meme ses limites : elle a ecarte le champ de largeur de la BD TOPO (« pas renseigne de facon homogene »), ses valeurs « ne delimitent pas avec une precision decimetrique », et la methode « surestime » sur la voirie locale.</li>
+<li>Ce qu’elle apporte reellement : le <strong>vocabulaire normatif</strong> du profil en travers, qui permet enfin de dire que <code>LARGEUR_ROULABLE</code> mesure la <strong>chaussee</strong> (comparable a <code>LARGEUR_CHAUSSEE_CERTU</code>) et non l’emprise ; et l’<strong>ecart a la norme</strong>, lecture utile au gestionnaire — dessertR mesure ce que la fiche ne peut que supposer.</li>
+<li>L’appariement est rendu insensible aux accents et a la casse. Sans cela, sous une locale non UTF-8, un accent se scinde en deux octets et l’appariement echoue en silence, precisement sur « Route empierree ».</li>
+</ul></div>
+<div class="section level3">
+<h3 id="mesure--deux-estimateurs-remplaces-et-pourquoi-1-0-0">Mesure : deux estimateurs remplaces, et pourquoi<a class="anchor" aria-label="anchor" href="#mesure--deux-estimateurs-remplaces-et-pourquoi-1-0-0"></a></h3>
+<p>Les deux grandeurs qui commandent l’aptitude grumier etaient mal estimees. Les chiffres ci-dessous viennent de profils et de traces de synthese a geometrie connue.</p>
+<ul><li>
+<p><strong>Largeur roulable</strong> — <code>dsr_measure(methode_largeur = "planeite")</code>, nouveau defaut. On ajuste le plan de chaussee sur une fenetre centrale puis on s’ecarte tant que la surface reste a moins de <code>tol_planeite</code> de ce plan, avec interpolation du bord entre echantillons. Sur une plateforme de 4,00 m bombee a 3 % :</p>
+<table class="table"><thead><tr><th>bruit du MNT</th>
+<th>
+<code>"gradient"</code> (ancien)</th>
+<th><code>"planeite"</code></th>
+</tr></thead><tbody><tr><td>aucun</td>
+<td>3,00 m (−1,00)</td>
+<td>3,92 m (−0,08)</td>
+</tr><tr><td>5 cm</td>
+<td>2,56 m (−1,44)</td>
+<td>3,72 m (−0,28)</td>
+</tr><tr><td>10 cm</td>
+<td>0,93 m (−3,08)</td>
+<td>3,66 m (−0,34)</td>
+</tr></tbody></table><p>Le point decisif n’est pas le gain de biais mais la stabilite : le biais du seuil de pente depend du <strong>pas transversal</strong> (−3,74 m a 0,1 m de pas, 0,00 m a 1 m) autant que de <code>seuil_devers</code>. Un seuil cale sur un massif n’aurait valu que pour ce pas et ce niveau de bruit — l’ancien estimateur n’etait pas calibrable. <code>tol_planeite</code> a lui une lecture physique : il doit depasser la fleche du bombement (<code>bombement x largeur / 2</code>).</p>
+</li>
+<li><p><strong>Ce que coute la grille.</strong> La largeur sort du MNT, donc d’un produit interpole, et le bord de plateforme est justement une ligne de rupture. Sur une plateforme de synthese de 4,00 m : MNT 50 cm 3,56 m, micro-MNT 25 cm 3,66 m, points sol bruts 3,78 m, profil parfait finement echantillonne 3,99 m. L’estimateur est donc <strong>juste</strong> sur une donnee propre, et le micro-MNT sur points bruts evoque au BRIEF section 3.6 vaut environ <strong>0,2 m</strong> — reel, mais plus modeste qu’annonce. Contre-intuitif : le biais ne bouge pas quand la densite de points sol passe de 20 a 1 pt/m2. Pour cette mesure, ce n’est pas le nombre de points qui coute, c’est le passage par une grille.</p></li>
+<li><p><strong>Devers</strong> — desormais la pente du plan ajuste. Il est distingue du bombement de drainage, qui est symetrique et ne cree aucun devers net.</p></li>
+<li><p><strong>Rayon de courbure</strong> — <code>base_courbure</code> (defaut 30 m) : ajustement d’un cercle des moindres carres sur une fenetre physique, au lieu du cercle circonscrit a trois stations consecutives. Sur un arc de rayon vrai 60 m quantifie au metre puis lisse, la mediane des rayons passe de <strong>16,6 m a 56,5 m</strong>. C’etait une faute lourde : <code><a href="../reference/dsr_trafficability.html">dsr_trafficability()</a></code> compare <code>RAYON_COURBURE</code> a un seuil de 12 m, donc l’ancien estimateur declarait inapte a peu pres toute route courbe. La base de 30 m est aussi l’ordre de grandeur d’un ensemble routier grumier. <code>RAYON_COURBURE_P05</code> s’ajoute au minimum, moins sensible a une station aberrante.</p></li>
+<li><p><code><a href="../reference/dsr_calibrer_largeur.html">dsr_calibrer_largeur()</a></code> : balaie une grille de parametres contre une largeur de reference et renvoie biais, MAE et RMSE, avec stratification optionnelle par confiance du MNT. Un biais constant a MAE faible signale un ecart de <strong>definition</strong> (la reference inclut-elle les accotements ?), pas une erreur de mesure — la distinction est documentee, elle se tranche avec le gestionnaire. La fonction avertit desormais sur ce qui peut faire reference : elle retient le reglage qui <strong>minimise</strong> l’ecart, donc la pointer vers la sortie d’un autre algorithme ne mesurerait pas le biais de celui-ci, elle le <strong>reproduirait</strong>.</p></li>
+<li>
+<p><code>dev/03_validation.R</code> remplace <code>dev/03_validation_wsfi.R</code> : il <strong>decouvre</strong> les projets nemeton exploitables au lieu d’en coder un en dur, les traite tous, et publie un tableau de calibrage croise. Un reglage qui gagne sur un massif et perd sur les autres n’est pas un reglage.</p>
+<ul><li>La racine nemeton est resolue <strong>selon le systeme</strong> : <code>%LOCALAPPDATA%</code> sous Windows (<code>nemeton/nemeton/projects</code>), <code>Library/Application Support</code> sous macOS, <code>XDG_DATA_HOME</code> sous Linux. <code>DSR_NEMETON</code> reste prioritaire.</li>
+<li>L’inventaire liste <strong>tous</strong> les projets avec ce qu’ils portent (dalles, MNT mosaique, roads, desserte de reference) plutot que d’ecarter en silence. Un projet sans desserte de reference est traite quand meme, aux valeurs par defaut : il n’est simplement pas calibrable, et le rapport le dit.</li>
+<li>
+<code>DSR_INVENTAIRE=1</code> s’arrete apres l’inventaire, pour voir ce qui est trouve sans lancer les traitements.</li>
+</ul></li>
+<li><p>README reecrit : etat reel de la chaine, fiabilite mesuree grandeur par grandeur, et ce qui reste a caler.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="lissage-et-raccordement-des-centre-lignes-1-0-0">Lissage et raccordement des centre-lignes<a class="anchor" aria-label="anchor" href="#lissage-et-raccordement-des-centre-lignes-1-0-0"></a></h3>
+<ul><li>
+<code>dsr_vectoriser(lissage = )</code> : le squelette d’une emprise rasterisee est un escalier, et ce n’est pas un defaut cosmetique – <code><a href="../reference/dsr_measure.html">dsr_measure()</a></code> en tire <code>RAYON_COURBURE</code> et <code>SINUOSITE</code>, dont depend l’aptitude grumier. Sur un arc de cercle de reference, l’escalier <strong>surestime la longueur de 26 % et la sinuosite de 27 %</strong>.
+<ul><li>
+<code>"savitzky-golay"</code> (defaut, Wang <em>et al.</em> 2025) : ajustement polynomial local sur <code>x(t)</code> et <code>y(t)</code>. Ramene l’erreur de longueur a 1,8 %, l’ecart median a la courbe vraie de 0,32 m a 0,13 m.</li>
+<li>
+<code>"bezier"</code> : Bezier cubiques par morceaux ajustees aux moindres carres (representation de DOGE, Sun <em>et al.</em> 2025, ramenee a un ajustement direct sans optimisation differentiable). Courbe C1 par morceaux ; <strong>moins fidele que Savitzky-Golay</strong> (0,39 m) et sans gain de sommets une fois reechantillonnee en <code>LINESTRING</code>. A choisir pour la continuite, pas pour la precision.</li>
+<li>Dans les deux cas les extremites sont figees : elles portent la topologie.</li>
+</ul></li>
+<li>
+<code>dsr_vectoriser(raccorder = )</code> : relie deux extremites de composantes distinctes separees par une trouee de conductivite. Au critere de distance de Wang <em>et al.</em> s’ajoute un critere d’alignement, sans quoi une piste serait soudee au cloisonnement qu’elle croise sans le rejoindre. <strong>Desactive par defaut</strong> : cette etape invente de la geometrie la ou la donnee ne montre rien.</li>
+<li>Constat qui a conduit a revoir la mesure : le rayon de courbure dependait bien plus du pas des stations que du lissage. Il n’a PAS ete corrige en touchant a <code>pas</code> – qui doit rester serre pour les profils transversaux – mais en decouplant les deux echelles, voir <code>base_courbure</code> ci-dessus.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="conductivite-apprise-1-0-0">Conductivite apprise<a class="anchor" aria-label="anchor" href="#conductivite-apprise-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_echantillon.html">dsr_echantillon()</a></code> : table d’apprentissage prelevee sur une pile de canaux – positifs sous le reseau connu, negatifs au-dela de <code>buffer_neg</code>, <strong>bande grise ecartee</strong> (accotements, fosses, imprecision planimetrique de la reference).</li>
+<li>
+<code><a href="../reference/dsr_apprendre_conductivite.html">dsr_apprendre_conductivite()</a></code> : ajuste le modele (<code>glm</code> par defaut, <code>ranger</code> en option) et rapporte l’<strong>AUC en validation croisee stratifiee</strong>, pas en resubstitution ; l’ecart avec l’AUC d’apprentissage mesure le surapprentissage.</li>
+<li>
+<code>dsr_conductivite(method = "model", modele = ...)</code> et <code>dsr_sigma_surf(method = "model", ...)</code> : l’interface prevue des l’origine est desormais remplie. La voie parametrique reste le defaut.</li>
+<li>Le BRIEF evoquait un petit U-Net ; on ne l’a pas suivi. Avec un seul massif de validation et des canaux deja concus pour la tache, une logistique inspectable fait aussi bien et n’apporte ni torch, ni GPU, ni dependance Python. Le passage a un modele convolutif se fera derriere la meme interface, quand le jeu de validation le justifiera.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="detection-hors-reference-regime-complet-et-vectorisation-1-0-0">Detection hors reference, regime complet et vectorisation<a class="anchor" aria-label="anchor" href="#detection-hors-reference-regime-complet-et-vectorisation-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_indice_detection.html">dsr_indice_detection()</a></code> : carte de probabilite <code>p_desserte</code> hors du corridor de reference, fusion ponderee de <code>sigma_geo</code>, <strong><code>sigma_surf</code></strong> et <code>vesselness</code>. Le poids majoritaire va au canal de surface : un cloisonnement se lit d’abord dans la <strong>discontinuite du sous-etage</strong>, pas dans le terrain ou son empreinte se confond avec les traces fossiles (BRIEF section 3.9).</li>
+<li>
+<code><a href="../reference/dsr_vectoriser.html">dsr_vectoriser()</a></code> : vectoriseur <strong>enfichable</strong>. Defaut interne = amincissement de Zhang-Suen puis tracage du graphe du squelette – chaque chaine entre deux noeuds devient une arete, ce qui <strong>conserve les embranchements</strong> la ou la centre-ligne par ACP ecrasait toute une composante en une seule ligne (un peigne de cloisonnements sort maintenant en autant d’aretes). <code>vecnet</code> (r-lidar-lab, Roussel <em>et al.</em> 2023) est utilise automatiquement s’il est installe ; l’ACP reste disponible.</li>
+<li>
+<code><a href="../reference/dsr_detecter.html">dsr_detecter()</a></code> : enchaine les deux, accepte <code>sigma_surf</code>, et distingue le regime <code>complet</code> (toute la grille) du regime <code>corridor</code> (restreint a une <code>emprise</code>). Sortie directement exploitable par <code><a href="../reference/dsr_reseau.html">dsr_reseau()</a></code>.</li>
+<li>Les vectoriseurs appris (SAM-Road, RNGDet++, GLD-Road) dominent sur les jeux satellite mais supposent GPU, PyTorch et un corpus annote massif : ecartes pour l’instant, l’interface enfichable leur laisse la porte ouverte.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="jeu-de-donnees-dexemple-versionne-1-0-0">Jeu de donnees d’exemple versionne<a class="anchor" aria-label="anchor" href="#jeu-de-donnees-dexemple-versionne-1-0-0"></a></h3>
+<ul><li>
+<code>inst/extdata/</code> : secteur reel de 200 x 200 m (nuage classe ~327 000 points, MNT/MNH 50 cm, extrait BD TOPO) centre sur un franchissement route x cours d’eau, sous licence ouverte Etalab (voir <code>LICENSE.note</code>). Genere par <code>data-raw/make_example.R</code>. Les tests d’integration (catalogage, layers_pc, mesure, chaine geomorphologique) tournent desormais dessus, y compris en CI.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="detection-hors-reference-v2-1-0-0">Detection hors reference (v2)<a class="anchor" aria-label="anchor" href="#detection-hors-reference-v2-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_detecter.html">dsr_detecter()</a></code> : repere les axes de desserte ABSENTS de la reference (pistes, cloisonnements, anciennes RF) – cellules de forte conductivite (et linearite) hors du corridor BD TOPO, regroupees en composantes connexes et reduites a une centre-ligne par ACP (BRIEF section 3.9). A affiner avec <code>vecnet</code> pour une vectorisation topologique complete.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="repositionnement-contraint-par-la-bd-topo-1-0-0">Repositionnement contraint par la BD TOPO<a class="anchor" aria-label="anchor" href="#repositionnement-contraint-par-la-bd-topo-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_repositionner.html">dsr_repositionner()</a></code> : recale un reseau de reference (BD TOPO) sur le MNT lidar via le pathfinder, <strong>sans jamais s’ecarter de plus de <code>deviation_max</code> metres de l’axe d’origine</strong> (couloir dur + attraction douce vers l’axe). La reference fait autorite : le reseau est <strong>integralement conserve</strong> (repli sur la geometrie d’origine si le pathfinder echoue). Corrige le probleme revele par la validation (le repositionnement libre accroche des lineaires paralleles – risque n.1 du BRIEF) : le recalage contraint ne degrade plus la mesure.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="jeu-de-validation-1-0-0">Jeu de validation<a class="anchor" aria-label="anchor" href="#jeu-de-validation-1-0-0"></a></h3>
+<ul><li>
+<code>dev/03_validation.R</code> : harnais de validation sur un bloc reel de 4 dalles Lidar HD (MNT/MNH 50 cm, reseau BD TOPO, desserte de reference foretaccess). Chaine complete + comparaison de la largeur roulable a la reference (MAE, biais), brute vs repositionnee. Constats : la mesure sous-estime la largeur carrossable (seuils a caler) et le repositionnement sur <code>sigma_geo</code> seul peut accrocher un lineaire parallele (risque n.1 du BRIEF) – a contraindre par l’axe de reference ou <code>sigma_surf</code>.</li>
+<li>
+<code><a href="../reference/dsr_measure.html">dsr_measure()</a></code> : detection de la chaussee plus robuste au desalignement de l’axe (plage plane la plus proche du centre, plutot que croissance depuis le centre exact) ; seuil de devers par defaut releve a 0.15 (cale par validation).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="export-et-rapport-1-0-0">Export et rapport<a class="anchor" aria-label="anchor" href="#export-et-rapport-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_export_gpkg.html">dsr_export_gpkg()</a></code> : ecrit les couches vectorielles d’un massif dans un unique GeoPackage, avec les styles QGIS des couches reconnues.</li>
+<li>
+<code><a href="../reference/dsr_qml_categorise.html">dsr_qml_categorise()</a></code> : genere un style QGIS <code>.qml</code> categorise (etat, aptitude), charge automatiquement a cote de la couche.</li>
+<li>
+<code><a href="../reference/dsr_rapport.html">dsr_rapport()</a></code> : synthese Markdown d’un traitement (geometrie, praticabilite, etat, reseau). Cloture le socle fonctionnel du BRIEF (hors detection v2).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="coherence-topologique-du-reseau-1-0-0">Coherence topologique du reseau<a class="anchor" aria-label="anchor" href="#coherence-topologique-du-reseau-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_reseau.html">dsr_reseau()</a></code> : assemble une collection de traces en reseau valide (BRIEF section 3.8) – collage des noeuds partages ([dsr_coller_noeuds()]), deduplication des paralleles ([dsr_dedupe_paralleles()]), analyse des composantes et rattachement au reseau public (une desserte qui ne debouche nulle part est signalee). Noyau <code>igraph</code>.</li>
+<li>
+<code><a href="../reference/dsr_sfnetwork.html">dsr_sfnetwork()</a></code> : export en objet <code>sfnetwork</code> (graphe spatial valide) quand <code>sfnetworks</code> est disponible.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="praticabilite-grumier-1-0-0">Praticabilite grumier<a class="anchor" aria-label="anchor" href="#praticabilite-grumier-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_gabarit_libre.html">dsr_gabarit_libre()</a></code> : hauteur libre sous branches le long du trace, calculee sur le nuage classe (lasR) – critere reel pour un grumier (~4,5 m), absent des bases existantes.</li>
+<li>
+<code><a href="../reference/dsr_trafficability.html">dsr_trafficability()</a></code> + <code><a href="../reference/dsr_seuils_grumier.html">dsr_seuils_grumier()</a></code> : verdict <code>APTE_GRUMIER</code> et surtout <code>MOTIF_INAPTITUDE</code> (quel critere bloque, et ou), sur des seuils parametrables a caler avec le gestionnaire (BRIEF section 3.7).</li>
+<li>
+<code><a href="../reference/dsr_places.html">dsr_places()</a></code> : detection des elargissements locaux (places de depot / de retournement).</li>
+<li>
+<code><a href="../reference/dsr_measure.html">dsr_measure()</a></code> expose desormais le rayon de courbure par station (<code>RAYON_COURBURE</code>) ; <code><a href="../reference/dsr_profils.html">dsr_profils()</a></code> accepte <code>methode</code> (bilineaire / plus proche voisin).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="mesure-de-la-geometrie-1-0-0">Mesure de la geometrie<a class="anchor" aria-label="anchor" href="#mesure-de-la-geometrie-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_profils.html">dsr_profils()</a></code> : profils transversaux preleves perpendiculairement au trace tous les <code>pas</code> metres, echantillonnes en bilineaire sur le MNT.</li>
+<li>
+<code><a href="../reference/dsr_measure.html">dsr_measure()</a></code> : premier livrable metier (BRIEF section 3.6) – largeur roulable, devers, fosses (0/1/2), pente longitudinale par station, et metriques globales de rayon de courbure minimal et de sinuosite ; optionnellement <code>CONFIANCE_MNT</code> (densite de points sol) et <code>DEPLACEMENT</code> a une geometrie de reference. Lissage transversal / longitudinal pour amortir le bruit du MNT sous couvert. Valide sur profils synthetiques (devers, largeur, sinuosite, courbure).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="etat-le-long-du-trace-1-0-0">Etat le long du trace<a class="anchor" aria-label="anchor" href="#etat-le-long-du-trace-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_etat_trace.html">dsr_etat_trace()</a></code> : echantillonne <code>sigma_geo</code> / <code>sigma_surf</code> le long d’un trace ([dsr_pathfinder()] ou geometrie BD TOPO), classe l’etat par troncon et resume la repartition (longueur et pourcentage par etat). C’est la lecture pertinente de l’etat – en raster plein il est bruite, le long du trace retenu il devient interpretable (BRIEF section 3.4). La classification est factorisee avec <code><a href="../reference/dsr_etat.html">dsr_etat()</a></code>. Valide sur dalle reelle.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="pathfinder-anisotrope-1-0-0">Pathfinder anisotrope<a class="anchor" aria-label="anchor" href="#pathfinder-anisotrope-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_pathfinder.html">dsr_pathfinder()</a></code> : recherche de trace de moindre cout sur <code>sigma_geo</code>, avec noyau Rust – etat d’orientation (cellule, cap), penalite d’anisotropie (les deplacements en travers de <code>theta</code> sont penalises), penalite de courbure, et voisinage 16 qui supprime le biais de metrication du Dijkstra 8-connexe (BRIEF section 3.5). Sortie <code>sf</code> <code>LINESTRING</code> + champ de cout cumule. Les sauts « cavalier » sont verrouilles pour ne pas franchir une barriere <code>NA</code> d’une cellule. Valide sur dalle reelle (le trace suit la route forestiere).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="conductivite-de-surface-et-etat-1-0-0">Conductivite de surface et etat<a class="anchor" aria-label="anchor" href="#conductivite-de-surface-et-etat-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_sigma_surf.html">dsr_sigma_surf()</a></code> : conductivite de surface (emprise encore degagee), fondee sur <code>densite_sousetage</code> – le signal d’abandon – avec masque d’exclusion.</li>
+<li>
+<code><a href="../reference/dsr_divergence.html">dsr_divergence()</a></code> et <code><a href="../reference/dsr_etat.html">dsr_etat()</a></code> : croisement <code>sigma_geo</code> / <code>sigma_surf</code> en quatre etats (en service, abandonnee, trouee sans route, hors route), le diagnostic d’etat du BRIEF (section 3.4). Valide sur dalle reelle : les routes actives ressortent en <code>en_service</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="canal-surface-et-qualite-via-le-nuage-1-0-0">Canal surface et qualite via le nuage<a class="anchor" aria-label="anchor" href="#canal-surface-et-qualite-via-le-nuage-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_layers_pc.html">dsr_layers_pc()</a></code> : rasterise via <code>lasR</code> les metriques du nuage classe sur la grille de reference – <code>densite_sol</code> (confiance du MNT), <code>taux_penetration</code>, <code>densite_sousetage</code> (signal d’abandon, 0,3-3 m au-dessus du sol), <code>h_couvert</code>, <code>masque_exclusion</code> et <code>masque_pont</code>. Regime corridor par <code>emprise</code> / <code>masque</code>. Valide sur dalle Lidar HD reelle (lecture COPC par lasR).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="canal-geomorphologique-complet-et-conductivite-1-0-0">Canal geomorphologique complet et conductivite<a class="anchor" aria-label="anchor" href="#canal-geomorphologique-complet-et-conductivite-1-0-0"></a></h3>
+<ul><li>
+<code><a href="../reference/dsr_pente.html">dsr_pente()</a></code>, <code><a href="../reference/dsr_rugosite.html">dsr_rugosite()</a></code> (rugosite residuelle), <code><a href="../reference/dsr_slrm.html">dsr_slrm()</a></code> (relief local simplifie multi-echelle) et <code><a href="../reference/dsr_vesselness.html">dsr_vesselness()</a></code> (linearite de Frangi + orientation <code>theta</code> pour le pathfinder anisotrope).</li>
+<li>
+<code><a href="../reference/dsr_layers_dtm.html">dsr_layers_dtm()</a></code> : assemble toute la pile geomorphologique sur la grille de reference a partir du seul MNT.</li>
+<li>
+<code><a href="../reference/dsr_conductivite.html">dsr_conductivite()</a></code> : <code>sigma_geo</code> par combinaison parametrique de fonctions d’appartenance ([dsr_appartenance()], [dsr_specs_geomorpho()]), plancher <code>sigma_min</code> et ponderation par une couche de confiance ; interface <code>method = c("param", "model")</code> prete pour la conductivite apprise.</li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="dessertr-010">dessertR 0.1.0<a class="anchor" aria-label="anchor" href="#dessertr-010"></a></h2>
 <p>Premiere version taggee. Socle et noyau natif.</p>
