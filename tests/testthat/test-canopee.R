@@ -50,6 +50,17 @@ test_that(".dsr_run_centre ignore les NA", {
 })
 
 
+test_that(".dsr_run_centre ne fabrique pas un bord depuis une valeur infinie", {
+  # Une cellule a Inf passe le test de NA mais rend un ecart non fini : on doit
+  # retomber sur l'echantillon, pas produire un bord aberrant.
+  offsets <- seq(-4, 4, by = 1)
+  v <- c(10, 10, 0, 0, 0, 0, 0, Inf, 10)
+  r <- dessertR:::.dsr_run_centre(v, offsets, 5L, 2, sens = "sous")
+  expect_equal(r$d, offsets[7])
+  expect_true(is.finite(r$largeur))
+})
+
+
 test_that(".dsr_otsu separe deux modes", {
   set.seed(1)
   bas <- rnorm(500, 0.05, 0.01)
@@ -109,6 +120,15 @@ test_that("dsr_ndvi refuse une entree a une seule bande", {
   terra::values(r) <- 1
   expect_error(dsr_ndvi(r), "au moins deux bandes")
   expect_error(dsr_ndvi("pas un raster"), "SpatRaster")
+})
+
+test_that("dsr_ndvi refuse un choix de bandes qui n'en designe pas deux", {
+  skip_if_not_installed("terra")
+  irc <- terra::rast(xmin = 0, xmax = 2, ymin = 0, ymax = 2,
+    resolution = 1, nlyrs = 3, crs = "EPSG:2154")
+  terra::values(irc) <- cbind(rep(200, 4), rep(50, 4), rep(60, 4))
+  expect_error(dsr_ndvi(irc, bandes = 1), "exactement deux bandes")
+  expect_error(dsr_ndvi(irc, bandes = 1:3), "exactement deux bandes")
 })
 
 
@@ -215,6 +235,28 @@ test_that("dsr_gabarit_lateral refuse une largeur de longueur incoherente", {
   expect_error(dsr_gabarit_lateral(trace_droit(), "pas un raster"), "SpatRaster")
 })
 
+test_that("dsr_gabarit_lateral exige LARGEUR_ROULABLE dans un sf de largeur", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  st <- sf::st_sf(AUTRE = 4,
+    geometry = sf::st_sfc(sf::st_point(c(0, 0)), crs = 2154))
+  expect_error(
+    dsr_gabarit_lateral(trace_droit(), couloir_chm(), largeur = st),
+    "LARGEUR_ROULABLE"
+  )
+})
+
+test_that("dsr_gabarit_lateral ne retient que la premiere bande", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  chm <- couloir_chm()
+  deux <- c(chm, chm * 0) # la seconde bande est vide : elle doit etre ignoree
+  expect_equal(
+    dsr_gabarit_lateral(trace_droit(), deux, pas_travers = 0.25)$LARGEUR_DEGAGEE,
+    dsr_gabarit_lateral(trace_droit(), chm, pas_travers = 0.25)$LARGEUR_DEGAGEE
+  )
+})
+
 test_that("dsr_gabarit_lateral signale une maille grossiere", {
   skip_if_not_installed("terra")
   skip_if_not_installed("sf")
@@ -280,6 +322,32 @@ test_that("dsr_largeur_ndvi valide ses arguments", {
   expect_error(
     dsr_largeur_ndvi(trace_droit(), bande_ndvi(), seuil = "auto"),
     "otsu"
+  )
+})
+
+test_that("dsr_largeur_ndvi ne retient que la premiere bande", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  nd <- bande_ndvi()
+  deux <- c(nd, nd * 0)
+  expect_equal(
+    dsr_largeur_ndvi(trace_droit(), deux, seuil = 0.4,
+      liss_travers = 1)$LARGEUR_NDVI,
+    dsr_largeur_ndvi(trace_droit(), nd, seuil = 0.4,
+      liss_travers = 1)$LARGEUR_NDVI
+  )
+})
+
+test_that("dsr_largeur_ndvi refuse de deviner un seuil sans donnee", {
+  skip_if_not_installed("terra")
+  skip_if_not_installed("sf")
+  # Trace hors de l'emprise du raster : tous les profils sont NA. Sans garde,
+  # Otsu rendrait NA et la largeur sortirait silencieusement fausse.
+  vide <- bande_ndvi()
+  terra::values(vide) <- NA_real_
+  expect_error(
+    dsr_largeur_ndvi(trace_droit(), vide),
+    "indeterminable"
   )
 })
 
