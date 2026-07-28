@@ -9,7 +9,8 @@ dsr_conductivite(
   specs = dsr_specs_geomorpho(),
   method = c("param", "model"),
   sigma_min = 0.05,
-  confiance = NULL
+  confiance = NULL,
+  modele = NULL
 )
 }
 \arguments{
@@ -20,12 +21,15 @@ sous-ensemble aligne).}
 canaux sans regle sont ignores.}
 
 \item{method}{\code{"param"} (defaut) pour la combinaison parametrique, ou
-\code{"model"} (conductivite apprise) — reserve, non encore implemente.}
+\code{"model"} pour la conductivite apprise — qui demande alors un \code{modele}.}
 
 \item{sigma_min}{Plancher de conductivite. Defaut 0.05.}
 
 \item{confiance}{\code{SpatRaster} de confiance dans \verb{[0, 1]}, aligne sur
 \code{couches} ; \code{NULL} pour ne pas ponderer.}
+
+\item{modele}{Objet \code{dsr_modele_conductivite} (\code{\link[=dsr_apprendre_conductivite]{dsr_apprendre_conductivite()}})
+requis quand \code{method = "model"} ; ignore sinon.}
 }
 \value{
 Un \code{SpatRaster} mono-couche \code{sigma_geo}, valeurs dans \verb{[sigma_min, 1]}.
@@ -57,5 +61,6 @@ sg <- dsr_conductivite(pile)
 }
 }
 \seealso{
-\code{\link[=dsr_layers_dtm]{dsr_layers_dtm()}}, \code{\link[=dsr_appartenance]{dsr_appartenance()}}, \code{\link[=dsr_specs_geomorpho]{dsr_specs_geomorpho()}}.
+\code{\link[=dsr_layers_dtm]{dsr_layers_dtm()}}, \code{\link[=dsr_appartenance]{dsr_appartenance()}}, \code{\link[=dsr_specs_geomorpho]{dsr_specs_geomorpho()}},
+\code{\link[=dsr_apprendre_conductivite]{dsr_apprendre_conductivite()}}.
 }

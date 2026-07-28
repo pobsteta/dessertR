@@ -32,6 +32,11 @@ reference:
       - dsr_appartenance
       - dsr_specs_geomorpho
       - dsr_specs_surface
+  - title: Conductivite apprise
+    contents:
+      - dsr_echantillon
+      - dsr_apprendre_conductivite
+      - predict.dsr_modele_conductivite
   - title: Etat de la desserte
     contents:
       - dsr_etat
@@ -65,3 +70,5 @@ reference:
   - title: Detection hors reference
     contents:
       - dsr_detecter
+      - dsr_indice_detection
+      - dsr_vectoriser

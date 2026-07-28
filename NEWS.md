@@ -1,5 +1,43 @@
 # dessertR (developpement)
 
+## Conductivite apprise (lot 8)
+
+* `dsr_echantillon()` : table d'apprentissage prelevee sur une pile de canaux --
+  positifs sous le reseau connu, negatifs au-dela de `buffer_neg`, **bande grise
+  ecartee** (accotements, fosses, imprecision planimetrique de la reference).
+* `dsr_apprendre_conductivite()` : ajuste le modele (`glm` par defaut, `ranger`
+  en option) et rapporte l'**AUC en validation croisee stratifiee**, pas en
+  resubstitution ; l'ecart avec l'AUC d'apprentissage mesure le surapprentissage.
+* `dsr_conductivite(method = "model", modele = ...)` et
+  `dsr_sigma_surf(method = "model", ...)` : l'interface prevue au lot 1 est
+  desormais remplie. La voie parametrique reste le defaut.
+* Le BRIEF evoquait un petit U-Net ; on ne l'a pas suivi. Avec un seul massif de
+  validation et des canaux deja concus pour la tache, une logistique inspectable
+  fait aussi bien et n'apporte ni torch, ni GPU, ni dependance Python. Le
+  passage a un modele convolutif se fera derriere la meme interface, quand le
+  jeu de validation le justifiera.
+
+## Detection hors reference, regime complet et vectorisation (lot 7)
+
+* `dsr_indice_detection()` : carte de probabilite `p_desserte` hors du corridor
+  de reference, fusion ponderee de `sigma_geo`, **`sigma_surf`** et
+  `vesselness`. Le poids majoritaire va au canal de surface : un cloisonnement
+  se lit d'abord dans la **discontinuite du sous-etage**, pas dans le terrain ou
+  son empreinte se confond avec les traces fossiles (BRIEF section 3.9).
+* `dsr_vectoriser()` : vectoriseur **enfichable**. Defaut interne = amincissement
+  de Zhang-Suen puis tracage du graphe du squelette -- chaque chaine entre deux
+  noeuds devient une arete, ce qui **conserve les embranchements** la ou la
+  centre-ligne par ACP ecrasait toute une composante en une seule ligne (un
+  peigne de cloisonnements sort maintenant en autant d'aretes). `vecnet`
+  (r-lidar-lab, Roussel *et al.* 2023) est utilise automatiquement s'il est
+  installe ; l'ACP reste disponible.
+* `dsr_detecter()` : enchaine les deux, accepte `sigma_surf`, et distingue le
+  regime `complet` (toute la grille) du regime `corridor` (restreint a une
+  `emprise`). Sortie directement exploitable par `dsr_reseau()`.
+* Les vectoriseurs appris (SAM-Road, RNGDet++, GLD-Road) dominent sur les jeux
+  satellite mais supposent GPU, PyTorch et un corpus annote massif : ecartes
+  pour l'instant, l'interface enfichable leur laisse la porte ouverte.
+
 ## Jeu de donnees d'exemple versionne (lot 0)
 
 * `inst/extdata/` : secteur reel de 200 x 200 m (nuage classe ~327 000 points,

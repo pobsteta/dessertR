@@ -8,9 +8,9 @@
 #
 # Fusion vers sigma_geo : on commence par une combinaison parametrique explicite
 # (produit pondere de fonctions d'appartenance, avec sigma_min pour eviter les
-# zeros infranchissables). L'interface prevoit des le depart le passage a une
-# conductivite apprise (method = "model"), non implementee tant qu'un jeu de
-# validation n'existe pas.
+# zeros infranchissables). Depuis le lot 8, `method = "model"` accepte une
+# conductivite apprise sur un jeu etiquete (voir learn.R) ; la voie parametrique
+# reste le defaut, seule utilisable sans jeu de validation.
 
 
 #' Fonction d'appartenance floue
@@ -111,12 +111,15 @@ dsr_specs_geomorpho <- function() {
 #' @param specs Regles d'appartenance ; defaut [dsr_specs_geomorpho()]. Les
 #'   canaux sans regle sont ignores.
 #' @param method `"param"` (defaut) pour la combinaison parametrique, ou
-#'   `"model"` (conductivite apprise) — reserve, non encore implemente.
+#'   `"model"` pour la conductivite apprise — qui demande alors un `modele`.
 #' @param sigma_min Plancher de conductivite. Defaut 0.05.
 #' @param confiance `SpatRaster` de confiance dans `[0, 1]`, aligne sur
 #'   `couches` ; `NULL` pour ne pas ponderer.
+#' @param modele Objet `dsr_modele_conductivite` ([dsr_apprendre_conductivite()])
+#'   requis quand `method = "model"` ; ignore sinon.
 #' @return Un `SpatRaster` mono-couche `sigma_geo`, valeurs dans `[sigma_min, 1]`.
-#' @seealso [dsr_layers_dtm()], [dsr_appartenance()], [dsr_specs_geomorpho()].
+#' @seealso [dsr_layers_dtm()], [dsr_appartenance()], [dsr_specs_geomorpho()],
+#'   [dsr_apprendre_conductivite()].
 #' @examples
 #' \donttest{
 #' mnt <- terra::rast(
@@ -130,19 +133,18 @@ dsr_specs_geomorpho <- function() {
 #' @export
 dsr_conductivite <- function(couches, specs = dsr_specs_geomorpho(),
                              method = c("param", "model"),
-                             sigma_min = 0.05, confiance = NULL) {
+                             sigma_min = 0.05, confiance = NULL,
+                             modele = NULL) {
   method <- match.arg(method)
   if (!inherits(couches, "SpatRaster")) {
     dsr_abort("{.arg couches} doit etre un {.cls SpatRaster} (sortie de {.fun dsr_layers_dtm}).")
   }
-  if (identical(method, "model")) {
-    dsr_abort(c(
-      "La conductivite apprise ({.code method = \"model\"}) n'est pas encore implementee.",
-      "i" = "Elle attend un jeu de validation (BRIEF section 4) ; utiliser {.code method = \"param\"} d'ici la."
-    ))
-  }
 
-  sigma <- .dsr_fusion_appartenance(couches, specs, sigma_min)
+  sigma <- if (identical(method, "model")) {
+    .dsr_conductivite_apprise(couches, modele, sigma_min)
+  } else {
+    .dsr_fusion_appartenance(couches, specs, sigma_min)
+  }
 
   if (!is.null(confiance)) {
     if (!inherits(confiance, "SpatRaster")) {
@@ -157,6 +159,23 @@ dsr_conductivite <- function(couches, specs = dsr_specs_geomorpho(),
   terra::values(out) <- sigma
   names(out) <- "sigma_geo"
   out
+}
+
+
+# Conductivite apprise : la probabilite predite par le modele tient lieu de
+# conductivite, plancher a `sigma_min` comme dans la voie parametrique (un zero
+# reste infranchissable pour le pathfinder). Partage par sigma_geo et sigma_surf.
+#' @noRd
+.dsr_conductivite_apprise <- function(couches, modele, sigma_min) {
+  if (is.null(modele) || !inherits(modele, "dsr_modele_conductivite")) {
+    dsr_abort(c(
+      "La conductivite apprise ({.code method = \"model\"}) demande un {.arg modele}.",
+      "i" = "Ajuster d'abord avec {.fun dsr_apprendre_conductivite} sur un echantillon de {.fun dsr_echantillon}.",
+      "i" = "A defaut, utiliser {.code method = \"param\"}."
+    ))
+  }
+  p <- terra::values(stats::predict(modele, couches), mat = FALSE)
+  pmin(pmax(p, sigma_min), 1)
 }
 
 
@@ -231,29 +250,32 @@ dsr_specs_surface <- function() {
 #' @param couches Le `SpatRaster` de [dsr_layers_pc()] (ou un sous-ensemble
 #'   aligne).
 #' @param specs Regles d'appartenance ; defaut [dsr_specs_surface()].
-#' @param method `"param"` (defaut) ou `"model"` (reserve, non implemente).
+#' @param method `"param"` (defaut) ou `"model"` (conductivite apprise, qui
+#'   demande alors un `modele`).
 #' @param sigma_min Plancher de conductivite. Defaut 0.05.
 #' @param masque_exclusion `SpatRaster` binaire (1 = zone neutralisee, p. ex.
 #'   `masque_exclusion` de [dsr_layers_pc()]) ; les cellules a 1 sont ramenees a
 #'   `sigma_min`. `NULL` pour ne pas masquer.
+#' @param modele Objet `dsr_modele_conductivite` ([dsr_apprendre_conductivite()])
+#'   requis quand `method = "model"` ; ignore sinon.
 #' @return Un `SpatRaster` mono-couche `sigma_surf`.
-#' @seealso [dsr_conductivite()], [dsr_layers_pc()], [dsr_etat()].
+#' @seealso [dsr_conductivite()], [dsr_layers_pc()], [dsr_etat()],
+#'   [dsr_apprendre_conductivite()].
 #' @export
 dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
                            method = c("param", "model"),
-                           sigma_min = 0.05, masque_exclusion = NULL) {
+                           sigma_min = 0.05, masque_exclusion = NULL,
+                           modele = NULL) {
   method <- match.arg(method)
   if (!inherits(couches, "SpatRaster")) {
     dsr_abort("{.arg couches} doit etre un {.cls SpatRaster} (sortie de {.fun dsr_layers_pc}).")
   }
-  if (identical(method, "model")) {
-    dsr_abort(c(
-      "La conductivite apprise ({.code method = \"model\"}) n'est pas encore implementee.",
-      "i" = "Elle attend un jeu de validation (BRIEF section 4) ; utiliser {.code method = \"param\"} d'ici la."
-    ))
-  }
 
-  sigma <- .dsr_fusion_appartenance(couches, specs, sigma_min)
+  sigma <- if (identical(method, "model")) {
+    .dsr_conductivite_apprise(couches, modele, sigma_min)
+  } else {
+    .dsr_fusion_appartenance(couches, specs, sigma_min)
+  }
 
   if (!is.null(masque_exclusion)) {
     if (!inherits(masque_exclusion, "SpatRaster")) {

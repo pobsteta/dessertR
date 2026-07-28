@@ -9,7 +9,8 @@ dsr_sigma_surf(
   specs = dsr_specs_surface(),
   method = c("param", "model"),
   sigma_min = 0.05,
-  masque_exclusion = NULL
+  masque_exclusion = NULL,
+  modele = NULL
 )
 }
 \arguments{
@@ -18,13 +19,17 @@ aligne).}
 
 \item{specs}{Regles d'appartenance ; defaut \code{\link[=dsr_specs_surface]{dsr_specs_surface()}}.}
 
-\item{method}{\code{"param"} (defaut) ou \code{"model"} (reserve, non implemente).}
+\item{method}{\code{"param"} (defaut) ou \code{"model"} (conductivite apprise, qui
+demande alors un \code{modele}).}
 
 \item{sigma_min}{Plancher de conductivite. Defaut 0.05.}
 
 \item{masque_exclusion}{\code{SpatRaster} binaire (1 = zone neutralisee, p. ex.
 \code{masque_exclusion} de \code{\link[=dsr_layers_pc]{dsr_layers_pc()}}) ; les cellules a 1 sont ramenees a
 \code{sigma_min}. \code{NULL} pour ne pas masquer.}
+
+\item{modele}{Objet \code{dsr_modele_conductivite} (\code{\link[=dsr_apprendre_conductivite]{dsr_apprendre_conductivite()}})
+requis quand \code{method = "model"} ; ignore sinon.}
 }
 \value{
 Un \code{SpatRaster} mono-couche \code{sigma_surf}.
@@ -44,5 +49,6 @@ divergence avec \code{sigma_geo} qui revele l'etat (\code{\link[=dsr_etat]{dsr_e
 absolue.
 }
 \seealso{
-\code{\link[=dsr_conductivite]{dsr_conductivite()}}, \code{\link[=dsr_layers_pc]{dsr_layers_pc()}}, \code{\link[=dsr_etat]{dsr_etat()}}.
+\code{\link[=dsr_conductivite]{dsr_conductivite()}}, \code{\link[=dsr_layers_pc]{dsr_layers_pc()}}, \code{\link[=dsr_etat]{dsr_etat()}},
+\code{\link[=dsr_apprendre_conductivite]{dsr_apprendre_conductivite()}}.
 }
