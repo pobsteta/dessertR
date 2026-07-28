@@ -18,7 +18,7 @@ dsr_measure(
   pas = 2,
   demi_largeur = 8,
   pas_travers = 0.5,
-  seuil_devers = 0.12,
+  seuil_devers = 0.15,
   prof_fosse = 0.2,
   liss_travers = 3,
   liss_long = 5,
@@ -46,7 +46,9 @@ dsr_measure(
 - seuil_devers:
 
   Pente transversale (m/m) sous laquelle la surface est consideree
-  roulable. Defaut 0.12 (~7 deg).
+  roulable. Defaut 0.15 (~8,5 deg) ; sur route de montagne a fort
+  devers, monter a 0.20 (cale par validation, voir
+  `dev/03_validation_wsfi.R`).
 
 - prof_fosse:
 

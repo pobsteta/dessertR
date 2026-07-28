@@ -60,7 +60,7 @@ deplacement par rapport a une geometrie de reference (BD TOPO).</p>
 <span>  pas <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  demi_largeur <span class="op">=</span> <span class="fl">8</span>,</span>
 <span>  pas_travers <span class="op">=</span> <span class="fl">0.5</span>,</span>
-<span>  seuil_devers <span class="op">=</span> <span class="fl">0.12</span>,</span>
+<span>  seuil_devers <span class="op">=</span> <span class="fl">0.15</span>,</span>
 <span>  prof_fosse <span class="op">=</span> <span class="fl">0.2</span>,</span>
 <span>  liss_travers <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  liss_long <span class="op">=</span> <span class="fl">5</span>,</span>
@@ -88,7 +88,8 @@ deplacement par rapport a une geometrie de reference (BD TOPO).</p>
 
 <dt id="arg-seuil-devers">seuil_devers<a class="anchor" aria-label="anchor" href="#arg-seuil-devers"></a></dt>
 <dd><p>Pente transversale (m/m) sous laquelle la surface est
-consideree roulable. Defaut 0.12 (~7 deg).</p></dd>
+consideree roulable. Defaut 0.15 (~8,5 deg) ; sur route de montagne a fort
+devers, monter a 0.20 (cale par validation, voir <code>dev/03_validation_wsfi.R</code>).</p></dd>
 
 
 <dt id="arg-prof-fosse">prof_fosse<a class="anchor" aria-label="anchor" href="#arg-prof-fosse"></a></dt>
