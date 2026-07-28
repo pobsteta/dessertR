@@ -1,5 +1,13 @@
 # dessertR (developpement)
 
+## Detection hors reference (lot 7, v2)
+
+* `dsr_detecter()` : repere les axes de desserte ABSENTS de la reference
+  (pistes, cloisonnements, anciennes RF) -- cellules de forte conductivite (et
+  linearite) hors du corridor BD TOPO, regroupees en composantes connexes et
+  reduites a une centre-ligne par ACP (BRIEF section 3.9). A affiner avec
+  `vecnet` pour une vectorisation topologique complete.
+
 ## Repositionnement contraint par la BD TOPO (lot 4)
 
 * `dsr_repositionner()` : recale un reseau de reference (BD TOPO) sur le MNT
