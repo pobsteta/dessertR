@@ -1,0 +1,12 @@
+Donnees d'exemple --- attribution
+
+Les fichiers exemple_*.laz/.tif/.gpkg sont derives des donnees suivantes de
+l'Institut national de l'information geographique et forestiere (IGN),
+diffusees sous Licence Ouverte / Open Licence Etalab 2.0 :
+
+- Lidar HD (nuage de points classe, MNT, MNH) --- (c) IGN
+- BD TOPO (troncon_de_route, troncon_hydrographique) --- (c) IGN
+
+La redistribution et la modification sont autorisees, y compris a des fins
+commerciales, sous reserve de mentionner la source. Voir
+https://www.etalab.gouv.fr/licence-ouverte-open-licence/

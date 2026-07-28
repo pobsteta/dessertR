@@ -1,5 +1,13 @@
 # dessertR (developpement)
 
+## Jeu de donnees d'exemple versionne (lot 0)
+
+* `inst/extdata/` : secteur reel de 200 x 200 m (nuage classe ~327 000 points,
+  MNT/MNH 50 cm, extrait BD TOPO) centre sur un franchissement route x cours
+  d'eau, sous licence ouverte Etalab (voir `LICENSE.note`). Genere par
+  `data-raw/make_example.R`. Les tests d'integration (catalogage, layers_pc,
+  mesure, chaine geomorphologique) tournent desormais dessus, y compris en CI.
+
 ## Detection hors reference (lot 7, v2)
 
 * `dsr_detecter()` : repere les axes de desserte ABSENTS de la reference
