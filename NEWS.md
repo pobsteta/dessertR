@@ -19,6 +19,21 @@ produit trois observations.
   (aucun fosse) ; ce sont des milliers d'avertissements qui noyaient ceux qui
   comptent.
 
+### Observe, puis corrige dans les sections suivantes
+
+* **Le controle ordinal passe** : `Route empierree` ressort plus large que
+  `Chemin` (2,83 m contre 2,07 m apres les corrections ci-dessous). Premiere
+  confirmation sur donnee reelle que la mesure de largeur est coherente --
+  coherente, pas calibree.
+* **`FOSSES` n'etait pas exploitable en devers.** Le critere ne testait que la
+  descente sous le bord de plateforme dans une fenetre de 4 m. Sur une route en
+  deblai-remblai le versant aval est plus bas de 3 m : la condition etait vraie
+  partout. Mesure sur le troncon 1 : axe a +3,19 m du bord amont et a -2,96 m
+  du bord aval, fosse declare a 68 stations sur 70.
+* **Les deux bords de plateforme ne se comportent pas pareil.** Ecart
+  interquartile de la position du bord le long du troncon : 0,50 m cote amont,
+  1,00 a 1,25 m cote aval. C'est ce qui a mis sur la piste de l'accotement.
+
 ## Fosses : un creux, pas une descente
 
 `FOSSES` exige maintenant que le profil **descende puis remonte** de
@@ -36,36 +51,52 @@ detection sur une route qui n'en a pas ne dit rien de ce point. Ce sont les
 profils de synthese qui l'etablissent — fosse d'un cote, des deux cotes, aucun,
 et un fosse plus faible que le seuil.
 
+## La largeur mesure la CHAUSSEE, plus la plateforme
+
+`dsr_measure(methode_largeur = "chaussee")` devient le defaut. Entre l'axe et le
+bord de plateforme, le profil compte au plus deux segments -- la chaussee, puis
+l'accotement, plus penche. Une droite brisee a deux segments est ajustee et le
+bord retenu est l'**intersection des deux droites**. Aucun seuil de pente : la
+donnee place la rupture.
+
+Sur profils de synthese, chaussee de 4,00 m :
+
+| profil | `"planeite"` (plateforme) | `"chaussee"` |
+|---|---|---|
+| sans accotement | 3,89 m | 3,89 m |
+| accotement 0,5 m a 6 % | 4,75 m | 3,67 m |
+| accotement 1,0 m a 6 % | 5,57 m | **4,00 m** |
+| accotement 1,0 m a 10 % | 5,14 m | **4,00 m** |
+| accotement 1,5 m a 12 % | 4,95 m | 3,67 m |
+
+Sur l'extrait Lidar HD livre avec le paquet, l'ecart interquartile de la largeur
+au sein d'un meme troncon passe de **1,08 m a 0,72 m**, celui de la position du
+bord aval de 1,11 m a 0,78 m. Le controle ordinal tient : `Route empierree`
+2,83 m contre `Chemin` 2,07 m.
+
+**Ce qu'elle ne sait pas faire.** La rupture n'est retenue que si elle est
+significative (test F contre une droite unique) et contrastee. Deux situations
+lui echappent : un accotement dont la pente est trop proche du bombement (4 %
+contre 3 %, indiscernables sur un MNT) et un bruit de MNT superieur a environ
+5 cm. Dans ces cas elle rend le bord de plateforme plutot qu'un bord invente, et
+la nouvelle colonne `BORDS_CHAUSSEE` compte les cotes (0, 1 ou 2) ou la rupture
+a ete resolue. **Cette colonne se lit avant la largeur** : sur l'extrait livre
+avec le paquet, MNT a 50 cm sous couvert, elle vaut 0 a 162 stations sur 222.
+
+Deux details etablis par la mesure : l'ajustement se fait sur le profil **brut**
+(le lissage arrondit la rupture, et la regression segmentee lit cet arrondi
+comme un segment -- elle retranchait alors 0,46 m inexistants sur une chaussee
+sans accotement), et le bord est l'intersection des droites et non le dernier
+echantillon du segment interne, qui tronquait d'un pas par cote. La methode
+demande un `pas_travers` <= 0,25 m : a 0,5 m il n'y a pas assez de points.
+
+`"planeite"` reste disponible pour qui veut la plateforme.
+
 ## Largeur : les deux bords sont renvoyes separement
 
 `dsr_measure()` ajoute `BORD_G` et `BORD_D`, distance de l'axe a chaque bord de
 plateforme (leur somme fait `LARGEUR_ROULABLE`). Une largeur unique masquait une
 dissymetrie qui est, sur route de montagne, la premiere chose a regarder.
-
-Precision sur ce que la largeur mesure, et qui manquait a la documentation :
-l'estimateur s'arrete la ou la surface quitte le plan de chaussee, donc il
-**retient l'accotement** tant que celui-ci reste dans `tol_planeite`. Sur un
-profil de synthese de chaussee 4,00 m, il rend 3,89 m sans accotement, 4,75 m
-avec un accotement de 0,5 m a 6 %, 6,54 m avec 1,5 m a 4 %. Ce n'est pas une
-erreur : un accotement a 4 % est roulable, et la grandeur mesuree est la
-**plateforme**, pas la chaussee au sens du profil en travers normatif. L'ecart
-entre les deux se tranche avec le gestionnaire, pas au seuil.
-
-### Observe
-
-* **Le controle ordinal passe** : `Route empierree` 3,00 m contre `Chemin`
-  2,09 m. Premiere confirmation sur donnee reelle que la mesure de largeur est
-  coherente -- coherente, pas calibree.
-* **`FOSSES` n'etait pas exploitable en devers** — corrige ci-dessous. Le
-  critere ne testait que la descente sous le bord de plateforme dans une
-  fenetre de 4 m. Sur une route en deblai-remblai le versant aval est plus bas
-  de 3 m : la condition etait vraie partout. Mesure sur le troncon 1 : axe a
-  +3,19 m du bord amont et a -2,96 m du bord aval, fosse declare a 68 stations
-  sur 70. Ce n'etait pas un fosse, c'etait le versant.
-* **Les deux bords de plateforme ne se comportent pas pareil.** Ecart
-  interquartile de la position du bord le long du troncon : 0,50 m cote amont,
-  1,00 a 1,25 m cote aval, sur les deux troncons de route empierree. C'est
-  desormais lisible dans les sorties (`BORD_G`, `BORD_D`).
 
 ## Canal optique : une seconde source, independante du lidar
 

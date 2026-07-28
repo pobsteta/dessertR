@@ -210,14 +210,14 @@ traiter <- function(nom, P, avec_foretaccess) {
 
   # --- Calibrage : seulement si une VRAIE verite terrain est fournie ----------
   cal <- NULL
-  best <- list(methode_largeur = "planeite", tol_planeite = 0.10)
+  best <- list(methode_largeur = "chaussee", tol_planeite = 0.10)
   if (!is.null(TERRAIN)) {
     dans <- TERRAIN[sf::st_intersects(TERRAIN, emp, sparse = FALSE)[, 1], ]
     if (nrow(dans) > 0L) {
       message(sprintf("  calibrage sur verite terrain (%d troncons)...", nrow(dans)))
       cal <- dsr_calibrer_largeur(recale, mnt50, dans, TERRAIN_CHAMP,
         grille = expand.grid(
-          methode_largeur = c("planeite", "gradient"),
+          methode_largeur = c("chaussee", "planeite", "gradient"),
           tol_planeite = c(0.05, 0.10, 0.20), stringsAsFactors = FALSE),
         long_min = 30, pas = 2, demi_largeur = 8, pas_travers = 0.25,
         liss_travers = 3)

@@ -14,7 +14,7 @@ dsr_measure(
   prof_fosse = 0.2,
   liss_travers = 3,
   liss_long = 5,
-  methode_largeur = c("planeite", "gradient"),
+  methode_largeur = c("chaussee", "planeite", "gradient"),
   tol_planeite = 0.1,
   base_courbure = 30,
   reference = NULL,
@@ -40,8 +40,9 @@ fosse. Defaut 0.2.}
 profils, transversale et longitudinale. Indispensables sur un MNT bruite
 sous couvert dense (voir Details). Defaut 3 et 5.}
 
-\item{methode_largeur}{\code{"planeite"} (defaut) ou \code{"gradient"} (methode
-historique) ; voir Details.}
+\item{methode_largeur}{\code{"chaussee"} (defaut, retranche l'accotement),
+\code{"planeite"} (la plateforme entiere) ou \code{"gradient"} (methode historique) ;
+voir Details.}
 
 \item{tol_planeite}{Ecart maximal (m) au plan de chaussee ajuste, methode
 \code{"planeite"} seulement. Defaut 0.10.}
@@ -59,7 +60,9 @@ d'origine) pour le \code{DEPLACEMENT} ; \code{NULL} pour l'omettre.}
 \value{
 Une liste : \code{stations} (\code{sf} \code{POINT} avec \code{LARGEUR_ROULABLE},
 \code{BORD_G} et \code{BORD_D} (distance de l'axe a chaque bord, m -- leur somme fait
-la largeur), \code{DEVERS}, \code{FOSSES}, \code{PENTE_LONG}, et si fournis \code{CONFIANCE_MNT},
+la largeur), \code{BORDS_CHAUSSEE} (methode \code{"chaussee"} seulement : nombre de
+cotes ou la rupture chaussee/accotement a ete resolue),
+\code{DEVERS}, \code{FOSSES}, \code{PENTE_LONG}, et si fournis \code{CONFIANCE_MNT},
 \code{DEPLACEMENT}), et \code{resume} (metriques globales : \code{LARGEUR_ROULABLE_MED},
 \code{PENTE_LONG_MOY}, \code{PENTE_LONG_MAX}, \code{RAYON_COURBURE_MIN},
 \code{RAYON_COURBURE_P05}, \code{SINUOSITE}).
@@ -127,15 +130,40 @@ bombement}, soit \verb{bombement x largeur / 2}. Une route de 6 m bombee a 3 \%
 pas un devers : \code{DEVERS} ne retient que l'inclinaison d'ensemble, celle qui
 compte pour la stabilite d'un chargement.
 
-\strong{Ce que la largeur inclut, et pourquoi les deux bords sont renvoyes a part.}
-L'estimateur s'arrete la ou la surface quitte le plan de chaussee, donc il
-retient l'accotement tant que celui-ci reste dans \code{tol_planeite}. Sur un
-profil de synthese de chaussee 4,00 m, la largeur mesuree vaut 3,89 m sans
-accotement, 4,75 m avec un accotement de 0,5 m a 6 \%, 6,54 m avec 1,5 m a
-4 \%. Ce n'est pas une erreur de mesure : un accotement a 4 \% est roulable, et
-la grandeur mesuree est la \strong{plateforme}, pas la chaussee au sens du profil
-en travers normatif. L'ecart entre les deux se tranche avec le gestionnaire
-(voir \code{\link[=dsr_emprise_certu]{dsr_emprise_certu()}}), pas au seuil.
+\strong{Chaussee ou plateforme : ce que la largeur mesure.} \code{"planeite"} s'arrete
+la ou la surface quitte le plan de chaussee, donc il \strong{retient l'accotement}
+tant que celui-ci reste dans \code{tol_planeite} : il mesure la \emph{plateforme}. Sur
+un profil de synthese de chaussee 4,00 m, il rend 3,89 m sans accotement,
+4,75 m avec 0,5 m a 6 \%, 5,57 m avec 1,0 m a 6 \%, 6,54 m avec 1,5 m a 4 \%.
+
+\code{"chaussee"} (defaut) va plus loin : entre l'axe et le bord de plateforme, le
+profil compte au plus deux segments -- la chaussee, puis l'accotement, plus
+penche. Une droite brisee a deux segments est ajustee et le bord retenu est
+l'\strong{intersection des deux droites}. Sur les memes profils :\tabular{lll}{
+   profil (chaussee 4,00 m) \tab \code{"planeite"} \tab \code{"chaussee"} \cr
+   sans accotement \tab 3,89 m \tab 3,89 m \cr
+   accotement 0,5 m a 6 \% \tab 4,75 m \tab 3,67 m \cr
+   accotement 1,0 m a 6 \% \tab 5,57 m \tab \strong{4,00 m} \cr
+   accotement 1,0 m a 10 \% \tab 5,14 m \tab \strong{4,00 m} \cr
+   accotement 1,5 m a 12 \% \tab 4,95 m \tab 3,67 m \cr
+}
+
+
+\strong{Ce qu'elle ne sait pas faire, et ce qu'elle fait alors.} La rupture n'est
+retenue que si elle est significative (test F contre une droite unique) et
+contrastee. Deux situations lui echappent : un accotement dont la pente est
+trop proche du bombement (4 \% contre 3 \% : indiscernables sur un MNT), et un
+bruit de MNT superieur a environ 5 cm, qui noie la rupture. Dans ces cas elle
+\strong{rend le bord de plateforme} plutot qu'un bord invente, et \code{BORDS_CHAUSSEE}
+compte les cotes (0, 1 ou 2) ou la rupture a effectivement ete resolue.
+Lire cette colonne avant d'interpreter la largeur : sur l'extrait Lidar HD
+livre avec le paquet, MNT a 50 cm sous couvert, elle vaut 0 a 162 stations
+sur 222.
+
+L'ajustement se fait sur le profil \strong{brut}, non lisse : le lissage arrondit
+la rupture et la regression segmentee lit cet arrondi comme un segment. Elle
+demande en revanche un echantillonnage transversal fin (\code{pas_travers} <= 0,25
+m) : a 0,5 m il n'y a pas assez de points pour deux droites.
 
 Consequence directe sur une route de montagne en deblai-remblai : les deux
 bords ne se comportent pas de la meme facon. Sur l'extrait Lidar HD livre

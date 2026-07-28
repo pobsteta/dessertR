@@ -118,7 +118,7 @@ une validation terrain.
 
 | Grandeur | Etat |
 |---|---|
-| Largeur roulable | biais −0,1 a −0,3 m sur profil de synthese, stable jusqu'a 10 cm de bruit du MNT |
+| Largeur de chaussee | exacte a ±0,35 m sur profil de synthese quand la rupture chaussee/accotement est resolue ; retombe sur la plateforme sinon, en le signalant |
 | Devers | restitue a ±0,005 ; distingue du bombement de drainage, qui est symetrique |
 | Rayon de courbure | ajuste par cercle des moindres carres sur 30 m ; le cercle circonscrit a trois stations sous-estime d'un ordre de grandeur sur un trace vectorise |
 | Fosses (0/1/2) | **creux** lateral au-dela du bord de plateforme : descente puis remontee. Un versant qui descend sans remonter n'en est pas un |
@@ -135,14 +135,15 @@ Deux reglages meritent attention avant tout usage metier :
 - **`base_courbure` commande la courbure bien plus que le pas des stations.**
   Sur un arc de rayon vrai 60 m quantifie au metre puis lisse, la mediane des
   rayons vaut 16,6 m a trois stations, 49 m sur base 20 m, 60 m sur base 50 m.
-- **La largeur mesuree est la PLATEFORME, accotement compris.** L'estimateur
-  s'arrete la ou la surface quitte le plan de chaussee, donc il retient
-  l'accotement tant que celui-ci reste dans `tol_planeite`. Sur un profil de
-  synthese de chaussee 4,00 m : 3,89 m sans accotement, 4,75 m avec 0,5 m a
-  6 %, 6,54 m avec 1,5 m a 4 %. Ce n'est pas une erreur de mesure — un
-  accotement a 4 % est roulable — mais ce n'est pas la chaussee au sens du
-  profil en travers normatif. L'ecart de definition se tranche avec le
-  gestionnaire, pas au seuil.
+- **La largeur mesure la CHAUSSEE, accotement retranche** (`methode_largeur =
+  "chaussee"`, defaut). Le bord est l'intersection de la droite de chaussee et
+  de la droite d'accotement, sans seuil de pente. Mais la rupture n'est pas
+  toujours visible : un accotement a 4 % ne se distingue pas d'un bombement a
+  3 %, et un bruit de MNT au-dela de 5 cm la noie. Dans ces cas la mesure
+  **retombe sur la plateforme** et `BORDS_CHAUSSEE` le dit (0, 1 ou 2 cotes
+  resolus). **Lire cette colonne avant la largeur** : sur l'extrait livre avec
+  le paquet, MNT 50 cm sous couvert, elle vaut 0 a 162 stations sur 222.
+  `methode_largeur = "planeite"` rend la plateforme entiere.
 - **Les deux bords ne se valent pas en montagne.** Sur l'extrait Lidar HD livre
   avec le paquet (route en deblai-remblai), l'ecart interquartile de la
   position du bord le long du troncon vaut 0,50 m cote amont, adosse a un talus
