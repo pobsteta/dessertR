@@ -19,7 +19,8 @@ dsr_sigma_surf(
   specs = dsr_specs_surface(),
   method = c("param", "model"),
   sigma_min = 0.05,
-  masque_exclusion = NULL
+  masque_exclusion = NULL,
+  modele = NULL
 )
 ```
 
@@ -38,7 +39,8 @@ dsr_sigma_surf(
 
 - method:
 
-  `"param"` (defaut) ou `"model"` (reserve, non implemente).
+  `"param"` (defaut) ou `"model"` (conductivite apprise, qui demande
+  alors un `modele`).
 
 - sigma_min:
 
@@ -51,6 +53,12 @@ dsr_sigma_surf(
   [`dsr_layers_pc()`](https://pobsteta.github.io/dessertR/reference/dsr_layers_pc.md))
   ; les cellules a 1 sont ramenees a `sigma_min`. `NULL` pour ne pas
   masquer.
+
+- modele:
+
+  Objet `dsr_modele_conductivite`
+  ([`dsr_apprendre_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_apprendre_conductivite.md))
+  requis quand `method = "model"` ; ignore sinon.
 
 ## Value
 
@@ -67,4 +75,5 @@ pas sa valeur absolue.
 
 [`dsr_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_conductivite.md),
 [`dsr_layers_pc()`](https://pobsteta.github.io/dessertR/reference/dsr_layers_pc.md),
-[`dsr_etat()`](https://pobsteta.github.io/dessertR/reference/dsr_etat.md).
+[`dsr_etat()`](https://pobsteta.github.io/dessertR/reference/dsr_etat.md),
+[`dsr_apprendre_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_apprendre_conductivite.md).

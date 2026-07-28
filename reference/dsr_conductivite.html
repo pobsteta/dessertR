@@ -59,7 +59,8 @@ les zeros infranchissables. Les canaux multi-echelles (p. ex. <code>openness_neg
 <span>  specs <span class="op">=</span> <span class="fu"><a href="dsr_specs_geomorpho.html">dsr_specs_geomorpho</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"param"</span>, <span class="st">"model"</span><span class="op">)</span>,</span>
 <span>  sigma_min <span class="op">=</span> <span class="fl">0.05</span>,</span>
-<span>  confiance <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  confiance <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  modele <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -79,7 +80,7 @@ canaux sans regle sont ignores.</p></dd>
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
 <dd><p><code>"param"</code> (defaut) pour la combinaison parametrique, ou
-<code>"model"</code> (conductivite apprise) — reserve, non encore implemente.</p></dd>
+<code>"model"</code> pour la conductivite apprise — qui demande alors un <code>modele</code>.</p></dd>
 
 
 <dt id="arg-sigma-min">sigma_min<a class="anchor" aria-label="anchor" href="#arg-sigma-min"></a></dt>
@@ -89,6 +90,11 @@ canaux sans regle sont ignores.</p></dd>
 <dt id="arg-confiance">confiance<a class="anchor" aria-label="anchor" href="#arg-confiance"></a></dt>
 <dd><p><code>SpatRaster</code> de confiance dans <code>[0, 1]</code>, aligne sur
 <code>couches</code> ; <code>NULL</code> pour ne pas ponderer.</p></dd>
+
+
+<dt id="arg-modele">modele<a class="anchor" aria-label="anchor" href="#arg-modele"></a></dt>
+<dd><p>Objet <code>dsr_modele_conductivite</code> (<code><a href="dsr_apprendre_conductivite.html">dsr_apprendre_conductivite()</a></code>)
+requis quand <code>method = "model"</code> ; ignore sinon.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -105,7 +111,8 @@ trompeuse.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dsr_layers_dtm.html">dsr_layers_dtm()</a></code>, <code><a href="dsr_appartenance.html">dsr_appartenance()</a></code>, <code><a href="dsr_specs_geomorpho.html">dsr_specs_geomorpho()</a></code>.</p></div>
+    <div class="dont-index"><p><code><a href="dsr_layers_dtm.html">dsr_layers_dtm()</a></code>, <code><a href="dsr_appartenance.html">dsr_appartenance()</a></code>, <code><a href="dsr_specs_geomorpho.html">dsr_specs_geomorpho()</a></code>,
+<code><a href="dsr_apprendre_conductivite.html">dsr_apprendre_conductivite()</a></code>.</p></div>
     </div>
 
     <div class="section level2">

@@ -62,7 +62,8 @@ MNH.</p>
 <span>  specs <span class="op">=</span> <span class="fu"><a href="dsr_specs_surface.html">dsr_specs_surface</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"param"</span>, <span class="st">"model"</span><span class="op">)</span>,</span>
 <span>  sigma_min <span class="op">=</span> <span class="fl">0.05</span>,</span>
-<span>  masque_exclusion <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  masque_exclusion <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  modele <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -80,7 +81,8 @@ aligne).</p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
-<dd><p><code>"param"</code> (defaut) ou <code>"model"</code> (reserve, non implemente).</p></dd>
+<dd><p><code>"param"</code> (defaut) ou <code>"model"</code> (conductivite apprise, qui
+demande alors un <code>modele</code>).</p></dd>
 
 
 <dt id="arg-sigma-min">sigma_min<a class="anchor" aria-label="anchor" href="#arg-sigma-min"></a></dt>
@@ -91,6 +93,11 @@ aligne).</p></dd>
 <dd><p><code>SpatRaster</code> binaire (1 = zone neutralisee, p. ex.
 <code>masque_exclusion</code> de <code><a href="dsr_layers_pc.html">dsr_layers_pc()</a></code>) ; les cellules a 1 sont ramenees a
 <code>sigma_min</code>. <code>NULL</code> pour ne pas masquer.</p></dd>
+
+
+<dt id="arg-modele">modele<a class="anchor" aria-label="anchor" href="#arg-modele"></a></dt>
+<dd><p>Objet <code>dsr_modele_conductivite</code> (<code><a href="dsr_apprendre_conductivite.html">dsr_apprendre_conductivite()</a></code>)
+requis quand <code>method = "model"</code> ; ignore sinon.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -105,7 +112,8 @@ absolue.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dsr_conductivite.html">dsr_conductivite()</a></code>, <code><a href="dsr_layers_pc.html">dsr_layers_pc()</a></code>, <code><a href="dsr_etat.html">dsr_etat()</a></code>.</p></div>
+    <div class="dont-index"><p><code><a href="dsr_conductivite.html">dsr_conductivite()</a></code>, <code><a href="dsr_layers_pc.html">dsr_layers_pc()</a></code>, <code><a href="dsr_etat.html">dsr_etat()</a></code>,
+<code><a href="dsr_apprendre_conductivite.html">dsr_apprendre_conductivite()</a></code>.</p></div>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

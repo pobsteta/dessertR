@@ -59,6 +59,16 @@
 - [`dsr_specs_surface()`](https://pobsteta.github.io/dessertR/reference/dsr_specs_surface.md)
   : Specifications d'appartenance par defaut du canal de surface
 
+## Conductivite apprise
+
+- [`dsr_echantillon()`](https://pobsteta.github.io/dessertR/reference/dsr_echantillon.md)
+  : Echantillon d'apprentissage de la conductivite
+- [`dsr_apprendre_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_apprendre_conductivite.md)
+  : Ajuster une conductivite apprise
+- [`predict(`*`<dsr_modele_conductivite>`*`)`](https://pobsteta.github.io/dessertR/reference/predict.dsr_modele_conductivite.md)
+  [`print(`*`<dsr_modele_conductivite>`*`)`](https://pobsteta.github.io/dessertR/reference/predict.dsr_modele_conductivite.md)
+  : Predire une conductivite apprise
+
 ## Etat de la desserte
 
 - [`dsr_etat()`](https://pobsteta.github.io/dessertR/reference/dsr_etat.md)
@@ -81,6 +91,10 @@
   : Mesurer la geometrie de la desserte le long d'un trace
 - [`dsr_profils()`](https://pobsteta.github.io/dessertR/reference/dsr_profils.md)
   : Profils transversaux le long d'un trace
+- [`dsr_calibrer_largeur()`](https://pobsteta.github.io/dessertR/reference/dsr_calibrer_largeur.md)
+  : Calibrer la mesure de largeur sur une reference terrain
+- [`dsr_emprise_certu()`](https://pobsteta.github.io/dessertR/reference/dsr_emprise_certu.md)
+  : Emprise routiere normative (methode Certu, fiche 1.7)
 
 ## Praticabilite (grumier)
 
@@ -117,3 +131,7 @@
 
 - [`dsr_detecter()`](https://pobsteta.github.io/dessertR/reference/dsr_detecter.md)
   : Detecter la desserte hors reference
+- [`dsr_indice_detection()`](https://pobsteta.github.io/dessertR/reference/dsr_indice_detection.md)
+  : Indice de detection de desserte hors reference
+- [`dsr_vectoriser()`](https://pobsteta.github.io/dessertR/reference/dsr_vectoriser.md)
+  : Vectoriser une carte de desserte

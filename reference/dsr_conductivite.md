@@ -16,7 +16,8 @@ dsr_conductivite(
   specs = dsr_specs_geomorpho(),
   method = c("param", "model"),
   sigma_min = 0.05,
-  confiance = NULL
+  confiance = NULL,
+  modele = NULL
 )
 ```
 
@@ -36,8 +37,8 @@ dsr_conductivite(
 
 - method:
 
-  `"param"` (defaut) pour la combinaison parametrique, ou `"model"`
-  (conductivite apprise) — reserve, non encore implemente.
+  `"param"` (defaut) pour la combinaison parametrique, ou `"model"` pour
+  la conductivite apprise — qui demande alors un `modele`.
 
 - sigma_min:
 
@@ -47,6 +48,12 @@ dsr_conductivite(
 
   `SpatRaster` de confiance dans `[0, 1]`, aligne sur `couches` ; `NULL`
   pour ne pas ponderer.
+
+- modele:
+
+  Objet `dsr_modele_conductivite`
+  ([`dsr_apprendre_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_apprendre_conductivite.md))
+  requis quand `method = "model"` ; ignore sinon.
 
 ## Value
 
@@ -64,7 +71,8 @@ plutot que vers une valeur faible trompeuse.
 
 [`dsr_layers_dtm()`](https://pobsteta.github.io/dessertR/reference/dsr_layers_dtm.md),
 [`dsr_appartenance()`](https://pobsteta.github.io/dessertR/reference/dsr_appartenance.md),
-[`dsr_specs_geomorpho()`](https://pobsteta.github.io/dessertR/reference/dsr_specs_geomorpho.md).
+[`dsr_specs_geomorpho()`](https://pobsteta.github.io/dessertR/reference/dsr_specs_geomorpho.md),
+[`dsr_apprendre_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_apprendre_conductivite.md).
 
 ## Examples
 

@@ -6,6 +6,8 @@
 <url><loc>https://pobsteta.github.io/dessertR/news/index.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dessertR-package.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_appartenance.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_apprendre_conductivite.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_calibrer_largeur.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_canaux_externes.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_catalog.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_coller_noeuds.html</loc></url>
@@ -15,11 +17,14 @@
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_dedupe_paralleles.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_detecter.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_divergence.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_echantillon.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_emprise_certu.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_etat.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_etat_trace.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_export_gpkg.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_gabarit_libre.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_grille_reference.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_indice_detection.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_layers_dtm.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_layers_pc.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_measure.html</loc></url>
@@ -41,9 +46,11 @@
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_specs_geomorpho.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_specs_surface.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_trafficability.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_vectoriser.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_vesselness.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/index.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/pathfinder_anisotrope.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/predict.dsr_modele_conductivite.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/rvt_svf_opns.html</loc></url>
 </urlset>
 

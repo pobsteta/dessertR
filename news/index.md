@@ -2,9 +2,9 @@
 
 ## dessertR 0.1.0
 
-Premiere version taggee. Socle du lot 0 et noyau natif.
+Premiere version taggee. Socle et noyau natif.
 
-### Socle (lot 0)
+### Socle
 
 - Catalogage des dalles Lidar HD (LAZ, MNT, MNH) et appariement sur la
   grille kilometrique IGN.
