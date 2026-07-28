@@ -158,6 +158,37 @@ dsr_indice_detection <- function(sigma_geo, sigma_surf = NULL, vesselness = NULL
 #'   analyse en composantes principales. Rapide, mais une composante donne une
 #'   seule ligne ; ne convient qu'aux axes isoles et bien allonges.
 #'
+#' **Lissage de la centre-ligne.** Le squelette d'une emprise rasterisee est un
+#' escalier : chaque virage y est un ressaut de 0 ou 45 degres. Ce n'est pas
+#' cosmetique — [dsr_measure()] en tire `RAYON_COURBURE` et `SINUOSITE`, et
+#' [dsr_trafficability()] en deduit l'aptitude grumier. `lissage` corrige cela :
+#'
+#' * `"savitzky-golay"` (defaut) — ajustement polynomial local sur `x(t)` et
+#'   `y(t)` (Wang *et al.* 2025). Filtre local : conserve la longueur et ne
+#'   rabote pas les virages francs.
+#' * `"bezier"` — ajustement de Bezier cubiques par morceaux aux moindres
+#'   carres, avec decoupe recursive sur l'erreur maximale, puis
+#'   reechantillonnage. C'est la representation de DOGE (Sun *et al.* 2025)
+#'   ramenee a un ajustement direct, sans optimisation differentiable. Elle
+#'   donne une courbe **C1 par morceaux**, analytiquement derivable, dont le pas
+#'   de reechantillonnage se choisit librement. Deux reserves mesurees sur un arc
+#'   de reference : elle est moins fidele que Savitzky-Golay (ecart median a la
+#'   courbe vraie 0,39 m contre 0,13 m), et sa compacite reside dans les points
+#'   de controle — le `LINESTRING` rendu etant reechantillonne, il n'a pas moins
+#'   de sommets que l'escalier d'origine. A choisir pour la continuite, pas pour
+#'   la precision.
+#' * `"aucun"` — l'escalier brut.
+#'
+#' Dans les deux cas **les extremites sont figees** : elles portent la topologie
+#' que [dsr_reseau()] reconstruit ensuite.
+#'
+#' **Raccordement des trouees.** `raccorder` relie deux extremites de
+#' composantes distinctes separees par une trouee de conductivite (couvert
+#' dense, franchissement). Au critere de distance de Wang *et al.* on ajoute un
+#' critere d'alignement, faute de quoi une piste serait soudee au cloisonnement
+#' voisin qu'elle croise sans le rejoindre. Cette etape **invente de la
+#' geometrie la ou la donnee ne montre rien** : elle est desactivee par defaut.
+#'
 #' `"auto"` prend `"vecnet"` s'il est installe, `"squelette"` sinon. Si
 #' `vecnet` echoue en mode `"auto"`, le repli sur le squelette est signale ;
 #' demande explicitement, son echec est une erreur.
@@ -176,6 +207,15 @@ dsr_indice_detection <- function(sigma_geo, sigma_surf = NULL, vesselness = NULL
 #' @param elaguer Longueur (m) en deca de laquelle une barbule ou un micro-lien
 #'   de carrefour est retire du graphe du squelette ; `0` ou `NULL` pour ne rien
 #'   nettoyer. Defaut 5. Methode `"squelette"` seulement.
+#' @param lissage Lissage de la centre-ligne, methode `"squelette"` seulement :
+#'   `"savitzky-golay"` (defaut), `"bezier"` ou `"aucun"`.
+#' @param lissage_par Parametre du lissage, `NULL` pour le defaut de la
+#'   methode : demi-largeur exprimee en metres pour `"savitzky-golay"`
+#'   (defaut 7), tolerance d'ajustement en metres pour `"bezier"` (defaut : la
+#'   resolution de `p`).
+#' @param raccorder Distance (m) en deca de laquelle deux extremites de
+#'   composantes distinctes et **alignees** sont reliees, pour franchir une
+#'   trouee de conductivite. `0` (defaut) pour ne rien raccorder.
 #' @param simplifier Tolerance (m) de simplification Douglas-Peucker des lignes
 #'   produites ; `0` ou `NULL` pour ne pas simplifier. Defaut 1.
 #' @param reference `sf`/`sfc` du reseau deja connu, transmis a `vecnet` comme
@@ -185,17 +225,30 @@ dsr_indice_detection <- function(sigma_geo, sigma_surf = NULL, vesselness = NULL
 #'
 #' @return Un `sf` `LINESTRING` (colonnes `id`, `longueur`), vide si rien n'est
 #'   retenu. L'attribut `"methode"` porte le vectoriseur reellement employe.
-#' @references Roussel, J.-R., Bourdon, J.-F., Morley, I. D., Coops, N. C., &
+#' @references
+#' Roussel, J.-R., Bourdon, J.-F., Morley, I. D., Coops, N. C., &
 #'   Achim, A. (2023). Vectorial and topologically valid segmentation of
 #'   forestry road networks from ALS data. *IJAEOG*, 118, 103267.
 #'   \doi{10.1016/j.jag.2023.103267}
+#'
+#' Wang, X., Ibrahim, M., Mansoor, A., Tareque, H., & Mian, A. (2025).
+#'   Automated Road Extraction and Centreline Fitting in LiDAR Point Clouds.
+#'   \emph{arXiv:2502.07486}.
+#'
+#' Sun, J., Lu, J., Yin, J., Xu, Y., Li, Y., & Guo, Y. (2025). DOGE:
+#'   Differentiable Bezier Graph Optimization for Road Network Extraction.
+#'   \emph{arXiv:2511.19850}.
 #' @seealso [dsr_indice_detection()], [dsr_detecter()], [dsr_reseau()].
 #' @export
 dsr_vectoriser <- function(p, seuil = 0.6,
                            methode = c("auto", "squelette", "vecnet", "acp"),
                            long_min = 30, ratio_min = 3, pas_bin = 5,
-                           elaguer = 5, simplifier = 1, reference = NULL, ...) {
+                           elaguer = 5,
+                           lissage = c("savitzky-golay", "bezier", "aucun"),
+                           lissage_par = NULL, raccorder = 0,
+                           simplifier = 1, reference = NULL, ...) {
   methode <- match.arg(methode)
+  lissage <- match.arg(lissage)
   if (!inherits(p, "SpatRaster")) {
     dsr_abort("{.arg p} doit etre un {.cls SpatRaster}.")
   }
@@ -234,7 +287,7 @@ dsr_vectoriser <- function(p, seuil = 0.6,
   lignes <- if (methode == "acp") {
     .dsr_lignes_acp(p, seuil, long_min, ratio_min, pas_bin)
   } else {
-    .dsr_lignes_squelette(p, seuil, elaguer)
+    .dsr_lignes_squelette(p, seuil, elaguer, lissage, lissage_par, raccorder)
   }
   .dsr_finaliser_lignes(lignes, crs, long_min, simplifier, methode)
 }
@@ -292,6 +345,11 @@ dsr_vectoriser <- function(p, seuil = 0.6,
 #' @param elaguer Longueur (m) en deca de laquelle une barbule ou un micro-lien
 #'   de carrefour est retire du graphe du squelette ; voir [dsr_vectoriser()].
 #'   Defaut 5.
+#' @param lissage Lissage de la centre-ligne ; voir [dsr_vectoriser()]. Defaut
+#'   `"savitzky-golay"`.
+#' @param lissage_par Parametre du lissage ; voir [dsr_vectoriser()].
+#' @param raccorder Distance (m) de raccordement des trouees ; voir
+#'   [dsr_vectoriser()]. `0` (defaut) pour ne rien raccorder.
 #' @param simplifier Tolerance (m) de simplification des lignes ; `0` pour ne
 #'   pas simplifier. Defaut 1.
 #'
@@ -307,9 +365,12 @@ dsr_detecter <- function(sigma_geo, reference = NULL, vesselness = NULL,
                          methode = c("auto", "squelette", "vecnet", "acp"),
                          poids = c(geo = 1, surf = 2, vessel = 1),
                          regime = c("complet", "corridor"), emprise = NULL,
-                         elaguer = 5, simplifier = 1) {
+                         elaguer = 5,
+                         lissage = c("savitzky-golay", "bezier", "aucun"),
+                         lissage_par = NULL, raccorder = 0, simplifier = 1) {
   methode <- match.arg(methode)
   regime <- match.arg(regime)
+  lissage <- match.arg(lissage)
   if (regime == "corridor" && is.null(emprise)) {
     dsr_abort(c(
       "Le regime {.val corridor} demande une {.arg emprise} polygonale.",
@@ -325,6 +386,7 @@ dsr_detecter <- function(sigma_geo, reference = NULL, vesselness = NULL,
   )
   dsr_vectoriser(p, seuil = seuil, methode = methode, long_min = long_min,
     ratio_min = ratio_min, pas_bin = pas_bin, elaguer = elaguer,
+    lissage = lissage, lissage_par = lissage_par, raccorder = raccorder,
     simplifier = simplifier, reference = reference)
 }
 
@@ -398,21 +460,56 @@ dsr_detecter <- function(sigma_geo, reference = NULL, vesselness = NULL,
 
 # --- Vectoriseur squelette (Zhang-Suen + tracage de graphe) ------------------
 
-# Binarise, amincit, elague, puis trace : renvoie une liste de LINESTRING (sfg).
+# Binarise, amincit, elague, trace, raccorde puis lisse : renvoie une liste de
+# LINESTRING (sfg).
 #' @noRd
-.dsr_lignes_squelette <- function(p, seuil, elaguer = 5) {
+.dsr_lignes_squelette <- function(p, seuil, elaguer = 5,
+                                  lissage = "savitzky-golay",
+                                  lissage_par = NULL, raccorder = 0) {
   m <- terra::as.matrix(p, wide = TRUE)
   bin <- matrix(0L, nrow(m), ncol(m))
   bin[!is.na(m) & m >= seuil] <- 1L
   if (!any(bin == 1L)) return(list())
 
+  res <- terra::res(p)[1]
   min_cells <- if (is.null(elaguer) || length(elaguer) != 1L || is.na(elaguer) ||
       elaguer <= 0) {
     0L
   } else {
-    max(1L, as.integer(elaguer / terra::res(p)[1]))
+    max(1L, as.integer(elaguer / res))
   }
-  .dsr_tracer_squelette(.dsr_amincir(bin), p, min_cells)
+  coords <- .dsr_tracer_squelette(.dsr_amincir(bin), p, min_cells,
+    geometrie = FALSE)
+  if (length(coords) == 0L) return(list())
+
+  if (!is.null(raccorder) && length(raccorder) == 1L && !is.na(raccorder) &&
+      raccorder > 0) {
+    coords <- .dsr_raccorder(coords, raccorder)
+  }
+  coords <- .dsr_appliquer_lissage(coords, lissage, lissage_par, res)
+  lapply(coords, sf::st_linestring)
+}
+
+
+# Application du lissage choisi a une liste de matrices de coordonnees.
+# `lissage_par` a un sens different selon la methode -- fenetre pour
+# Savitzky-Golay, tolerance d'ajustement pour Bezier -- d'ou le defaut resolu
+# ici plutot que dans la signature.
+#' @noRd
+.dsr_appliquer_lissage <- function(coords, lissage, lissage_par, res) {
+  lissage <- match.arg(lissage, c("savitzky-golay", "bezier", "aucun"))
+  if (identical(lissage, "aucun")) return(coords)
+
+  if (identical(lissage, "savitzky-golay")) {
+    fenetre <- if (is.null(lissage_par)) 7 else lissage_par
+    demi <- max(1L, as.integer(floor((fenetre / res) / 2)))
+    return(lapply(coords, .dsr_lisser_sg, demi = demi))
+  }
+  # Une tolerance de l'ordre de la resolution ferait poursuivre a l'ajustement
+  # le bruit de quantification du squelette (mesure : 16 courbes au lieu de 3
+  # sur un arc propre). On la place au-dessus de ce plancher de bruit.
+  tol <- if (is.null(lissage_par)) 2 * res else lissage_par
+  lapply(coords, .dsr_lisser_bezier, tol = tol, pas = res)
 }
 
 
@@ -657,9 +754,11 @@ dsr_detecter <- function(sigma_geo, reference = NULL, vesselness = NULL,
 }
 
 
-# Aretes du squelette -> LINESTRING (sfg), en coordonnees de la grille.
+# Aretes du squelette -> coordonnees (ou LINESTRING) en unites de la grille.
+# `geometrie = FALSE` renvoie les matrices brutes, pour laisser le lissage et le
+# raccordement travailler avant la conversion en sfg.
 #' @noRd
-.dsr_tracer_squelette <- function(sq, modele, min_cells = 0L) {
+.dsr_tracer_squelette <- function(sq, modele, min_cells = 0L, geometrie = TRUE) {
   g <- .dsr_graphe_squelette(sq)
   if (is.null(g)) return(list())
   aretes <- .dsr_simplifier_graphe(g, min_cells)
@@ -676,7 +775,7 @@ dsr_detecter <- function(sigma_geo, reference = NULL, vesselness = NULL,
     co <- xy[e$ch, , drop = FALSE]
     co <- co[!duplicated(co), , drop = FALSE]
     if (nrow(co) < 2L) next
-    lignes[[length(lignes) + 1L]] <- sf::st_linestring(co)
+    lignes[[length(lignes) + 1L]] <- if (geometrie) sf::st_linestring(co) else co
   }
   lignes
 }

@@ -1,5 +1,33 @@
 # dessertR (developpement)
 
+## Lissage et raccordement des centre-lignes (lot 7, suite)
+
+* `dsr_vectoriser(lissage = )` : le squelette d'une emprise rasterisee est un
+  escalier, et ce n'est pas un defaut cosmetique -- `dsr_measure()` en tire
+  `RAYON_COURBURE` et `SINUOSITE`, dont depend l'aptitude grumier. Sur un arc de
+  cercle de reference, l'escalier **surestime la longueur de 26 % et la
+  sinuosite de 27 %**.
+  - `"savitzky-golay"` (defaut, Wang *et al.* 2025) : ajustement polynomial
+    local sur `x(t)` et `y(t)`. Ramene l'erreur de longueur a 1,8 %, l'ecart
+    median a la courbe vraie de 0,32 m a 0,13 m.
+  - `"bezier"` : Bezier cubiques par morceaux ajustees aux moindres carres
+    (representation de DOGE, Sun *et al.* 2025, ramenee a un ajustement direct
+    sans optimisation differentiable). Courbe C1 par morceaux ; **moins fidele
+    que Savitzky-Golay** (0,39 m) et sans gain de sommets une fois
+    reechantillonnee en `LINESTRING`. A choisir pour la continuite, pas pour la
+    precision.
+  - Dans les deux cas les extremites sont figees : elles portent la topologie.
+* `dsr_vectoriser(raccorder = )` : relie deux extremites de composantes
+  distinctes separees par une trouee de conductivite. Au critere de distance de
+  Wang *et al.* s'ajoute un critere d'alignement, sans quoi une piste serait
+  soudee au cloisonnement qu'elle croise sans le rejoindre. **Desactive par
+  defaut** : cette etape invente de la geometrie la ou la donnee ne montre rien.
+* Constat de mesure a verser au dossier de calibrage : le rayon de courbure
+  depend bien plus du pas des stations que du lissage. Sur un arc de 60 m de
+  rayon, `dsr_measure(pas = 2)` (le defaut) rend un rayon median de 12 m sur
+  l'escalier et de 30 m apres lissage ; il faut `pas >= 5` pour approcher la
+  verite. Le defaut de `pas` reste a arbitrer.
+
 ## Conductivite apprise (lot 8)
 
 * `dsr_echantillon()` : table d'apprentissage prelevee sur une pile de canaux --

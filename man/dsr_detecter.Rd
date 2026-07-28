@@ -20,6 +20,9 @@ dsr_detecter(
   regime = c("complet", "corridor"),
   emprise = NULL,
   elaguer = 5,
+  lissage = c("savitzky-golay", "bezier", "aucun"),
+  lissage_par = NULL,
+  raccorder = 0,
   simplifier = 1
 )
 }
@@ -66,6 +69,14 @@ en regime \code{"complet"}.}
 \item{elaguer}{Longueur (m) en deca de laquelle une barbule ou un micro-lien
 de carrefour est retire du graphe du squelette ; voir \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}.
 Defaut 5.}
+
+\item{lissage}{Lissage de la centre-ligne ; voir \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}. Defaut
+\code{"savitzky-golay"}.}
+
+\item{lissage_par}{Parametre du lissage ; voir \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}.}
+
+\item{raccorder}{Distance (m) de raccordement des trouees ; voir
+\code{\link[=dsr_vectoriser]{dsr_vectoriser()}}. \code{0} (defaut) pour ne rien raccorder.}
 
 \item{simplifier}{Tolerance (m) de simplification des lignes ; \code{0} pour ne
 pas simplifier. Defaut 1.}

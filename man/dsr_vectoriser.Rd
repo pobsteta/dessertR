@@ -12,6 +12,9 @@ dsr_vectoriser(
   ratio_min = 3,
   pas_bin = 5,
   elaguer = 5,
+  lissage = c("savitzky-golay", "bezier", "aucun"),
+  lissage_par = NULL,
+  raccorder = 0,
   simplifier = 1,
   reference = NULL,
   ...
@@ -35,6 +38,18 @@ dsr_vectoriser(
 \item{elaguer}{Longueur (m) en deca de laquelle une barbule ou un micro-lien
 de carrefour est retire du graphe du squelette ; \code{0} ou \code{NULL} pour ne rien
 nettoyer. Defaut 5. Methode \code{"squelette"} seulement.}
+
+\item{lissage}{Lissage de la centre-ligne, methode \code{"squelette"} seulement :
+\code{"savitzky-golay"} (defaut), \code{"bezier"} ou \code{"aucun"}.}
+
+\item{lissage_par}{Parametre du lissage, \code{NULL} pour le defaut de la
+methode : demi-largeur exprimee en metres pour \code{"savitzky-golay"}
+(defaut 7), tolerance d'ajustement en metres pour \code{"bezier"} (defaut : deux fois la
+resolution de \code{p}, pour rester au-dessus du bruit de quantification).}
+
+\item{raccorder}{Distance (m) en deca de laquelle deux extremites de
+composantes distinctes et \strong{alignees} sont reliees, pour franchir une
+trouee de conductivite. \code{0} (defaut) pour ne rien raccorder.}
 
 \item{simplifier}{Tolerance (m) de simplification Douglas-Peucker des lignes
 produites ; \code{0} ou \code{NULL} pour ne pas simplifier. Defaut 1.}
@@ -75,6 +90,38 @@ analyse en composantes principales. Rapide, mais une composante donne une
 seule ligne ; ne convient qu'aux axes isoles et bien allonges.
 }
 
+\strong{Lissage de la centre-ligne.} Le squelette d'une emprise rasterisee est un
+escalier : chaque virage y est un ressaut de 0 ou 45 degres. Ce n'est pas
+cosmetique — \code{\link[=dsr_measure]{dsr_measure()}} en tire \code{RAYON_COURBURE} et \code{SINUOSITE}, et
+\code{\link[=dsr_trafficability]{dsr_trafficability()}} en deduit l'aptitude grumier. \code{lissage} corrige cela :
+\itemize{
+\item \code{"savitzky-golay"} (defaut) — ajustement polynomial local sur \code{x(t)} et
+\code{y(t)} (Wang \emph{et al.} 2025). Filtre local : conserve la longueur et ne
+rabote pas les virages francs.
+\item \code{"bezier"} — ajustement de Bezier cubiques par morceaux aux moindres
+carres, avec decoupe recursive sur l'erreur maximale, puis
+reechantillonnage. C'est la representation de DOGE (Sun \emph{et al.} 2025)
+ramenee a un ajustement direct, sans optimisation differentiable. Elle
+donne une courbe \strong{C1 par morceaux}, analytiquement derivable, dont le pas
+de reechantillonnage se choisit librement. Deux reserves mesurees sur un arc
+de reference : elle est moins fidele que Savitzky-Golay (ecart median a la
+courbe vraie 0,39 m contre 0,13 m), et sa compacite reside dans les points
+de controle — le \code{LINESTRING} rendu etant reechantillonne, il n'a pas moins
+de sommets que l'escalier d'origine. A choisir pour la continuite, pas pour
+la precision.
+\item \code{"aucun"} — l'escalier brut.
+}
+
+Dans les deux cas \strong{les extremites sont figees} : elles portent la topologie
+que \code{\link[=dsr_reseau]{dsr_reseau()}} reconstruit ensuite.
+
+\strong{Raccordement des trouees.} \code{raccorder} relie deux extremites de
+composantes distinctes separees par une trouee de conductivite (couvert
+dense, franchissement). Au critere de distance de Wang \emph{et al.} on ajoute un
+critere d'alignement, faute de quoi une piste serait soudee au cloisonnement
+voisin qu'elle croise sans le rejoindre. Cette etape \strong{invente de la
+geometrie la ou la donnee ne montre rien} : elle est desactivee par defaut.
+
 \code{"auto"} prend \code{"vecnet"} s'il est installe, \code{"squelette"} sinon. Si
 \code{vecnet} echoue en mode \code{"auto"}, le repli sur le squelette est signale ;
 demande explicitement, son echec est une erreur.
@@ -87,6 +134,14 @@ Roussel, J.-R., Bourdon, J.-F., Morley, I. D., Coops, N. C., &
 Achim, A. (2023). Vectorial and topologically valid segmentation of
 forestry road networks from ALS data. \emph{IJAEOG}, 118, 103267.
 \doi{10.1016/j.jag.2023.103267}
+
+Wang, X., Ibrahim, M., Mansoor, A., Tareque, H., & Mian, A. (2025).
+Automated Road Extraction and Centreline Fitting in LiDAR Point Clouds.
+\emph{arXiv:2502.07486}.
+
+Sun, J., Lu, J., Yin, J., Xu, Y., Li, Y., & Guo, Y. (2025). DOGE:
+Differentiable Bezier Graph Optimization for Road Network Extraction.
+\emph{arXiv:2511.19850}.
 }
 \seealso{
 \code{\link[=dsr_indice_detection]{dsr_indice_detection()}}, \code{\link[=dsr_detecter]{dsr_detecter()}}, \code{\link[=dsr_reseau]{dsr_reseau()}}.
