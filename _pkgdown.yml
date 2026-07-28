@@ -62,3 +62,6 @@ reference:
       - dsr_export_gpkg
       - dsr_qml_categorise
       - dsr_rapport
+  - title: Detection hors reference
+    contents:
+      - dsr_detecter
