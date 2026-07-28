@@ -1,5 +1,30 @@
 # dessertR (developpement)
 
+## Emprise normative Certu (fiche 1.7)
+
+* `dsr_emprise_certu()` : largeur de chaussee et emprise d'un troncon d'apres
+  les largeurs standard de la fiche Certu/CETE 1.7 (2013), a partir des seuls
+  attributs BD TOPO. Schemas **v2 et v3** detectes automatiquement ; en v3 le
+  franchissement se deduit de `pos_sol`, et la correspondance des valeurs de
+  `NATURE` est **deduite, non officielle** — les combinaisons non appariees sont
+  signalees plutot que defautees en silence, la table de la fiche etant creuse.
+* **Ce n'est pas une reference pour calibrer la largeur, et ce ne peut pas
+  l'etre.** Pour `Chemin`, `Route empierree` et `Sentier` — toute la desserte
+  forestiere — la fiche rend une **constante de 2 m**. S'y caler forcerait la
+  mesure a 2 m partout, donc detruirait le signal que le paquet produit. La
+  fiche pose d'ailleurs elle-meme ses limites : elle a ecarte le champ de
+  largeur de la BD TOPO (« pas renseigne de facon homogene »), ses valeurs « ne
+  delimitent pas avec une precision decimetrique », et la methode « surestime »
+  sur la voirie locale.
+* Ce qu'elle apporte reellement : le **vocabulaire normatif** du profil en
+  travers, qui permet enfin de dire que `LARGEUR_ROULABLE` mesure la
+  **chaussee** (comparable a `LARGEUR_CHAUSSEE_CERTU`) et non l'emprise ; et
+  l'**ecart a la norme**, lecture utile au gestionnaire — dessertR mesure ce que
+  la fiche ne peut que supposer.
+* L'appariement est rendu insensible aux accents et a la casse. Sans cela, sous
+  une locale non UTF-8, un accent se scinde en deux octets et l'appariement
+  echoue en silence, precisement sur « Route empierree ».
+
 ## Mesure : deux estimateurs remplaces, et pourquoi
 
 Les deux grandeurs qui commandent l'aptitude grumier etaient mal estimees. Les
