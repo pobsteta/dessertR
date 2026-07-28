@@ -8,12 +8,22 @@ dsr_detecter(
   sigma_geo,
   reference = NULL,
   vesselness = NULL,
+  sigma_surf = NULL,
   seuil = 0.6,
   seuil_vessel = 0.3,
   buffer_ref = 15,
   long_min = 30,
   ratio_min = 3,
-  pas_bin = 5
+  pas_bin = 5,
+  methode = c("auto", "squelette", "vecnet", "acp"),
+  poids = c(geo = 1, surf = 2, vessel = 1),
+  regime = c("complet", "corridor"),
+  emprise = NULL,
+  elaguer = 5,
+  lissage = c("savitzky-golay", "bezier", "aucun"),
+  lissage_par = NULL,
+  raccorder = 0,
+  simplifier = 1
 )
 }
 \arguments{
@@ -23,36 +33,82 @@ dsr_detecter(
 \item{reference}{\code{sf}/\code{sfc} du reseau de reference (BD TOPO) a exclure ;
 \code{NULL} pour ne rien exclure.}
 
-\item{vesselness}{Raster de linearite (\code{\link[=dsr_layers_dtm]{dsr_layers_dtm()}}) pour restreindre
-aux structures lineaires ; \code{NULL} pour l'ignorer.}
+\item{vesselness}{Raster de linearite (\code{\link[=dsr_layers_dtm]{dsr_layers_dtm()}}) pour privilegier
+les structures lineaires ; \code{NULL} pour l'ignorer.}
 
-\item{seuil, seuil_vessel}{Seuils de conductivite et de linearite. Defaut 0.6
-et 0.3.}
+\item{sigma_surf}{Conductivite de surface (\code{\link[=dsr_sigma_surf]{dsr_sigma_surf()}}) — le canal qui
+distingue une piste ouverte d'une trace fossile ; \code{NULL} pour s'en passer.}
+
+\item{seuil}{Seuil de binarisation de \code{p_desserte}. Defaut 0.6.}
+
+\item{seuil_vessel}{Debut de la rampe d'appartenance sur \code{vesselness}. Defaut
+0.3.}
 
 \item{buffer_ref}{Demi-largeur (m) du corridor de reference a exclure. Defaut
 15.}
 
 \item{long_min}{Longueur minimale (m) d'un axe detecte. Defaut 30.}
 
-\item{ratio_min}{Rapport d'allongement minimal (grand axe / petit axe) d'une
-composante pour etre traitee comme lineaire. Defaut 3.}
+\item{ratio_min}{Rapport d'allongement minimal d'une composante
+(methode \code{"acp"} seulement). Defaut 3.}
 
-\item{pas_bin}{Pas d'echantillonnage (m) le long de l'axe principal pour la
-centre-ligne. Defaut 5.}
+\item{pas_bin}{Pas d'echantillonnage (m) le long de l'axe principal
+(methode \code{"acp"} seulement). Defaut 5.}
+
+\item{methode}{Vectoriseur : \code{"auto"}, \code{"squelette"}, \code{"vecnet"} ou \code{"acp"}
+(voir \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}).}
+
+\item{poids}{Poids des canaux dans l'indice ; voir \code{\link[=dsr_indice_detection]{dsr_indice_detection()}}.}
+
+\item{regime}{\code{"complet"} (toute la grille) ou \code{"corridor"} (restreint a
+\code{emprise}).}
+
+\item{emprise}{\code{sf}/\code{sfc} polygonal ; requis en regime \code{"corridor"}, ignore
+en regime \code{"complet"}.}
+
+\item{elaguer}{Longueur (m) en deca de laquelle une barbule ou un micro-lien
+de carrefour est retire du graphe du squelette ; voir \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}.
+Defaut 5.}
+
+\item{lissage}{Lissage de la centre-ligne ; voir \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}. Defaut
+\code{"savitzky-golay"}.}
+
+\item{lissage_par}{Parametre du lissage ; voir \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}.}
+
+\item{raccorder}{Distance (m) de raccordement des trouees ; voir
+\code{\link[=dsr_vectoriser]{dsr_vectoriser()}}. \code{0} (defaut) pour ne rien raccorder.}
+
+\item{simplifier}{Tolerance (m) de simplification des lignes ; \code{0} pour ne
+pas simplifier. Defaut 1.}
 }
 \value{
 Un \code{sf} \code{LINESTRING} des axes detectes (colonnes \code{id}, \code{longueur}),
-ou un \code{sf} vide si aucun. A affiner avec \code{vecnet} pour une vectorisation
-topologique complete.
+ou un \code{sf} vide si aucun.
 }
 \description{
-Repere les axes de desserte probables \strong{absents du reseau de reference} : les
-cellules de forte conductivite geomorphologique (et, si fourni, de forte
-linearite \code{vesselness}) situees \strong{hors} d'un tampon autour de la reference,
-regroupees en composantes connexes puis reduites a une centre-ligne par
-analyse en composantes principales (BRIEF section 3.9). Complementaire du
-recalage, qui lui conserve la reference (\code{\link[=dsr_repositionner]{dsr_repositionner()}}).
+Repere les axes de desserte probables \strong{absents du reseau de reference} :
+construit la carte \code{p_desserte} hors du corridor de reference
+(\code{\link[=dsr_indice_detection]{dsr_indice_detection()}}), puis la vectorise (\code{\link[=dsr_vectoriser]{dsr_vectoriser()}}).
+Complementaire du recalage, qui lui conserve la reference
+(\code{\link[=dsr_repositionner]{dsr_repositionner()}}).
+}
+\details{
+\strong{Regimes.} \code{"complet"} balaie toute la grille (moins le corridor de
+reference) : c'est le regime de la v2, celui qui trouve ce que la BD TOPO
+ignore. \code{"corridor"} restreint a une \code{emprise} fournie, utile pour instruire
+un secteur sans payer le cout d'une dalle entiere.
+
+\strong{Le nuage est ici decisif.} Sans \code{sigma_surf}, la detection repose sur la
+seule geomorphologie et rallume toutes les traces fossiles (chemins creux,
+limites parcellaires, anciennes RF) — le risque n.1 du BRIEF. Fournir
+\code{sigma_surf} fait la difference entre une piste reellement ouverte et une
+cicatrice du terrain.
+
+Le resultat est une collection d'aretes coherentes (les embranchements
+partagent leurs extremites) : la passer a \code{\link[=dsr_reseau]{dsr_reseau()}} donne directement un
+graphe valide.
 }
 \seealso{
+\code{\link[=dsr_indice_detection]{dsr_indice_detection()}}, \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}, \code{\link[=dsr_reseau]{dsr_reseau()}},
 \code{\link[=dsr_conductivite]{dsr_conductivite()}}, \code{\link[=dsr_repositionner]{dsr_repositionner()}}.
 }

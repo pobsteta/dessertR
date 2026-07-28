@@ -14,6 +14,9 @@ dsr_measure(
   prof_fosse = 0.2,
   liss_travers = 3,
   liss_long = 5,
+  methode_largeur = c("planeite", "gradient"),
+  tol_planeite = 0.1,
+  base_courbure = 30,
   reference = NULL,
   confiance = NULL
 )
@@ -28,7 +31,7 @@ dsr_measure(
 
 \item{seuil_devers}{Pente transversale (m/m) sous laquelle la surface est
 consideree roulable. Defaut 0.15 (~8,5 deg) ; sur route de montagne a fort
-devers, monter a 0.20 (cale par validation, voir \verb{dev/03_validation_wsfi.R}).}
+devers, monter a 0.20. Methode \code{"gradient"} seulement.}
 
 \item{prof_fosse}{Profondeur minimale (m) d'un creux lateral pour compter un
 fosse. Defaut 0.2.}
@@ -36,6 +39,16 @@ fosse. Defaut 0.2.}
 \item{liss_travers, liss_long}{Fenetres de lissage (en echantillons) des
 profils, transversale et longitudinale. Indispensables sur un MNT bruite
 sous couvert dense (voir Details). Defaut 3 et 5.}
+
+\item{methode_largeur}{\code{"planeite"} (defaut) ou \code{"gradient"} (methode
+historique) ; voir Details.}
+
+\item{tol_planeite}{Ecart maximal (m) au plan de chaussee ajuste, methode
+\code{"planeite"} seulement. Defaut 0.10.}
+
+\item{base_courbure}{Longueur (m) de la fenetre d'ajustement du cercle de
+courbure. \code{0} pour revenir au cercle circonscrit a trois stations
+consecutives. Defaut 30.}
 
 \item{reference}{Geometrie de reference \code{sf}/\code{sfc} (p. ex. le troncon BD TOPO
 d'origine) pour le \code{DEPLACEMENT} ; \code{NULL} pour l'omettre.}
@@ -47,7 +60,8 @@ d'origine) pour le \code{DEPLACEMENT} ; \code{NULL} pour l'omettre.}
 Une liste : \code{stations} (\code{sf} \code{POINT} avec \code{LARGEUR_ROULABLE},
 \code{DEVERS}, \code{FOSSES}, \code{PENTE_LONG}, et si fournis \code{CONFIANCE_MNT},
 \code{DEPLACEMENT}), et \code{resume} (metriques globales : \code{LARGEUR_ROULABLE_MED},
-\code{PENTE_LONG_MOY}, \code{PENTE_LONG_MAX}, \code{RAYON_COURBURE_MIN}, \code{SINUOSITE}).
+\code{PENTE_LONG_MOY}, \code{PENTE_LONG_MAX}, \code{RAYON_COURBURE_MIN},
+\code{RAYON_COURBURE_P05}, \code{SINUOSITE}).
 }
 \description{
 Derive, station par station, les attributs geometriques d'une desserte a
@@ -61,9 +75,74 @@ deplacement par rapport a une geometrie de reference (BD TOPO).
 La finesse des mesures depend directement de la qualite du MNT. Sous couvert
 dense, le MNT interpole a partir de points sol epars presente un bruit
 vertical decimetrique a metrique (BRIEF, risque n.3) qui degrade la largeur
-roulable et la pente longitudinale : d'ou le lissage (\code{liss_travers},
-\code{liss_long}) et l'interet, pour la mesure fine, de descendre au MNT 50 cm et
-de recalculer un micro-MNT sur les seuls points sol de l'emprise (a venir).
+roulable et la pente longitudinale, d'ou le lissage (\code{liss_travers},
+\code{liss_long}).
+
+\strong{Ce que coute la grille.} La largeur est mesuree sur le MNT, donc sur un
+produit \strong{interpole} : le bord de plateforme est une ligne de rupture, et
+c'est precisement ce qu'une interpolation arrondit. Sur une plateforme de
+synthese de 4,00 m, selon la grille dont on part :\tabular{ll}{
+   source \tab largeur mesuree \cr
+   MNT 50 cm (cellules moyennees) \tab 3,56 m (-0,44) \cr
+   micro-MNT 25 cm, memes points \tab 3,66 m (-0,34) \cr
+   points sol bruts, sans grille \tab 3,78 m (-0,22) \cr
+   profil parfait, echantillonne fin \tab 3,99 m (-0,01) \cr
+}
+
+
+Deux enseignements. D'abord l'estimateur lui-meme est \strong{juste} : sur une
+donnee propre il retrouve la largeur au centimetre. Ensuite le
+micro-MNT sur points sol bruts evoque au BRIEF section 3.6 vaut environ
+\strong{0,2 m} — reel, mais plus modeste que ce que le brief laissait attendre.
+
+Fait contre-intuitif : le biais ne bouge pas quand la densite de points sol
+passe de 20 a 1 point par metre carre. Pour \emph{cette} mesure, ce n'est pas le
+nombre de points qui coute, c'est le fait de passer par une grille. (La
+simulation moyenne les points par cellule ; un MNT IGN interpole par TIN
+preserve mieux les lignes de rupture, l'ecart reel est donc probablement plus
+faible.)
+
+\strong{Largeur roulable.} \code{"planeite"} ajuste le plan de chaussee sur une fenetre
+centrale puis s'ecarte tant que la surface reste a moins de \code{tol_planeite} de
+ce plan, avec interpolation du bord entre echantillons. \code{"gradient"} retient
+la plage ou la pente transversale reste sous \code{seuil_devers}. Sur un profil de
+synthese de largeur connue (4,00 m, bombement 3 \%) :\tabular{lll}{
+   bruit du MNT \tab \code{"gradient"} \tab \code{"planeite"} \cr
+   aucun \tab 3,00 m (-1,00) \tab 3,92 m (-0,08) \cr
+   5 cm \tab 2,56 m (-1,44) \tab 3,72 m (-0,28) \cr
+   10 cm \tab 0,93 m (-3,08) \tab 3,66 m (-0,34) \cr
+}
+
+
+Surtout, le biais de \code{"gradient"} depend du pas transversal (-3,74 m a
+\code{pas_travers = 0.1}, 0,00 m a 1 m) autant que de \code{seuil_devers} : un seuil
+cale sur un jeu ne vaut que pour ce pas et ce niveau de bruit. C'est pourquoi
+\code{"planeite"} est le defaut — voir \code{\link[=dsr_calibrer_largeur]{dsr_calibrer_largeur()}} pour la suite.
+
+\code{tol_planeite} a une lecture physique : il doit \strong{depasser la fleche du
+bombement}, soit \verb{bombement x largeur / 2}. Une route de 6 m bombee a 3 \%
+(fleche 9 cm) passe avec le defaut de 10 cm ; la meme bombee a 6 \% (fleche
+18 cm) est tronquee a 4,4 m et demande 0,20. Le bombement, symetrique, n'est
+pas un devers : \code{DEVERS} ne retient que l'inclinaison d'ensemble, celle qui
+compte pour la stabilite d'un chargement.
+
+\strong{Rayon de courbure.} Il est ajuste par un cercle des moindres carres sur
+une fenetre de \code{base_courbure} metres, et non sur trois stations
+consecutives. La quantification du trace vectorise (un sommet par cellule)
+rend le cercle circonscrit inutilisable : sur un arc de rayon vrai 60 m,
+quantifie au metre puis lisse, la mediane des rayons vaut\tabular{ll}{
+   estimateur \tab mediane \cr
+   3 stations consecutives \tab 16,6 m \cr
+   cercle des moindres carres, base 20 m \tab 49,0 m \cr
+   cercle des moindres carres, base 30 m \tab 56,5 m \cr
+   cercle des moindres carres, base 50 m \tab 60,0 m \cr
+}
+
+
+La base par defaut (30 m) est aussi l'ordre de grandeur d'un ensemble
+routier grumier : c'est l'echelle a laquelle la courbure contraint reellement
+le passage. \code{RAYON_COURBURE_P05} est le quantile 5 \% ; le preferer au
+minimum, qui reste sensible a une station aberrante.
 }
 \examples{
 \donttest{
@@ -77,5 +156,5 @@ m$resume
 }
 }
 \seealso{
-\code{\link[=dsr_profils]{dsr_profils()}}, \code{\link[=dsr_pathfinder]{dsr_pathfinder()}}.
+\code{\link[=dsr_profils]{dsr_profils()}}, \code{\link[=dsr_pathfinder]{dsr_pathfinder()}}, \code{\link[=dsr_calibrer_largeur]{dsr_calibrer_largeur()}}.
 }

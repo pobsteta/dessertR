@@ -24,6 +24,7 @@ Imports:
     data.table,
     rlas,
     sf,
+    stats,
     terra,
     tools
 Suggests:
@@ -31,6 +32,7 @@ Suggests:
     knitr,
     lasR,
     mirai,
+    ranger,
     rmarkdown,
     sfnetworks,
     xml2,
