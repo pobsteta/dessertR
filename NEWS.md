@@ -1,5 +1,19 @@
 # dessertR (developpement)
 
+## Praticabilite grumier (lot 5)
+
+* `dsr_gabarit_libre()` : hauteur libre sous branches le long du trace, calculee
+  sur le nuage classe (lasR) -- critere reel pour un grumier (~4,5 m), absent des
+  bases existantes.
+* `dsr_trafficability()` + `dsr_seuils_grumier()` : verdict `APTE_GRUMIER` et
+  surtout `MOTIF_INAPTITUDE` (quel critere bloque, et ou), sur des seuils
+  parametrables a caler avec le gestionnaire (BRIEF section 3.7).
+* `dsr_places()` : detection des elargissements locaux (places de depot / de
+  retournement).
+* `dsr_measure()` expose desormais le rayon de courbure par station
+  (`RAYON_COURBURE`) ; `dsr_profils()` accepte `methode` (bilineaire / plus
+  proche voisin).
+
 ## Mesure de la geometrie (lot 2)
 
 * `dsr_profils()` : profils transversaux preleves perpendiculairement au trace
