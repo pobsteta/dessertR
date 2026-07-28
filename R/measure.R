@@ -300,8 +300,14 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse,
   fosse <- function(edge, dir) {
     idx <- edge + dir * seq_len(fenetre)
     idx <- idx[idx >= 1 & idx <= no]
+    # Ecarter les NA AVANT le minimum, pas par na.rm : une fenetre entierement
+    # hors emprise du MNT -- le cas de tout troncon qui atteint le bord de
+    # dalle, donc de tout massif -- rendrait Inf avec un avertissement. Le
+    # verdict etait deja bon (aucun fosse), mais des milliers d'avertissements
+    # noient ceux qui comptent.
+    idx <- idx[!is.na(zi[idx])]
     if (length(idx) == 0L) return(0L)
-    as.integer((zi[edge] - min(zi[idx], na.rm = TRUE)) > prof_fosse)
+    as.integer((zi[edge] - min(zi[idx])) > prof_fosse)
   }
   list(largeur = m$largeur, devers = m$devers,
     fosses = fosse(m$il, -1L) + fosse(m$ir, 1L))

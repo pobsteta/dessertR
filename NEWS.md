@@ -1,5 +1,44 @@
 # dessertR (developpement)
 
+## Premier passage du harnais de validation sur donnee reelle
+
+Le harnais `dev/03_validation.R` avait ete ecrit mais jamais execute. Un
+premier passage sur l'extrait Lidar HD livre avec le paquet (200 x 200 m,
+montagne, 4 troncons BD TOPO, 222 stations) a fait tomber deux defauts et
+produit trois observations.
+
+### Corrige
+
+* `dsr_catalog()` echouait sur `Can not cast an empty data.table` quand aucun
+  nom de fichier ne suivait la convention Lidar HD. Le cas n'est pas
+  theorique : il suffit qu'un bloc soit stocke sous une autre convention. Le
+  message nomme maintenant le probleme, la cle attendue et les noms vus.
+* La detection de fosse emettait un avertissement par station des qu'une
+  fenetre laterale sortait de l'emprise du MNT -- donc pour tout troncon
+  atteignant un bord de dalle, donc sur tout massif. Le verdict etait deja bon
+  (aucun fosse) ; ce sont des milliers d'avertissements qui noyaient ceux qui
+  comptent.
+
+### Observe
+
+* **Le controle ordinal passe** : `Route empierree` 3,00 m contre `Chemin`
+  2,09 m. Premiere confirmation sur donnee reelle que la mesure de largeur est
+  coherente -- coherente, pas calibree.
+* **`FOSSES` n'est pas exploitable en devers.** Le critere cherche un creux
+  sous le bord de plateforme dans une fenetre de 4 m. Sur une route en
+  deblai-remblai, le versant aval est plus bas que le bord de 3 m : la
+  condition est satisfaite partout. Mesure sur le troncon 1 : axe a +3,19 m
+  du bord amont et a -2,96 m du bord aval, et un fosse declare a 68 stations
+  sur 70. Ce n'est pas un fosse, c'est le versant.
+* **Le bruit de largeur vient du bord AVAL, pas des deux.** Sur les deux
+  troncons de route empierree, l'ecart interquartile de la position du bord
+  vaut 0,50 m cote amont contre 1,00 a 1,25 m cote aval. Le talus de deblai
+  amont est une rupture franche, que le critere de planeite saisit nettement ;
+  la crete du remblai aval prolonge le plan de chaussee avant de decrocher, et
+  l'estimateur deborde sur l'accotement d'une quantite variable. La largeur est
+  donc biaisee LARGE en montagne, en sens inverse du biais de grille, sans que
+  les deux se compensent de facon previsible.
+
 ## Canal optique : une seconde source, independante du lidar
 
 Jusqu'ici tout venait du meme nuage de points. Les canaux derives de l'ortho

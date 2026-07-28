@@ -116,6 +116,19 @@ dsr_catalog <- function(laz = NULL, mnt = NULL, mnh = NULL,
     tab <- tab[!is.na(cle)]
   }
 
+  # Tout ecarter laisse une table vide, et data.table::dcast y repond par une
+  # erreur interne indiagnosticable. Le cas n'est pas theorique : il suffit
+  # qu'un bloc soit stocke sous une autre convention de nommage.
+  if (nrow(tab) == 0L) {
+    exemples <- utils::head(basename(c(f_laz, f_mnt, f_mnh)), 3L)
+    dsr_abort(c(
+      "Aucun nom de fichier n'a pu etre decode : catalogue vide.",
+      "i" = "Attendu : la cle kilometrique {.val _XXXX_YYYY_} dans le nom, convention Lidar HD.",
+      "x" = "Vu : {.file {exemples}}",
+      "i" = "Voir {.fun dsr_parse_dalle} pour la convention attendue."
+    ))
+  }
+
   # Une ligne par dalle, une colonne de chemin par type de produit
   large <- data.table::dcast(tab, cle + xmin + ymin + xmax + ymax ~ type,
                              value.var = "fichier", fun.aggregate = function(z) z[1])

@@ -242,3 +242,20 @@ test_that("dsr_calibrer_largeur : garde-fous", {
   expect_error(dsr_calibrer_largeur(tr, mnt, ref, "absente"), "absente")
   expect_error(dsr_calibrer_largeur("pas un sf", mnt, ref, "largeur_m"), "sf")
 })
+
+
+test_that("la detection de fosse reste muette quand la fenetre est hors emprise", {
+  # Tout troncon qui atteint le bord de dalle donne des profils partiellement
+  # NA. Le verdict etait deja bon (aucun fosse) mais chaque station emettait un
+  # avertissement, ce qui noie ceux qui comptent.
+  offsets <- seq(-8, 8, by = 0.5)
+  zi <- rep(NA_real_, length(offsets))
+  centre <- abs(offsets) <= 2
+  zi[centre] <- 100
+  ic <- which.min(abs(offsets))
+  expect_silent(
+    m <- dessertR:::dsr_mesurer_profil(zi, offsets, ic, seuil_devers = 0.15,
+      prof_fosse = 0.2)
+  )
+  expect_equal(m$fosses, 0L)
+})

@@ -121,7 +121,7 @@ une validation terrain.
 | Largeur roulable | biais −0,1 a −0,3 m sur profil de synthese, stable jusqu'a 10 cm de bruit du MNT |
 | Devers | restitue a ±0,005 ; distingue du bombement de drainage, qui est symetrique |
 | Rayon de courbure | ajuste par cercle des moindres carres sur 30 m ; le cercle circonscrit a trois stations sous-estime d'un ordre de grandeur sur un trace vectorise |
-| Fosses (0/1/2) | detectes par creux lateral au-dela du bord de plateforme |
+| Fosses (0/1/2) | detectes par creux lateral au-dela du bord de plateforme ; **inexploitable en devers** — le versant aval satisfait le critere partout |
 | Gabarit libre (vertical) | mesure directement sur le nuage classe, absent des bases existantes |
 | Surplomb (lateral) | empietement des houppiers sur l'emprise, depuis un modele de hauteur de canopee ; hauteur lue **permissive** (sommet du houppier, pas dessous de branche) |
 | Largeur de la plage minerale (NDVI) | second avis independant du lidar, seuil determine par Otsu ; muet sur piste enherbee ou ombragee |
@@ -135,6 +135,14 @@ Deux reglages meritent attention avant tout usage metier :
 - **`base_courbure` commande la courbure bien plus que le pas des stations.**
   Sur un arc de rayon vrai 60 m quantifie au metre puis lisse, la mediane des
   rayons vaut 16,6 m a trois stations, 49 m sur base 20 m, 60 m sur base 50 m.
+- **En montagne, la largeur est biaisee LARGE du cote aval.** Premier passage
+  sur donnee reelle (extrait Lidar HD livre avec le paquet, route en
+  deblai-remblai) : l'ecart interquartile de la position du bord vaut 0,50 m
+  cote amont contre 1,00 a 1,25 m cote aval. Le talus de deblai amont est une
+  rupture franche que le critere de planeite saisit nettement ; la crete du
+  remblai aval prolonge le plan de chaussee avant de decrocher, et l'estimateur
+  deborde sur l'accotement. Ce biais va en sens inverse de celui de la grille,
+  sans que les deux se compensent de facon previsible.
 
 ### Ce qui fait reference, et pour quoi
 
