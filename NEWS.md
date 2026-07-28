@@ -1,5 +1,17 @@
 # dessertR (developpement)
 
+## Mesure de la geometrie (lot 2)
+
+* `dsr_profils()` : profils transversaux preleves perpendiculairement au trace
+  tous les `pas` metres, echantillonnes en bilineaire sur le MNT.
+* `dsr_measure()` : premier livrable metier (BRIEF section 3.6) -- largeur
+  roulable, devers, fosses (0/1/2), pente longitudinale par station, et
+  metriques globales de rayon de courbure minimal et de sinuosite ;
+  optionnellement `CONFIANCE_MNT` (densite de points sol) et `DEPLACEMENT` a une
+  geometrie de reference. Lissage transversal / longitudinal pour amortir le
+  bruit du MNT sous couvert. Valide sur profils synthetiques (devers, largeur,
+  sinuosite, courbure).
+
 ## Etat le long du trace (lot 4)
 
 * `dsr_etat_trace()` : echantillonne `sigma_geo` / `sigma_surf` le long d'un
