@@ -44,6 +44,15 @@ connue.
   projets nemeton exploitables au lieu d'en coder un en dur, les traite tous, et
   publie un tableau de calibrage croise. Un reglage qui gagne sur un massif et
   perd sur les autres n'est pas un reglage.
+  - La racine nemeton est resolue **selon le systeme** : `%LOCALAPPDATA%` sous
+    Windows (`nemeton/nemeton/projects`), `Library/Application Support` sous
+    macOS, `XDG_DATA_HOME` sous Linux. `DSR_NEMETON` reste prioritaire.
+  - L'inventaire liste **tous** les projets avec ce qu'ils portent (dalles, MNT
+    mosaique, roads, desserte de reference) plutot que d'ecarter en silence. Un
+    projet sans desserte de reference est traite quand meme, aux valeurs par
+    defaut : il n'est simplement pas calibrable, et le rapport le dit.
+  - `DSR_INVENTAIRE=1` s'arrete apres l'inventaire, pour voir ce qui est trouve
+    sans lancer les traitements.
 * README reecrit : etat reel de la chaine, fiabilite mesuree grandeur par
   grandeur, et ce qui reste a caler.
 

@@ -122,6 +122,16 @@ biais, MAE et RMSE — pour arbitrer sur des chiffres. `dev/03_validation.R`
 l'applique a tous les massifs disponibles et publie le tableau croise : un
 reglage qui gagne sur un massif et perd sur les autres n'est pas un reglage.
 
+```sh
+DSR_INVENTAIRE=1 Rscript dev/03_validation.R   # que voit-on ?
+Rscript dev/03_validation.R                    # tout traiter
+```
+
+La racine des projets est resolue selon le systeme (`%LOCALAPPDATA%` sous
+Windows, `Library/Application Support` sous macOS, `XDG_DATA_HOME` sous Linux) ;
+`DSR_NEMETON` la remplace au besoin, `DSR_PROJETS` restreint a un
+sous-ensemble.
+
 ## Ce qui reste a faire
 
 1. **Calibrer la largeur sur le terrain.** L'estimateur est stabilise, le biais

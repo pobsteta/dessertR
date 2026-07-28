@@ -10,57 +10,116 @@
 # projets. Il DECOUVRE les projets presents plutot que d'en coder les noms en
 # dur -- ajouter un massif dans nemeton suffit a l'inclure.
 #
-#   DSR_NEMETON   racine des projets (defaut : ~/.local/share/nemeton/projects)
-#   DSR_PROJETS   sous-ensemble, noms separes par des virgules (defaut : tous)
-#   DSR_OUT       repertoire de sortie
+#   DSR_NEMETON     racine des projets (defaut : emplacement standard par OS)
+#   DSR_PROJETS     sous-ensemble, noms separes par des virgules (defaut : tous)
+#   DSR_OUT         repertoire de sortie
+#   DSR_INVENTAIRE  a 1 : afficher l'inventaire et s'arreter, sans rien traiter
 #
 # Usage :  Rscript dev/03_validation.R
+#          DSR_INVENTAIRE=1 Rscript dev/03_validation.R   (voir ce qui est vu)
 
 suppressMessages({library(terra); library(sf); library(dessertR)})
 
-RACINE <- Sys.getenv("DSR_NEMETON",
-  file.path(path.expand("~"), ".local/share/nemeton/projects"))
+# --- Ou vit nemeton ? ---------------------------------------------------------
+# L'emplacement suit la convention de chaque systeme. Sous Windows, le double
+# « nemeton\nemeton » n'est pas une faute : c'est le schema
+# <LOCALAPPDATA>/<editeur>/<application> des bibliotheques de chemins standard.
+racine_nemeton <- function() {
+  perso <- Sys.getenv("DSR_NEMETON")
+  if (nzchar(perso)) return(perso)
+  base <- switch(Sys.info()[["sysname"]],
+    Windows = {
+      la <- Sys.getenv("LOCALAPPDATA")
+      if (!nzchar(la)) la <- file.path(Sys.getenv("USERPROFILE"), "AppData", "Local")
+      file.path(la, "nemeton", "nemeton")
+    },
+    Darwin = file.path(path.expand("~"), "Library", "Application Support", "nemeton"),
+    {
+      xdg <- Sys.getenv("XDG_DATA_HOME")
+      file.path(if (nzchar(xdg)) xdg else file.path(path.expand("~"), ".local", "share"),
+        "nemeton")
+    }
+  )
+  file.path(base, "projects")
+}
+
+RACINE <- racine_nemeton()
 OUT <- Sys.getenv("DSR_OUT", file.path(tempdir(), "validation_dessertR"))
 dir.create(OUT, showWarnings = FALSE, recursive = TRUE)
 
-# --- Decouverte des projets ---------------------------------------------------
-# Un projet est retenu s'il porte les trois entrees indispensables : le MNT
-# mosaique, le reseau BD TOPO et une desserte de reference a laquelle comparer.
-projets_valides <- function(racine) {
+
+# --- Inventaire ---------------------------------------------------------------
+# On n'ecarte rien en silence : chaque projet est liste avec ce qu'il porte.
+# Un projet sans desserte de reference reste traitable -- il ne sera simplement
+# pas calibrable, et le rapport le dira.
+inventorier <- function(racine) {
   if (!dir.exists(racine)) {
-    stop(sprintf("Racine nemeton introuvable : %s (definir DSR_NEMETON)", racine))
+    stop(sprintf(paste0("Racine nemeton introuvable : %s\n",
+      "  Definir DSR_NEMETON si les projets sont ailleurs."), racine))
   }
   cand <- list.dirs(racine, recursive = FALSE)
-  garde <- vapply(cand, function(p) {
+  if (length(cand) == 0L) stop(sprintf("Aucun projet sous %s.", racine))
+
+  do.call(rbind, lapply(cand, function(p) {
     ca <- file.path(p, "cache")
-    all(file.exists(
-      file.path(ca, "layers/lidar_mnt_mosaic.tif"),
-      file.path(ca, "layers/roads.gpkg"),
-      file.path(ca, "accessibility/desserte_corrigee.gpkg")
-    ))
-  }, logical(1))
-  stats::setNames(file.path(cand[garde], "cache"), basename(cand[garde]))
+    nuage <- list.files(file.path(ca, "layers", "lidar_nuage"),
+      pattern = "[.](laz|las|copc[.]laz)$", ignore.case = TRUE)
+    data.frame(
+      projet = basename(p),
+      cache = ca,
+      n_dalles = length(nuage),
+      mnt = file.exists(file.path(ca, "layers", "lidar_mnt_mosaic.tif")),
+      roads = file.exists(file.path(ca, "layers", "roads.gpkg")),
+      reference = file.exists(file.path(ca, "accessibility", "desserte_corrigee.gpkg")),
+      stringsAsFactors = FALSE
+    )
+  }))
 }
 
-PROJETS <- projets_valides(RACINE)
+inv <- inventorier(RACINE)
+message(sprintf("Racine : %s", RACINE))
+message(sprintf("%-28s %8s %5s %6s %10s", "projet", "dalles", "MNT", "roads", "reference"))
+for (i in seq_len(nrow(inv))) {
+  message(sprintf("%-28s %8d %5s %6s %10s", inv$projet[i], inv$n_dalles[i],
+    ifelse(inv$mnt[i], "oui", "-"), ifelse(inv$roads[i], "oui", "-"),
+    ifelse(inv$reference[i], "oui", "-")))
+}
+
+# Le minimum pour faire tourner la chaine : un MNT mosaique et un reseau.
+exploitable <- inv$mnt & inv$roads
+if (any(!exploitable)) {
+  message(sprintf("\nEcartes (MNT mosaique ou roads.gpkg absent) : %s",
+    paste(inv$projet[!exploitable], collapse = ", ")))
+}
+inv <- inv[exploitable, , drop = FALSE]
+if (nrow(inv) == 0L) {
+  stop(sprintf("Aucun projet exploitable sous %s.", RACINE))
+}
+if (any(!inv$reference)) {
+  message(sprintf("Traites mais NON calibrables (pas de desserte de reference) : %s",
+    paste(inv$projet[!inv$reference], collapse = ", ")))
+}
+
 choix <- Sys.getenv("DSR_PROJETS", "")
 if (nzchar(choix)) {
   vus <- trimws(strsplit(choix, ",")[[1]])
-  manquants <- setdiff(vus, names(PROJETS))
+  manquants <- setdiff(vus, inv$projet)
   if (length(manquants)) {
-    stop(sprintf("Projets absents ou incomplets : %s", paste(manquants, collapse = ", ")))
+    stop(sprintf("Projets absents ou inexploitables : %s", paste(manquants, collapse = ", ")))
   }
-  PROJETS <- PROJETS[vus]
+  inv <- inv[inv$projet %in% vus, , drop = FALSE]
 }
-if (length(PROJETS) == 0L) {
-  stop(sprintf("Aucun projet exploitable sous %s.", RACINE))
+
+message(sprintf("\nMassifs a traiter (%d) : %s", nrow(inv),
+  paste(inv$projet, collapse = ", ")))
+if (identical(Sys.getenv("DSR_INVENTAIRE"), "1")) {
+  message("DSR_INVENTAIRE=1 : arret apres inventaire.")
+  quit(save = "no")
 }
-message(sprintf("Massifs retenus (%d) : %s", length(PROJETS),
-  paste(names(PROJETS), collapse = ", ")))
 
 
 # --- Traitement d'un massif ---------------------------------------------------
-traiter <- function(nom, P) {
+traiter <- function(nom, P, avec_reference) {
   message(sprintf("\n=== %s ===", nom))
 
   cat_dalles <- dsr_catalog(
@@ -77,10 +136,13 @@ traiter <- function(nom, P) {
     x[sf::st_intersects(x, emp, sparse = FALSE)[, 1], ]
   }
   roads <- lire_clip("layers/roads.gpkg")
-  ref <- lire_clip("accessibility/desserte_corrigee.gpkg", "desserte_corrigee")
-  message(sprintf("  %d dalles | %d routes BD TOPO (%.1f km) | %d troncons de reference",
+  ref <- if (avec_reference) {
+    lire_clip("accessibility/desserte_corrigee.gpkg", "desserte_corrigee")
+  } else NULL
+  message(sprintf("  %d dalles | %d routes BD TOPO (%.1f km) | reference : %s",
     nrow(cat_dalles), nrow(roads),
-    sum(as.numeric(sf::st_length(roads))) / 1000, nrow(ref)))
+    sum(as.numeric(sf::st_length(roads))) / 1000,
+    if (is.null(ref)) "absente" else sprintf("%d troncons", nrow(ref))))
 
   message("  canal geomorphologique + sigma_geo...")
   grille <- dsr_grille_reference(mnt50, res = 1)
@@ -94,22 +156,26 @@ traiter <- function(nom, P) {
   # --- Calibrage de la largeur sur la reference du massif ---------------------
   # On balaie la methode et la tolerance de planeite. Le tableau renvoye dit,
   # massif par massif, quel reglage minimise l'ecart -- et surtout si le meme
-  # reglage gagne partout.
-  message("  calibrage de la largeur...")
-  grille_cal <- expand.grid(
-    methode_largeur = c("planeite", "gradient"),
-    tol_planeite = c(0.05, 0.10, 0.20),
-    stringsAsFactors = FALSE
-  )
-  cal <- dsr_calibrer_largeur(recale, mnt50, ref, "largeur_carrossable_m",
-    grille = grille_cal, long_min = 30,
-    pas = 2, demi_largeur = 8, pas_travers = 0.25, liss_travers = 3)
-  cal$massif <- nom
-
-  # --- Mesure au meilleur reglage --------------------------------------------
-  best <- cal[1, ]
-  message(sprintf("  meilleur reglage : %s, tol %.2f (MAE %.2f m, biais %+.2f m)",
-    best$methode_largeur, best$tol_planeite, best$mae, best$biais))
+  # reglage gagne partout. Sans reference, on mesure quand meme, aux defauts.
+  cal <- NULL
+  best <- list(methode_largeur = "planeite", tol_planeite = 0.10)
+  if (!is.null(ref)) {
+    message("  calibrage de la largeur...")
+    grille_cal <- expand.grid(
+      methode_largeur = c("planeite", "gradient"),
+      tol_planeite = c(0.05, 0.10, 0.20),
+      stringsAsFactors = FALSE
+    )
+    cal <- dsr_calibrer_largeur(recale, mnt50, ref, "largeur_carrossable_m",
+      grille = grille_cal, long_min = 30,
+      pas = 2, demi_largeur = 8, pas_travers = 0.25, liss_travers = 3)
+    cal$massif <- nom
+    best <- cal[1, ]
+    message(sprintf("  meilleur reglage : %s, tol %.2f (MAE %.2f m, biais %+.2f m)",
+      best$methode_largeur, best$tol_planeite, best$mae, best$biais))
+  } else {
+    message("  pas de reference : mesure aux defauts, sans calibrage.")
+  }
 
   stations <- do.call(rbind, lapply(seq_len(nrow(recale)), function(i) {
     if (as.numeric(sf::st_length(recale[i, ])) < 30) return(NULL)
@@ -124,10 +190,10 @@ traiter <- function(nom, P) {
   }))
 
   gpkg <- file.path(OUT, sprintf("validation_%s.gpkg", nom))
-  dsr_export_gpkg(list(
-    routes_bdtopo = roads, routes_recalees = recale,
-    desserte_reference = ref, stations = stations
-  ), gpkg, styles = FALSE)
+  couches <- list(routes_bdtopo = roads, routes_recalees = recale,
+    stations = stations)
+  if (!is.null(ref)) couches$desserte_reference <- ref
+  dsr_export_gpkg(couches, gpkg, styles = FALSE)
 
   list(
     massif = nom, calibrage = cal, gpkg = gpkg,
@@ -138,7 +204,9 @@ traiter <- function(nom, P) {
       deplacement_med = stats::median(recale$DEPLACEMENT_MOY, na.rm = TRUE),
       methode = best$methode_largeur,
       tol = best$tol_planeite,
-      n = best$n, biais = best$biais, mae = best$mae,
+      n = if (is.null(cal)) NA_integer_ else best$n,
+      biais = if (is.null(cal)) NA_real_ else best$biais,
+      mae = if (is.null(cal)) NA_real_ else best$mae,
       rayon_p05 = stats::quantile(
         stations$RAYON_COURBURE[is.finite(stations$RAYON_COURBURE)], 0.05,
         names = FALSE)
@@ -146,25 +214,36 @@ traiter <- function(nom, P) {
   )
 }
 
-res <- lapply(names(PROJETS), function(n) {
-  tryCatch(traiter(n, PROJETS[[n]]), error = function(e) {
-    message(sprintf("  ECHEC sur %s : %s", n, conditionMessage(e)))
-    NULL
-  })
+res <- lapply(seq_len(nrow(inv)), function(i) {
+  tryCatch(traiter(inv$projet[i], inv$cache[i], inv$reference[i]),
+    error = function(e) {
+      message(sprintf("  ECHEC sur %s : %s", inv$projet[i], conditionMessage(e)))
+      NULL
+    })
 })
 res <- Filter(Negate(is.null), res)
 if (length(res) == 0L) stop("Aucun massif n'a pu etre traite.")
 
 resume <- do.call(rbind, lapply(res, `[[`, "resume"))
-calibrage <- do.call(rbind, lapply(res, `[[`, "calibrage"))
-utils::write.csv(calibrage, file.path(OUT, "calibrage_largeur.csv"), row.names = FALSE)
+calibrage <- do.call(rbind, Filter(Negate(is.null), lapply(res, `[[`, "calibrage")))
+if (!is.null(calibrage)) {
+  utils::write.csv(calibrage, file.path(OUT, "calibrage_largeur.csv"),
+    row.names = FALSE)
+}
 
 
 # --- Rapport ------------------------------------------------------------------
 # Le tableau croise est la piece maitresse : un reglage qui gagne sur un massif
 # et perd sur les autres n'est pas un reglage, c'est un surajustement.
-croise <- stats::aggregate(
-  mae ~ methode_largeur + tol_planeite + massif, data = calibrage, FUN = min)
+bloc_croise <- if (is.null(calibrage)) {
+  "Aucun massif ne porte de desserte de reference : pas de calibrage possible."
+} else {
+  croise <- stats::aggregate(
+    mae ~ methode_largeur + tol_planeite + massif, data = calibrage, FUN = min)
+  utils::capture.output(print(stats::reshape(croise,
+    idvar = c("methode_largeur", "tol_planeite"), timevar = "massif",
+    direction = "wide"), row.names = FALSE))
+}
 
 rap <- c(
   "# Validation dessertR --- massifs nemeton", "",
@@ -179,9 +258,7 @@ rap <- c(
     as.numeric(r[["rayon_p05"]]))),
   "", "## Calibrage croise (MAE en m, plus bas = mieux)", "",
   "Un reglage n'est retenu que s'il tient sur TOUS les massifs.", "",
-  utils::capture.output(print(stats::reshape(croise,
-    idvar = c("methode_largeur", "tol_planeite"), timevar = "massif",
-    direction = "wide"), row.names = FALSE)),
+  bloc_croise,
   "", "## Lecture", "",
   "- Un biais a peu pres CONSTANT avec une MAE faible n'est pas une erreur de",
   "  mesure : c'est un ecart de definition. La largeur roulable retient la bande",
@@ -191,7 +268,8 @@ rap <- c(
   "  de points sol (BRIEF, risque n.3) avant de toucher aux seuils.",
   "- tol_planeite doit depasser la fleche du bombement (bombement x largeur / 2).",
   "",
-  sprintf("Detail complet : %s", file.path(OUT, "calibrage_largeur.csv")),
+  if (is.null(calibrage)) "" else
+    sprintf("Detail complet : %s", file.path(OUT, "calibrage_largeur.csv")),
   paste(sprintf("GPKG : %s", vapply(res, `[[`, character(1), "gpkg")), collapse = "\n")
 )
 writeLines(rap, file.path(OUT, "rapport_validation.md"))
