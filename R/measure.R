@@ -105,7 +105,8 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 #' @param pas,demi_largeur,pas_travers Parametres des profils, voir
 #'   [dsr_profils()].
 #' @param seuil_devers Pente transversale (m/m) sous laquelle la surface est
-#'   consideree roulable. Defaut 0.12 (~7 deg).
+#'   consideree roulable. Defaut 0.15 (~8,5 deg) ; sur route de montagne a fort
+#'   devers, monter a 0.20 (cale par validation, voir `dev/03_validation_wsfi.R`).
 #' @param prof_fosse Profondeur minimale (m) d'un creux lateral pour compter un
 #'   fosse. Defaut 0.2.
 #' @param liss_travers,liss_long Fenetres de lissage (en echantillons) des
@@ -133,7 +134,7 @@ dsr_profils <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5
 #' }
 #' @export
 dsr_measure <- function(trace, mnt, pas = 2, demi_largeur = 8, pas_travers = 0.5,
-                        seuil_devers = 0.12, prof_fosse = 0.2,
+                        seuil_devers = 0.15, prof_fosse = 0.2,
                         liss_travers = 3, liss_long = 5,
                         reference = NULL, confiance = NULL) {
   pr <- dsr_profils(trace, mnt, pas = pas, demi_largeur = demi_largeur,
@@ -197,16 +198,23 @@ dsr_mesurer_profil <- function(zi, offsets, ic, seuil_devers, prof_fosse) {
   grad <- rep(NA_real_, no)
   grad[2:(no - 1)] <- (zi[3:no] - zi[1:(no - 2)]) / (2 * pt)
 
-  plat <- function(dir) {
-    k <- ic
-    repeat {
-      nk <- k + dir
-      if (nk < 1 || nk > no || is.na(grad[nk]) || abs(grad[nk]) > seuil_devers) break
-      k <- nk
-    }
-    k
+  # Chaussee = plage plane (|pente transversale| <= seuil) contenant le centre,
+  # ou la plus proche du centre si l'axe (BD TOPO) est desaligne et tombe sur un
+  # talus. Plus robuste que croitre depuis le centre exact.
+  plat <- !is.na(grad) & abs(grad) <= seuil_devers
+  rr <- rle(plat)
+  fin <- cumsum(rr$lengths)
+  deb <- fin - rr$lengths + 1L
+  segs <- which(rr$values)
+  if (length(segs) == 0L) {
+    return(list(largeur = 0, devers = NA_real_, fosses = 0L))
   }
-  il <- plat(-1L); ir <- plat(1L)
+  contient <- vapply(segs, function(k) deb[k] <= ic && ic <= fin[k], logical(1))
+  k <- if (any(contient)) segs[which(contient)[1]] else {
+    centres <- vapply(segs, function(k) (offsets[deb[k]] + offsets[fin[k]]) / 2, numeric(1))
+    segs[which.min(abs(centres))]
+  }
+  il <- deb[k]; ir <- fin[k]
   largeur <- offsets[ir] - offsets[il]
   devers <- mean(grad[il:ir], na.rm = TRUE)
 

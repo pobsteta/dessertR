@@ -1,5 +1,18 @@
 # dessertR (developpement)
 
+## Jeu de validation (lot 1)
+
+* `dev/03_validation_wsfi.R` : harnais de validation sur un bloc reel de 4 dalles
+  Lidar HD (MNT/MNH 50 cm, reseau BD TOPO, desserte de reference foretaccess).
+  Chaine complete + comparaison de la largeur roulable a la reference (MAE,
+  biais), brute vs repositionnee. Constats : la mesure sous-estime la largeur
+  carrossable (seuils a caler) et le repositionnement sur `sigma_geo` seul peut
+  accrocher un lineaire parallele (risque n.1 du BRIEF) -- a contraindre par
+  l'axe de reference ou `sigma_surf`.
+* `dsr_measure()` : detection de la chaussee plus robuste au desalignement de
+  l'axe (plage plane la plus proche du centre, plutot que croissance depuis le
+  centre exact) ; seuil de devers par defaut releve a 0.15 (cale par validation).
+
 ## Export et rapport (lot 6)
 
 * `dsr_export_gpkg()` : ecrit les couches vectorielles d'un massif dans un unique
