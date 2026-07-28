@@ -56,3 +56,8 @@ reference:
       - dsr_coller_noeuds
       - dsr_dedupe_paralleles
       - dsr_sfnetwork
+  - title: Export et rapport
+    contents:
+      - dsr_export_gpkg
+      - dsr_qml_categorise
+      - dsr_rapport

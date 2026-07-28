@@ -1,5 +1,14 @@
 # dessertR (developpement)
 
+## Export et rapport (lot 6)
+
+* `dsr_export_gpkg()` : ecrit les couches vectorielles d'un massif dans un unique
+  GeoPackage, avec les styles QGIS des couches reconnues.
+* `dsr_qml_categorise()` : genere un style QGIS `.qml` categorise (etat,
+  aptitude), charge automatiquement a cote de la couche.
+* `dsr_rapport()` : synthese Markdown d'un traitement (geometrie, praticabilite,
+  etat, reseau). Cloture le socle fonctionnel du BRIEF (hors detection v2).
+
 ## Coherence topologique du reseau (lot 6)
 
 * `dsr_reseau()` : assemble une collection de traces en reseau valide (BRIEF
