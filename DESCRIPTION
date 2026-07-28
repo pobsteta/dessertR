@@ -1,7 +1,7 @@
 Package: dessertR
 Type: Package
 Title: Correction, Mesure et Qualification de la Desserte Forestiere par Lidar HD
-Version: 0.1.0.9000
+Version: 1.0.0
 Authors@R:
     person("Pascal", "Obstetar", email = "pascal.obstetar@gmail.com",
            role = c("aut", "cre"))
