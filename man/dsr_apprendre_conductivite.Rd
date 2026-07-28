@@ -4,7 +4,12 @@
 \alias{dsr_apprendre_conductivite}
 \title{Ajuster une conductivite apprise}
 \usage{
-dsr_apprendre_conductivite(echantillon, methode = c("glm", "ranger"), k = 5, ...)
+dsr_apprendre_conductivite(
+  echantillon,
+  methode = c("glm", "ranger"),
+  k = 5,
+  ...
+)
 }
 \arguments{
 \item{echantillon}{\code{data.frame} issu de \code{\link[=dsr_echantillon]{dsr_echantillon()}} : colonne \code{y}
@@ -13,7 +18,7 @@ dsr_apprendre_conductivite(echantillon, methode = c("glm", "ranger"), k = 5, ...
 \item{methode}{\code{"glm"} (regression logistique, defaut) ou \code{"ranger"} (foret
 aleatoire probabiliste).}
 
-\item{k}{Nombre de plis de la validation croisee stratifiee. \code{NULL} ou \code{< 2}
+\item{k}{Nombre de plis de la validation croisee stratifiee. \code{NULL} ou \verb{< 2}
 pour la sauter. Defaut 5.}
 
 \item{...}{Arguments supplementaires transmis a \code{ranger::ranger()}.}

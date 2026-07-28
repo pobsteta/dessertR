@@ -44,8 +44,8 @@ nettoyer. Defaut 5. Methode \code{"squelette"} seulement.}
 
 \item{lissage_par}{Parametre du lissage, \code{NULL} pour le defaut de la
 methode : demi-largeur exprimee en metres pour \code{"savitzky-golay"}
-(defaut 7), tolerance d'ajustement en metres pour \code{"bezier"} (defaut : deux fois la
-resolution de \code{p}, pour rester au-dessus du bruit de quantification).}
+(defaut 7), tolerance d'ajustement en metres pour \code{"bezier"} (defaut : la
+resolution de \code{p}).}
 
 \item{raccorder}{Distance (m) en deca de laquelle deux extremites de
 composantes distinctes et \strong{alignees} sont reliees, pour franchir une

@@ -1,6 +1,53 @@
 # dessertR (developpement)
 
-## Lissage et raccordement des centre-lignes (lot 7, suite)
+## Mesure : deux estimateurs remplaces, et pourquoi
+
+Les deux grandeurs qui commandent l'aptitude grumier etaient mal estimees. Les
+chiffres ci-dessous viennent de profils et de traces de synthese a geometrie
+connue.
+
+* **Largeur roulable** — `dsr_measure(methode_largeur = "planeite")`, nouveau
+  defaut. On ajuste le plan de chaussee sur une fenetre centrale puis on
+  s'ecarte tant que la surface reste a moins de `tol_planeite` de ce plan, avec
+  interpolation du bord entre echantillons. Sur une plateforme de 4,00 m bombee
+  a 3 % :
+
+  | bruit du MNT | `"gradient"` (ancien) | `"planeite"` |
+  |---|---|---|
+  | aucun | 3,00 m (−1,00) | 3,92 m (−0,08) |
+  | 5 cm | 2,56 m (−1,44) | 3,72 m (−0,28) |
+  | 10 cm | 0,93 m (−3,08) | 3,66 m (−0,34) |
+
+  Le point decisif n'est pas le gain de biais mais la stabilite : le biais du
+  seuil de pente depend du **pas transversal** (−3,74 m a 0,1 m de pas, 0,00 m a
+  1 m) autant que de `seuil_devers`. Un seuil cale sur un massif n'aurait valu
+  que pour ce pas et ce niveau de bruit — l'ancien estimateur n'etait pas
+  calibrable. `tol_planeite` a lui une lecture physique : il doit depasser la
+  fleche du bombement (`bombement x largeur / 2`).
+* **Devers** — desormais la pente du plan ajuste. Il est distingue du bombement
+  de drainage, qui est symetrique et ne cree aucun devers net.
+* **Rayon de courbure** — `base_courbure` (defaut 30 m) : ajustement d'un cercle
+  des moindres carres sur une fenetre physique, au lieu du cercle circonscrit a
+  trois stations consecutives. Sur un arc de rayon vrai 60 m quantifie au metre
+  puis lisse, la mediane des rayons passe de **16,6 m a 56,5 m**. C'etait une
+  faute lourde : `dsr_trafficability()` compare `RAYON_COURBURE` a un seuil de
+  12 m, donc l'ancien estimateur declarait inapte a peu pres toute route
+  courbe. La base de 30 m est aussi l'ordre de grandeur d'un ensemble routier
+  grumier. `RAYON_COURBURE_P05` s'ajoute au minimum, moins sensible a une
+  station aberrante.
+* `dsr_calibrer_largeur()` : balaie une grille de parametres contre une largeur
+  de reference et renvoie biais, MAE et RMSE, avec stratification optionnelle
+  par confiance du MNT. Un biais constant a MAE faible signale un ecart de
+  **definition** (la reference inclut-elle les accotements ?), pas une erreur de
+  mesure — la distinction est documentee, elle se tranche avec le gestionnaire.
+* `dev/03_validation.R` remplace `dev/03_validation_wsfi.R` : il **decouvre** les
+  projets nemeton exploitables au lieu d'en coder un en dur, les traite tous, et
+  publie un tableau de calibrage croise. Un reglage qui gagne sur un massif et
+  perd sur les autres n'est pas un reglage.
+* README reecrit : etat reel de la chaine, fiabilite mesuree grandeur par
+  grandeur, et ce qui reste a caler.
+
+## Lissage et raccordement des centre-lignes
 
 * `dsr_vectoriser(lissage = )` : le squelette d'une emprise rasterisee est un
   escalier, et ce n'est pas un defaut cosmetique -- `dsr_measure()` en tire
@@ -22,13 +69,12 @@
   Wang *et al.* s'ajoute un critere d'alignement, sans quoi une piste serait
   soudee au cloisonnement qu'elle croise sans le rejoindre. **Desactive par
   defaut** : cette etape invente de la geometrie la ou la donnee ne montre rien.
-* Constat de mesure a verser au dossier de calibrage : le rayon de courbure
-  depend bien plus du pas des stations que du lissage. Sur un arc de 60 m de
-  rayon, `dsr_measure(pas = 2)` (le defaut) rend un rayon median de 12 m sur
-  l'escalier et de 30 m apres lissage ; il faut `pas >= 5` pour approcher la
-  verite. Le defaut de `pas` reste a arbitrer.
+* Constat qui a conduit a revoir la mesure : le rayon de courbure dependait
+  bien plus du pas des stations que du lissage. Il n'a PAS ete corrige en
+  touchant a `pas` -- qui doit rester serre pour les profils transversaux --
+  mais en decouplant les deux echelles, voir `base_courbure` ci-dessus.
 
-## Conductivite apprise (lot 8)
+## Conductivite apprise
 
 * `dsr_echantillon()` : table d'apprentissage prelevee sur une pile de canaux --
   positifs sous le reseau connu, negatifs au-dela de `buffer_neg`, **bande grise
@@ -37,15 +83,15 @@
   en option) et rapporte l'**AUC en validation croisee stratifiee**, pas en
   resubstitution ; l'ecart avec l'AUC d'apprentissage mesure le surapprentissage.
 * `dsr_conductivite(method = "model", modele = ...)` et
-  `dsr_sigma_surf(method = "model", ...)` : l'interface prevue au lot 1 est
-  desormais remplie. La voie parametrique reste le defaut.
+  `dsr_sigma_surf(method = "model", ...)` : l'interface prevue des l'origine
+  est desormais remplie. La voie parametrique reste le defaut.
 * Le BRIEF evoquait un petit U-Net ; on ne l'a pas suivi. Avec un seul massif de
   validation et des canaux deja concus pour la tache, une logistique inspectable
   fait aussi bien et n'apporte ni torch, ni GPU, ni dependance Python. Le
   passage a un modele convolutif se fera derriere la meme interface, quand le
   jeu de validation le justifiera.
 
-## Detection hors reference, regime complet et vectorisation (lot 7)
+## Detection hors reference, regime complet et vectorisation
 
 * `dsr_indice_detection()` : carte de probabilite `p_desserte` hors du corridor
   de reference, fusion ponderee de `sigma_geo`, **`sigma_surf`** et
@@ -66,7 +112,7 @@
   satellite mais supposent GPU, PyTorch et un corpus annote massif : ecartes
   pour l'instant, l'interface enfichable leur laisse la porte ouverte.
 
-## Jeu de donnees d'exemple versionne (lot 0)
+## Jeu de donnees d'exemple versionne
 
 * `inst/extdata/` : secteur reel de 200 x 200 m (nuage classe ~327 000 points,
   MNT/MNH 50 cm, extrait BD TOPO) centre sur un franchissement route x cours
@@ -74,7 +120,7 @@
   `data-raw/make_example.R`. Les tests d'integration (catalogage, layers_pc,
   mesure, chaine geomorphologique) tournent desormais dessus, y compris en CI.
 
-## Detection hors reference (lot 7, v2)
+## Detection hors reference (v2)
 
 * `dsr_detecter()` : repere les axes de desserte ABSENTS de la reference
   (pistes, cloisonnements, anciennes RF) -- cellules de forte conductivite (et
@@ -82,7 +128,7 @@
   reduites a une centre-ligne par ACP (BRIEF section 3.9). A affiner avec
   `vecnet` pour une vectorisation topologique complete.
 
-## Repositionnement contraint par la BD TOPO (lot 4)
+## Repositionnement contraint par la BD TOPO
 
 * `dsr_repositionner()` : recale un reseau de reference (BD TOPO) sur le MNT
   lidar via le pathfinder, **sans jamais s'ecarter de plus de `deviation_max`
@@ -92,9 +138,9 @@
   la validation (le repositionnement libre accroche des lineaires paralleles --
   risque n.1 du BRIEF) : le recalage contraint ne degrade plus la mesure.
 
-## Jeu de validation (lot 1)
+## Jeu de validation
 
-* `dev/03_validation_wsfi.R` : harnais de validation sur un bloc reel de 4 dalles
+* `dev/03_validation.R` : harnais de validation sur un bloc reel de 4 dalles
   Lidar HD (MNT/MNH 50 cm, reseau BD TOPO, desserte de reference foretaccess).
   Chaine complete + comparaison de la largeur roulable a la reference (MAE,
   biais), brute vs repositionnee. Constats : la mesure sous-estime la largeur
@@ -105,7 +151,7 @@
   l'axe (plage plane la plus proche du centre, plutot que croissance depuis le
   centre exact) ; seuil de devers par defaut releve a 0.15 (cale par validation).
 
-## Export et rapport (lot 6)
+## Export et rapport
 
 * `dsr_export_gpkg()` : ecrit les couches vectorielles d'un massif dans un unique
   GeoPackage, avec les styles QGIS des couches reconnues.
@@ -114,7 +160,7 @@
 * `dsr_rapport()` : synthese Markdown d'un traitement (geometrie, praticabilite,
   etat, reseau). Cloture le socle fonctionnel du BRIEF (hors detection v2).
 
-## Coherence topologique du reseau (lot 6)
+## Coherence topologique du reseau
 
 * `dsr_reseau()` : assemble une collection de traces en reseau valide (BRIEF
   section 3.8) -- collage des noeuds partages ([dsr_coller_noeuds()]),
@@ -124,7 +170,7 @@
 * `dsr_sfnetwork()` : export en objet `sfnetwork` (graphe spatial valide) quand
   `sfnetworks` est disponible.
 
-## Praticabilite grumier (lot 5)
+## Praticabilite grumier
 
 * `dsr_gabarit_libre()` : hauteur libre sous branches le long du trace, calculee
   sur le nuage classe (lasR) -- critere reel pour un grumier (~4,5 m), absent des
@@ -138,7 +184,7 @@
   (`RAYON_COURBURE`) ; `dsr_profils()` accepte `methode` (bilineaire / plus
   proche voisin).
 
-## Mesure de la geometrie (lot 2)
+## Mesure de la geometrie
 
 * `dsr_profils()` : profils transversaux preleves perpendiculairement au trace
   tous les `pas` metres, echantillonnes en bilineaire sur le MNT.
@@ -150,7 +196,7 @@
   bruit du MNT sous couvert. Valide sur profils synthetiques (devers, largeur,
   sinuosite, courbure).
 
-## Etat le long du trace (lot 4)
+## Etat le long du trace
 
 * `dsr_etat_trace()` : echantillonne `sigma_geo` / `sigma_surf` le long d'un
   trace ([dsr_pathfinder()] ou geometrie BD TOPO), classe l'etat par troncon et
@@ -159,7 +205,7 @@
   il devient interpretable (BRIEF section 3.4). La classification est factorisee
   avec `dsr_etat()`. Valide sur dalle reelle.
 
-## Pathfinder anisotrope (lot 4)
+## Pathfinder anisotrope
 
 * `dsr_pathfinder()` : recherche de trace de moindre cout sur `sigma_geo`, avec
   noyau Rust -- etat d'orientation (cellule, cap), penalite d'anisotropie (les
@@ -169,7 +215,7 @@
   sauts « cavalier » sont verrouilles pour ne pas franchir une barriere `NA`
   d'une cellule. Valide sur dalle reelle (le trace suit la route forestiere).
 
-## Conductivite de surface et etat (lot 3)
+## Conductivite de surface et etat
 
 * `dsr_sigma_surf()` : conductivite de surface (emprise encore degagee), fondee
   sur `densite_sousetage` -- le signal d'abandon -- avec masque d'exclusion.
@@ -178,7 +224,7 @@
   diagnostic d'etat du BRIEF (section 3.4). Valide sur dalle reelle : les routes
   actives ressortent en `en_service`.
 
-## Canal surface et qualite via le nuage (lot 3, amorce)
+## Canal surface et qualite via le nuage
 
 * `dsr_layers_pc()` : rasterise via `lasR` les metriques du nuage classe sur la
   grille de reference -- `densite_sol` (confiance du MNT), `taux_penetration`,
@@ -186,7 +232,7 @@
   `masque_exclusion` et `masque_pont`. Regime corridor par `emprise` / `masque`.
   Valide sur dalle Lidar HD reelle (lecture COPC par lasR).
 
-## Canal geomorphologique complet et conductivite (lot 1)
+## Canal geomorphologique complet et conductivite
 
 * `dsr_pente()`, `dsr_rugosite()` (rugosite residuelle), `dsr_slrm()` (relief
   local simplifie multi-echelle) et `dsr_vesselness()` (linearite de Frangi +
@@ -201,9 +247,9 @@
 
 # dessertR 0.1.0
 
-Premiere version taggee. Socle du lot 0 et noyau natif.
+Premiere version taggee. Socle et noyau natif.
 
-## Socle (lot 0)
+## Socle
 
 * Catalogage des dalles Lidar HD (LAZ, MNT, MNH) et appariement sur la grille
   kilometrique IGN.

@@ -50,6 +50,7 @@ reference:
     contents:
       - dsr_measure
       - dsr_profils
+      - dsr_calibrer_largeur
   - title: Praticabilite (grumier)
     contents:
       - dsr_trafficability
