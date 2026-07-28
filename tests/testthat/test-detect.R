@@ -189,3 +189,97 @@ test_that("dsr_detecter : regime corridor restreint la detection a l'emprise", {
   }
 })
 
+
+
+# --- Garde-fous et canaux secondaires (lot 7) --------------------------------
+
+test_that("dsr_indice_detection : entrees invalides -> erreurs", {
+  skip_if_not_installed("terra")
+  expect_error(dsr_indice_detection("pas un raster"), "SpatRaster")
+
+  sg <- terra::rast(nrows = 6, ncols = 6, xmin = 0, xmax = 6, ymin = 0, ymax = 6,
+    crs = "EPSG:2154")
+  terra::values(sg) <- 0.5
+  expect_error(dsr_indice_detection(c(sg, sg)), "mono-couche")
+  expect_error(dsr_indice_detection(sg, poids = NULL), "Aucun canal")
+  expect_error(dsr_indice_detection(sg, poids = c(geo = NA)), "Aucun canal")
+})
+
+test_that("dsr_indice_detection : la linearite entre par une rampe, pas en dur", {
+  skip_if_not_installed("terra")
+  sg <- terra::rast(nrows = 10, ncols = 10, xmin = 0, xmax = 10, ymin = 0,
+    ymax = 10, crs = "EPSG:2154")
+  terra::values(sg) <- 0.9
+  ves <- terra::rast(sg)
+  terra::values(ves) <- rep(seq(0, 1, length.out = 10), each = 10)
+
+  p <- dsr_indice_detection(sg, vesselness = ves, seuil_vessel = 0.3)
+  v <- terra::values(p, mat = FALSE)
+  vv <- terra::values(ves, mat = FALSE)
+  # sous le seuil de linearite l'indice s'effondre, au-dessus il remonte
+  expect_lt(mean(v[vv <= 0.3]), mean(v[vv >= 0.8]))
+  # une cellule sans aucune linearite tombe bien en dessous de sigma_geo
+  expect_lt(min(v), min(terra::values(sg, mat = FALSE)))
+
+  # poids nul sur la linearite : le canal ne contribue plus
+  p0 <- dsr_indice_detection(sg, vesselness = ves,
+    poids = c(geo = 1, surf = 2, vessel = 0))
+  expect_equal(terra::values(p0, mat = FALSE), terra::values(sg, mat = FALSE),
+    tolerance = 1e-6)
+})
+
+test_that("dsr_vectoriser : entrees invalides -> erreurs", {
+  skip_if_not_installed("terra")
+  expect_error(dsr_vectoriser("pas un raster"), "SpatRaster")
+  r <- terra::rast(nrows = 6, ncols = 6, xmin = 0, xmax = 6, ymin = 0, ymax = 6,
+    crs = "EPSG:2154")
+  terra::values(r) <- 0.5
+  expect_error(dsr_vectoriser(c(r, r)), "mono-couche")
+})
+
+test_that("dsr_vectoriser : methode acp sur un axe isole et allonge", {
+  skip_if_not_installed("terra"); skip_if_not_installed("sf")
+  n <- 80
+  r <- terra::rast(nrows = n, ncols = n, xmin = 0, xmax = n, ymin = 0, ymax = n,
+    crs = "EPSG:2154")
+  terra::values(r) <- 0.1
+  xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
+  r[abs((xy[, 2] - xy[, 1])) / sqrt(2) < 1.5] <- 0.9   # unique diagonale
+
+  acp <- dsr_vectoriser(r, methode = "acp", long_min = 30, pas_bin = 5,
+    ratio_min = 3, simplifier = 0)
+  expect_equal(nrow(acp), 1)
+  expect_identical(attr(acp, "methode"), "acp")
+  co <- sf::st_coordinates(acp)[, 1:2]
+  ang <- (atan2(co[nrow(co), 2] - co[1, 2], co[nrow(co), 1] - co[1, 1]) * 180 / pi) %% 180
+  expect_lt(abs(ang - 45), 10)
+
+  # une composante trop courte pour pas_bin ne donne aucune centre-ligne
+  petit <- terra::rast(nrows = 20, ncols = 20, xmin = 0, xmax = 20, ymin = 0,
+    ymax = 20, crs = "EPSG:2154")
+  terra::values(petit) <- 0.1
+  pxy <- terra::xyFromCell(petit, seq_len(terra::ncell(petit)))
+  petit[abs(pxy[, 2] - 10) < 1 & pxy[, 1] > 8 & pxy[, 1] < 13] <- 0.9
+  expect_equal(nrow(dsr_vectoriser(petit, methode = "acp", long_min = 3,
+    pas_bin = 20, ratio_min = 2)), 0)
+})
+
+test_that("dsr_vectoriser : une boucle fermee sort en une arete unique", {
+  skip_if_not_installed("terra"); skip_if_not_installed("sf")
+  n <- 60
+  r <- terra::rast(nrows = n, ncols = n, xmin = 0, xmax = n, ymin = 0, ymax = n,
+    crs = "EPSG:2154")
+  terra::values(r) <- 0.1
+  xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
+  dedans <- xy[, 1] > 15 & xy[, 1] < 45 & xy[, 2] > 15 & xy[, 2] < 45
+  trou   <- xy[, 1] > 20 & xy[, 1] < 40 & xy[, 2] > 20 & xy[, 2] < 40
+  r[dedans & !trou] <- 0.9                             # anneau ferme
+
+  # aucun pixel de degre != 2 : le tracage doit s'amorcer sur une arete libre
+  boucle <- dsr_vectoriser(r, methode = "squelette", long_min = 20,
+    simplifier = 0)
+  expect_equal(nrow(boucle), 1)
+  expect_gt(boucle$longueur[1], 80)
+  co <- sf::st_coordinates(boucle)[, 1:2]
+  expect_lt(sqrt(sum((co[1, ] - co[nrow(co), ])^2)), 2) # la boucle se referme
+})
