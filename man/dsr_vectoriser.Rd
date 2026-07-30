@@ -7,7 +7,7 @@
 dsr_vectoriser(
   p,
   seuil = 0.6,
-  methode = c("auto", "squelette", "vecnet", "acp"),
+  methode = c("auto", "agent", "squelette", "vecnet", "acp"),
   long_min = 30,
   ratio_min = 3,
   pas_bin = 5,
@@ -25,7 +25,8 @@ dsr_vectoriser(
 
 \item{seuil}{Seuil de binarisation pour \code{"squelette"} et \code{"acp"}. Defaut 0.6.}
 
-\item{methode}{\code{"auto"}, \code{"squelette"}, \code{"vecnet"} ou \code{"acp"}.}
+\item{methode}{\code{"auto"}, \code{"agent"}, \code{"squelette"} ou \code{"acp"}. \code{"vecnet"} est
+accepte comme synonyme de \code{"agent"}.}
 
 \item{long_min}{Longueur minimale (m) d'un axe retenu. Defaut 30.}
 
@@ -54,11 +55,12 @@ trouee de conductivite. \code{0} (defaut) pour ne rien raccorder.}
 \item{simplifier}{Tolerance (m) de simplification Douglas-Peucker des lignes
 produites ; \code{0} ou \code{NULL} pour ne pas simplifier. Defaut 1.}
 
-\item{reference}{\code{sf}/\code{sfc} du reseau deja connu, transmis a \code{vecnet} comme
-reseau existant a ne pas revectoriser ; ignore par les autres methodes.}
+\item{reference}{\code{sf}/\code{sfc} du reseau deja connu. Pour \code{"agent"}, il sert
+deux fois : ses extremites amorcent l'exploration, et il est infranchissable
+(l'agent s'y arrete au lieu de le revectoriser). Ignore par les autres
+methodes.}
 
-\item{...}{Arguments supplementaires transmis a
-\code{vecnet::vectorize_network()}.}
+\item{...}{Arguments supplementaires transmis a \code{\link[=dsr_conduire]{dsr_conduire()}}.}
 }
 \value{
 Un \code{sf} \code{LINESTRING} (colonnes \code{id}, \code{longueur}), vide si rien n'est
@@ -73,7 +75,7 @@ l'interface.
 \details{
 Trois methodes :
 \itemize{
-\item \code{"squelette"} (defaut interne) — binarisation a \code{seuil}, amincissement de
+\item \code{"squelette"} — binarisation a \code{seuil}, amincissement de
 \strong{Zhang-Suen}, puis tracage du graphe du squelette : chaque chaine entre
 deux noeuds (extremite ou embranchement) devient une arete. Deterministe,
 sans dependance, et surtout \strong{il conserve les embranchements} : un peigne
@@ -82,9 +84,15 @@ Le graphe est ensuite nettoye (\code{elaguer}) : contraction des grappes de
 jonction, elagage des barbules, fusion des chaines. Sans cette etape, les
 bavures de bord d'une emprise binarisee reelle hachent une piste de 190 m en
 plusieurs dizaines de troncons dont aucun n'atteint \code{long_min}.
-\item \code{"vecnet"} — delegue a \code{vecnet::vectorize_network()} (Roussel \emph{et al.}
-2023), pathfinder natif vectoriel robuste aux trouees. Paquet non present
-sur le CRAN : \code{remotes::install_github("r-lidar-lab/vecnet")}.
+\item \code{"agent"} (defaut) — \strong{agent conducteur} (\code{\link[=dsr_conduire]{dsr_conduire()}}) : la route est
+vectorisee en la parcourant, l'agent avancant par pas vers la direction la
+moins couteuse de son champ de vision. Reimplementation terra/sf de
+l'algorithme de vecnet (Roussel \emph{et al.} 2023) sur le noyau Rust du paquet.
+Deux atouts sur le squelette : il \strong{franchit les trouees} de detection, et
+il rend des lignes lisses sans passer par un escalier de pixels. Il exige
+en revanche des \strong{amorces} (\code{\link[=dsr_amorces]{dsr_amorces()}}) : fournir \code{reference} est de
+loin le meilleur amorcage, les extremites du reseau connu pointant la ou
+commence la desserte qui manque.
 \item \code{"acp"} — methode historique : composantes connexes, puis centre-ligne par
 analyse en composantes principales. Rapide, mais une composante donne une
 seule ligne ; ne convient qu'aux axes isoles et bien allonges.
@@ -122,9 +130,13 @@ critere d'alignement, faute de quoi une piste serait soudee au cloisonnement
 voisin qu'elle croise sans le rejoindre. Cette etape \strong{invente de la
 geometrie la ou la donnee ne montre rien} : elle est desactivee par defaut.
 
-\code{"auto"} prend \code{"vecnet"} s'il est installe, \code{"squelette"} sinon. Si
-\code{vecnet} echoue en mode \code{"auto"}, le repli sur le squelette est signale ;
-demande explicitement, son echec est une erreur.
+\code{"auto"} prend \code{"agent"}. Si l'agent echoue -- ou si aucune amorce n'est
+exploitable, faute de reference et de route touchant le bord de l'emprise --
+le repli sur le squelette est signale. Demande explicitement, son echec est
+une erreur et l'absence d'amorce rend un resultat vide.
+
+\code{"vecnet"} reste accepte et vaut \code{"agent"} : le paquet externe du meme nom a
+ete remplace par une implementation native, sans dependance.
 
 Le cout de l'amincissement croit avec la demi-largeur des taches : sur une
 carte tres bruitee, relever \code{seuil} avant d'elargir la grille.

@@ -163,11 +163,15 @@ test_that("dsr_vectoriser : long_min filtre, simplifier allege la geometrie", {
   expect_lte(nrow(sf::st_coordinates(lisse)), nrow(sf::st_coordinates(brut)))
 })
 
-test_that("dsr_vectoriser : vecnet absent et demande explicitement -> erreur", {
+test_that("dsr_vectoriser : \"vecnet\" est devenu un synonyme de \"agent\"", {
   skip_if_not_installed("terra")
-  skip_if(requireNamespace("vecnet", quietly = TRUE), "vecnet est installe")
+  # Le paquet externe `vecnet` a ete remplace par l'agent conducteur natif. Le
+  # nom reste accepte pour ne pas casser le code existant, mais il ne charge
+  # plus rien : il ne doit ni echouer, ni dependre de la presence du paquet.
   p <- reseau_en_te(20)
-  expect_error(dsr_vectoriser(p, methode = "vecnet"), "vecnet")
+  expect_message(v <- dsr_vectoriser(p, methode = "vecnet", long_min = 10),
+                 "agent")
+  expect_identical(attr(v, "methode"), "agent")
 })
 
 

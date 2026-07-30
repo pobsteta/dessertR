@@ -1,5 +1,112 @@
 # dessertR (cycle de developpement)
 
+## Le vectoriseur ne depend plus de `vecnet`
+
+`dsr_vectoriser()` s'appuyait, quand il etait installe, sur le paquet `vecnet`
+(Roussel *et al.* 2023). Cette dependance posait trois problemes : `vecnet`
+importe `sp`, `raster` et `gdistance` -- la pile spatiale en fin de vie -- alors
+que dessertR est terra/sf ; il n'est ni sur le CRAN ni sur un r-universe, donc
+non installable declarativement ; et il s'annonce « proof of concept », sans
+commit depuis septembre 2023.
+
+L'algorithme est desormais **natif** : [dsr_conduire()] reimplemente l'agent
+conducteur en terra/sf, sur le noyau Rust du paquet. La route est vectorisee en
+la **parcourant** -- depuis une amorce orientee, l'agent avance par pas, regarde
+en eventail devant lui et part vers la direction la moins couteuse.
+
+C'est une difference de nature avec [dsr_pathfinder()], et c'est pourquoi les
+deux coexistent : le pathfinder relie deux points **connus**, il sait ou il va ;
+l'agent ne le sait pas, il suit la conductivite. D'ou deux proprietes que ni le
+pathfinder ni le squelette n'ont -- il **franchit les trouees** de detection (le
+cout admissible est module par la *profondeur* du creux dans le profil
+angulaire, pas par sa seule valeur), et il **decouvre les embranchements**, les
+directions ecartees a chaque pas devenant les amorces du tour suivant.
+
+Le noyau Rust n'a pas eu a bouger : `dst` n'y servant qu'a un test d'egalite,
+une destination hors grille vide le tas et rend un champ de cout complet. Le
+un-vers-tous dont l'agent a besoin etait deja la. Le modele de cout, lui, etait
+deja celui de `gdistance` (resistance moyenne x distance), mais sur 16 voisins
+au lieu de 8 -- sans le biais de metrication.
+
+[dsr_amorces()] fabrique les amorces. Deux sources, dont une qui n'a pas
+d'equivalent dans `vecnet` : les **extremites libres du reseau de reference**.
+Elles pointent exactement la ou la desserte cartographiee s'arrete, donc la ou
+commence celle qui manque -- c'est le cas d'usage central du paquet, et `vecnet`
+ne dispose d'aucune reference pour le servir. A defaut, les entrees de route sur
+le bord de l'emprise sont balayees directement, la ou `vecnet` fait rouler un
+agent le long d'un contour interieur pour obtenir la meme chose.
+
+`methode = "vecnet"` reste accepte et vaut `"agent"` : aucun code existant ne
+casse, et plus rien n'est charge. `"auto"` prend `"agent"`, avec repli annonce
+sur le squelette si aucune amorce n'est exploitable.
+
+**Un piege, corrige.** Une trouee de detection (valeur basse) et une absence de
+donnee (`NA`) ne sont pas la meme chose. Les confondre -- ce que fait `vecnet`,
+ou une conductivite nulle donne malgre tout un cout infini -- laissait l'agent
+sortir de l'emprise qu'on lui avait fixee. Les `NA` restent infranchissables, et
+le regime `corridor` tient. De meme, une amorce dont le depart tombe hors donnee
+est ecartee : sans quoi un troncon de reference debordant de l'emprise ressortait
+tel quel comme une « route decouverte », alors que l'agent n'avait pas avance
+d'un metre. `n_troncons` permet desormais de distinguer les deux.
+
+
+## Cubature deblai / remblai
+
+[dsr_cubature()] chiffre, tous les `pas` metres, les volumes qu'exige la mise a
+un gabarit donne, par construction d'un profil en travers theorique confronte au
+terrain. Methode reimplementee d'apres CubaRoad (Dupire, SylvaLab / ONF, 2021).
+
+L'interet ne tient pas a la reprise de l'outil mais a son **inversion** :
+CubaRoad chiffre une route a construire sur MNT vierge, dessertR mesure des
+routes qui existent sur un MNT Lidar HD ou la plateforme est deja creusee. Le
+meme calcul repond alors a la question metier francaise -- non pas « ou creer
+une route » mais « que coute la mise au gabarit de celle-ci ».
+[dsr_trafficability()] dit que le grumier ne passe pas ; la cubature dit combien
+pour qu'il passe.
+
+Le partage de l'assise entre deblai et remblai est arbitre par le **ripage**,
+interpolation du devers amont entre deux seuils : `largeur / 2 * (1 + ripage^2)`.
+Sur pente douce, deblai et remblai s'equilibrent ; sur pente raide, le remblai
+ne tient pas et tout passe en deblai. Le volume **a evacuer** n'est pas le
+volume de deblai : sur un profil equilibre, le deblai est reemploye sur place.
+
+Verifie analytiquement plutot que par non-regression : sur un plan incline,
+deblai et remblai ont une forme fermee. Pente 30 %, largeur 4 m, talus
+100 %/60 % -- theorie 0,857 m2 et 1,200 m2, calcul 0,857 et 1,202.
+
+Deux ecarts assumes avec CubaRoad : l'intersection talus/terrain est retenue au
+**changement de signe** et non sous une tolerance, qui echoue quand le
+croisement tombe entre deux echantillons ; et le point de niveau est choisi sur
+**l'altitude**, l'axe n'arbitrant qu'a egalite -- l'autre regle biaisait
+l'ancrage de 0,17 m sur un versant a 30 %. Un defaut absent de la spec, trouve
+en ecrivant les tests : sur terrain plat le talus part du niveau du sol et ne le
+recoupe jamais, donc il courait jusqu'au bord du profil et fabriquait un volume
+entierement fictif.
+
+Restent a faire : le regime construction (comblement prealable de l'emprise
+existante), les lacets, et les sorties SIG assise/emprise.
+
+
+## Deux specs de lots non arbitres
+
+`dev/SPEC_TRACER.md` et `dev/SPEC_CUBATURE.md` decrivent les equivalents
+dessertR de SylvaRoaD et CubaRoad, ecrits depuis la lecture du code des portages
+QGIS et non de leurs READMEs. La premiere pose surtout pourquoi la conception de
+trace neuf **n'est pas** `dsr_pathfinder()` avec d'autres parametres : le cout
+d'une arete y depend de l'azimut et de la pente au noeud precedent, de la
+longueur cumulee en devers excessif et de la distance au dernier lacet, et
+chaque arete est testee en non-auto-intersection contre tout le chemin deja
+pose. Le probleme n'est pas markovien, un noyau dedie est necessaire.
+
+
+## Check : plus aucun warning imputable au paquet
+
+`R CMD check` passe de trois WARNING a zero. `LICENSE` devient `LICENSE.md`
+(deja ignore a la construction), `CITATION.cff` sort de l'archive, `tools` quitte
+les Imports ou il ne servait a rien, et le lien Rd vers l'objet interne
+`DSR_CANAUX_DTM` devient du code inline.
+
+
 ## Parallelisation : tous les coeurs sauf un
 
 `lasR` alloue par defaut la moitie des coeurs ([lasR::half_cores()]). C'est un

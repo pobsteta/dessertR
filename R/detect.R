@@ -9,8 +9,8 @@
 #      sous-etage (sigma_surf) et l'orniere, pas par la geomorphologie seule --
 #      d'ou le poids majoritaire donne au canal de surface.
 #   2. dsr_vectoriser() : passe de la carte a des LINESTRING. Vectoriseur
-#      enfichable : squelettisation interne (defaut, sans dependance), `vecnet`
-#      (Roussel et al. 2023) s'il est installe, ou l'ACP historique.
+#      enfichable : agent conducteur natif (defaut, voir agent.R),
+#      squelettisation interne, ou l'ACP historique.
 #   3. dsr_detecter() : enchaine les deux.
 #
 # Sur le choix du vectoriseur : les methodes apprises (SAM-Road, RNGDet++,
@@ -142,7 +142,7 @@ dsr_indice_detection <- function(sigma_geo, sigma_surf = NULL, vesselness = NULL
 #' @details
 #' Trois methodes :
 #'
-#' * `"squelette"` (defaut interne) — binarisation a `seuil`, amincissement de
+#' * `"squelette"` — binarisation a `seuil`, amincissement de
 #'   **Zhang-Suen**, puis tracage du graphe du squelette : chaque chaine entre
 #'   deux noeuds (extremite ou embranchement) devient une arete. Deterministe,
 #'   sans dependance, et surtout **il conserve les embranchements** : un peigne
@@ -151,9 +151,15 @@ dsr_indice_detection <- function(sigma_geo, sigma_surf = NULL, vesselness = NULL
 #'   jonction, elagage des barbules, fusion des chaines. Sans cette etape, les
 #'   bavures de bord d'une emprise binarisee reelle hachent une piste de 190 m en
 #'   plusieurs dizaines de troncons dont aucun n'atteint `long_min`.
-#' * `"vecnet"` — delegue a `vecnet::vectorize_network()` (Roussel *et al.*
-#'   2023), pathfinder natif vectoriel robuste aux trouees. Paquet non present
-#'   sur le CRAN : `remotes::install_github("r-lidar-lab/vecnet")`.
+#' * `"agent"` (defaut) — **agent conducteur** ([dsr_conduire()]) : la route est
+#'   vectorisee en la parcourant, l'agent avancant par pas vers la direction la
+#'   moins couteuse de son champ de vision. Reimplementation terra/sf de
+#'   l'algorithme de vecnet (Roussel *et al.* 2023) sur le noyau Rust du paquet.
+#'   Deux atouts sur le squelette : il **franchit les trouees** de detection, et
+#'   il rend des lignes lisses sans passer par un escalier de pixels. Il exige
+#'   en revanche des **amorces** ([dsr_amorces()]) : fournir `reference` est de
+#'   loin le meilleur amorcage, les extremites du reseau connu pointant la ou
+#'   commence la desserte qui manque.
 #' * `"acp"` — methode historique : composantes connexes, puis centre-ligne par
 #'   analyse en composantes principales. Rapide, mais une composante donne une
 #'   seule ligne ; ne convient qu'aux axes isoles et bien allonges.
@@ -189,16 +195,21 @@ dsr_indice_detection <- function(sigma_geo, sigma_surf = NULL, vesselness = NULL
 #' voisin qu'elle croise sans le rejoindre. Cette etape **invente de la
 #' geometrie la ou la donnee ne montre rien** : elle est desactivee par defaut.
 #'
-#' `"auto"` prend `"vecnet"` s'il est installe, `"squelette"` sinon. Si
-#' `vecnet` echoue en mode `"auto"`, le repli sur le squelette est signale ;
-#' demande explicitement, son echec est une erreur.
+#' `"auto"` prend `"agent"`. Si l'agent echoue -- ou si aucune amorce n'est
+#' exploitable, faute de reference et de route touchant le bord de l'emprise --
+#' le repli sur le squelette est signale. Demande explicitement, son echec est
+#' une erreur et l'absence d'amorce rend un resultat vide.
+#'
+#' `"vecnet"` reste accepte et vaut `"agent"` : le paquet externe du meme nom a
+#' ete remplace par une implementation native, sans dependance.
 #'
 #' Le cout de l'amincissement croit avec la demi-largeur des taches : sur une
 #' carte tres bruitee, relever `seuil` avant d'elargir la grille.
 #'
 #' @param p `SpatRaster` mono-couche de probabilite / conductivite.
 #' @param seuil Seuil de binarisation pour `"squelette"` et `"acp"`. Defaut 0.6.
-#' @param methode `"auto"`, `"squelette"`, `"vecnet"` ou `"acp"`.
+#' @param methode `"auto"`, `"agent"`, `"squelette"` ou `"acp"`. `"vecnet"` est
+#'   accepte comme synonyme de `"agent"`.
 #' @param long_min Longueur minimale (m) d'un axe retenu. Defaut 30.
 #' @param ratio_min Rapport d'allongement minimal d'une composante
 #'   (methode `"acp"` seulement). Defaut 3.
@@ -218,10 +229,11 @@ dsr_indice_detection <- function(sigma_geo, sigma_surf = NULL, vesselness = NULL
 #'   trouee de conductivite. `0` (defaut) pour ne rien raccorder.
 #' @param simplifier Tolerance (m) de simplification Douglas-Peucker des lignes
 #'   produites ; `0` ou `NULL` pour ne pas simplifier. Defaut 1.
-#' @param reference `sf`/`sfc` du reseau deja connu, transmis a `vecnet` comme
-#'   reseau existant a ne pas revectoriser ; ignore par les autres methodes.
-#' @param ... Arguments supplementaires transmis a
-#'   `vecnet::vectorize_network()`.
+#' @param reference `sf`/`sfc` du reseau deja connu. Pour `"agent"`, il sert
+#'   deux fois : ses extremites amorcent l'exploration, et il est infranchissable
+#'   (l'agent s'y arrete au lieu de le revectoriser). Ignore par les autres
+#'   methodes.
+#' @param ... Arguments supplementaires transmis a [dsr_conduire()].
 #'
 #' @return Un `sf` `LINESTRING` (colonnes `id`, `longueur`), vide si rien n'est
 #'   retenu. L'attribut `"methode"` porte le vectoriseur reellement employe.
@@ -241,7 +253,7 @@ dsr_indice_detection <- function(sigma_geo, sigma_surf = NULL, vesselness = NULL
 #' @seealso [dsr_indice_detection()], [dsr_detecter()], [dsr_reseau()].
 #' @export
 dsr_vectoriser <- function(p, seuil = 0.6,
-                           methode = c("auto", "squelette", "vecnet", "acp"),
+                           methode = c("auto", "agent", "squelette", "vecnet", "acp"),
                            long_min = 30, ratio_min = 3, pas_bin = 5,
                            elaguer = 5,
                            lissage = c("savitzky-golay", "bezier", "aucun"),
@@ -257,30 +269,43 @@ dsr_vectoriser <- function(p, seuil = 0.6,
   }
   crs <- sf::st_crs(terra::crs(p))
   demande <- methode
-  if (methode == "auto") {
-    methode <- if (requireNamespace("vecnet", quietly = TRUE)) "vecnet" else "squelette"
-  }
-
+  # `"vecnet"` designait le paquet externe du meme nom, remplace par l'agent
+  # conducteur natif ([dsr_conduire()]). Le nom reste accepte pour ne pas casser
+  # le code existant, mais il ne charge plus aucune dependance.
   if (methode == "vecnet") {
-    if (!requireNamespace("vecnet", quietly = TRUE)) {
-      dsr_abort(c(
-        "Le paquet {.pkg vecnet} est requis pour {.code methode = \"vecnet\"}.",
-        "i" = 'Installation : remotes::install_github("r-lidar-lab/vecnet")'
-      ))
-    }
-    res <- tryCatch(.dsr_vectoriser_vecnet(p, long_min, reference, ...),
+    dsr_inform(c(
+      "i" = "{.code methode = \"vecnet\"} vaut desormais {.code \"agent\"} : le vectoriseur est natif.",
+      "i" = "Voir {.fn dsr_conduire}."
+    ))
+    methode <- demande <- "agent"
+  }
+  if (methode == "auto") methode <- "agent"
+
+  if (methode == "agent") {
+    res <- tryCatch(.dsr_vectoriser_agent(p, long_min, reference, seuil = seuil, ...),
       error = function(e) e)
     if (inherits(res, "error")) {
-      if (demande == "vecnet") {
-        cli::cli_abort("Le vectoriseur {.pkg vecnet} a echoue.", parent = res)
+      if (demande == "agent") {
+        cli::cli_abort("Le vectoriseur par agent a echoue.", parent = res)
       }
       dsr_inform(c(
-        "!" = "Le vectoriseur {.pkg vecnet} a echoue ; repli sur le squelette interne.",
-        "i" = "Forcer {.code methode = \"vecnet\"} pour voir l'erreur d'origine."
+        "!" = "Le vectoriseur par agent a echoue ; repli sur le squelette interne.",
+        "i" = "Forcer {.code methode = \"agent\"} pour voir l'erreur d'origine."
       ))
       methode <- "squelette"
+    } else if (length(res) > 0L) {
+      return(.dsr_finaliser_lignes(res, crs, long_min, simplifier, "agent"))
     } else {
-      return(.dsr_finaliser_lignes(res, crs, long_min, simplifier, "vecnet"))
+      # Aucune amorce exploitable (ni reference, ni route touchant le bord).
+      # Le squelette, lui, n'a pas besoin d'amorce : c'est le bon repli.
+      if (demande == "agent") {
+        return(.dsr_finaliser_lignes(list(), crs, long_min, simplifier, "agent"))
+      }
+      dsr_inform(c(
+        "!" = "Aucune amorce exploitable pour l'agent ; repli sur le squelette interne.",
+        "i" = "Fournir {.arg reference} pour amorcer l'exploration depuis le reseau connu."
+      ))
+      methode <- "squelette"
     }
   }
 
@@ -335,7 +360,7 @@ dsr_vectoriser <- function(p, seuil = 0.6,
 #'   (methode `"acp"` seulement). Defaut 3.
 #' @param pas_bin Pas d'echantillonnage (m) le long de l'axe principal
 #'   (methode `"acp"` seulement). Defaut 5.
-#' @param methode Vectoriseur : `"auto"`, `"squelette"`, `"vecnet"` ou `"acp"`
+#' @param methode Vectoriseur : `"auto"`, `"agent"`, `"squelette"` ou `"acp"`
 #'   (voir [dsr_vectoriser()]).
 #' @param poids Poids des canaux dans l'indice ; voir [dsr_indice_detection()].
 #' @param regime `"complet"` (toute la grille) ou `"corridor"` (restreint a
@@ -362,7 +387,7 @@ dsr_detecter <- function(sigma_geo, reference = NULL, vesselness = NULL,
                          sigma_surf = NULL, seuil = 0.6, seuil_vessel = 0.3,
                          buffer_ref = 15, long_min = 30, ratio_min = 3,
                          pas_bin = 5,
-                         methode = c("auto", "squelette", "vecnet", "acp"),
+                         methode = c("auto", "agent", "squelette", "vecnet", "acp"),
                          poids = c(geo = 1, surf = 2, vessel = 1),
                          regime = c("complet", "corridor"), emprise = NULL,
                          elaguer = 5,
@@ -433,28 +458,6 @@ dsr_detecter <- function(sigma_geo, reference = NULL, vesselness = NULL,
     geometry = g[garde])
   attr(out, "methode") <- methode
   out
-}
-
-
-# --- Vectoriseur vecnet ------------------------------------------------------
-
-# On passe par getExportedValue plutot que vecnet:: : le paquet n'est ni sur le
-# CRAN ni sur r-universe, il ne peut donc pas figurer en Suggests installable, et
-# un appel `::` en dur ferait porter a R CMD check une dependance non declaree.
-#' @noRd
-.dsr_vectoriser_vecnet <- function(p, long_min, reference, ...) {
-  init_seeds <- getExportedValue("vecnet", "init_seeds")
-  vectorize_network <- getExportedValue("vecnet", "vectorize_network")
-
-  # vecnet attend une carte pleine : hors emprise, conductivite nulle.
-  carte <- terra::ifel(is.na(p), 0, p)
-  reseau <- if (is.null(reference)) NULL else sf::st_geometry(reference)
-  res <- vectorize_network(carte, init_seeds(carte), network = reseau,
-    min_length = long_min, ...)
-
-  g <- sf::st_geometry(res)
-  if (is.na(sf::st_crs(g))) sf::st_crs(g) <- sf::st_crs(terra::crs(p))
-  g
 }
 
 

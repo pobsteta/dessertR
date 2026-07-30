@@ -54,7 +54,10 @@ portee. Defaut 2.5.}
 \value{
 Une liste : \code{route} (\code{sfc} \code{LINESTRING}, l'amorce comprise),
 \code{amorces} (\code{sfc} des embranchements rencontres, ou \code{NULL}), \code{n_pas},
-et \code{arret} (motif d'arret).
+\code{arret} (motif d'arret) et \code{n_troncons}, le nombre de pas reellement
+parcourus, amorce exclue. \strong{\code{n_troncons == 0} signifie que l'agent n'a pas
+pu avancer} : \code{route} n'est alors que l'amorce rendue telle quelle, et non
+une route decouverte.
 }
 \description{
 Vectorise une route en la \strong{parcourant} : depuis une amorce orientee, l'agent

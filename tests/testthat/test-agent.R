@@ -158,3 +158,133 @@ test_that("les minima du profil de cout trouvent les directions roulables", {
   # Profil trop court pour etre exploitable.
   expect_null(.dsr_minima_cout(c(1, 2, 3), cout_max = 200))
 })
+
+
+# --- Amorces et orchestration reseau ----------------------------------------
+
+test_that("les amorces de bordure trouvent les entrees de route", {
+  a <- dsr_amorces(carte_route(), seuil = 0.6, longueur = 20)
+
+  # La route traverse d'ouest en est : une entree de chaque cote.
+  expect_equal(length(a), 2L)
+  co <- sf::st_coordinates(a)
+  # Chaque amorce se termine sur la route (y = 100) et pointe vers l'interieur.
+  fins <- co[!duplicated(co[, 3], fromLast = TRUE), 1:2, drop = FALSE]
+  expect_true(all(abs(fins[, 2] - 100) < 5))
+  expect_length(unique(round(fins[, 1])), 2L)
+
+  # Fond uniforme sous le seuil : aucune amorce.
+  vide <- carte_route()
+  terra::values(vide) <- 0.1
+  expect_null(dsr_amorces(vide, seuil = 0.6))
+})
+
+
+test_that("les amorces de reference partent des extremites du reseau connu", {
+  r <- carte_route()
+  ref <- sf::st_sfc(sf::st_linestring(cbind(c(40, 80), c(100, 100))),
+                    crs = "EPSG:2154")
+  a <- dsr_amorces(r, reference = ref, longueur = 20, bordure = FALSE)
+
+  # Une amorce par extremite libre, orientee vers l'exterieur du troncon.
+  expect_equal(length(a), 2L)
+  co <- sf::st_coordinates(a)
+  fins <- co[!duplicated(co[, 3], fromLast = TRUE), 1:2, drop = FALSE]
+  expect_setequal(round(fins[, 1]), c(40, 80))
+
+  # Sans reference ni bordure, il n'y a rien a amorcer.
+  expect_null(dsr_amorces(r, reference = NULL, bordure = FALSE))
+})
+
+
+test_that("la sinuosite distingue un axe d'un trace qui serpente", {
+  droit <- sf::st_sfc(sf::st_linestring(cbind(c(0, 100), c(0, 0))))
+  expect_equal(.dsr_sinuosite(droit), 1)
+
+  detour <- sf::st_sfc(sf::st_linestring(cbind(c(0, 50, 100), c(0, 50, 0))))
+  expect_gt(.dsr_sinuosite(detour), 1.4)
+})
+
+
+test_that("dsr_vectoriser conduit l'agent sur un reseau en Y", {
+  r <- terra::rast(nrows = 150, ncols = 150, xmin = 0, xmax = 300, ymin = 0,
+                   ymax = 300, crs = "EPSG:2154")
+  terra::values(r) <- 0.1
+  xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
+  r[abs(xy[, 2] - 150) < 4] <- 1
+  r[xy[, 1] >= 150 & abs((xy[, 2] - 150) - (xy[, 1] - 150)) < 5] <- 1
+
+  v <- dsr_vectoriser(r, methode = "agent", long_min = 50, portee = 40)
+
+  expect_s3_class(v, "sf")
+  expect_identical(attr(v, "methode"), "agent")
+  expect_gte(nrow(v), 1L)
+  expect_true(all(v$longueur >= 50))
+  # L'agent ne produit pas d'escalier de pixels : le trace est nettement plus
+  # court que la somme des pas diagonaux d'un squelette rasterise.
+  expect_lt(max(v$longueur), 600)
+})
+
+
+test_that("sans amorce exploitable, l'agent se replie ou rend un resultat vide", {
+  r <- terra::rast(nrows = 60, ncols = 60, xmin = 0, xmax = 120, ymin = 0,
+                   ymax = 120, crs = "EPSG:2154")
+  terra::values(r) <- 0.1
+  # Une tache centrale, qui ne touche aucun bord : rien pour amorcer.
+  xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
+  r[abs(xy[, 1] - 60) < 15 & abs(xy[, 2] - 60) < 3] <- 1
+
+  # Demande explicite : resultat vide, pas de repli silencieux.
+  expect_equal(nrow(dsr_vectoriser(r, methode = "agent", long_min = 10)), 0L)
+  # En "auto", le repli sur le squelette est annonce et produit la ligne.
+  expect_message(v <- dsr_vectoriser(r, methode = "auto", long_min = 10),
+                 "squelette")
+  expect_identical(attr(v, "methode"), "squelette")
+  expect_gte(nrow(v), 1L)
+})
+
+
+test_that("une amorce hors donnee est ecartee et ne devient pas une route", {
+  # Cas reel : un troncon de reference qui deborde de l'emprise d'analyse. Son
+  # extremite tombe hors donnee, l'agent ne peut pas demarrer -- et l'amorce ne
+  # doit surtout pas ressortir comme une route decouverte.
+  r <- carte_route()
+  r[terra::xyFromCell(r, seq_len(terra::ncell(r)))[, 1] > 100] <- NA
+  ref <- sf::st_sfc(sf::st_linestring(cbind(c(30, 160), c(100, 100))),
+                    crs = "EPSG:2154")
+
+  a <- dsr_amorces(r, reference = ref, bordure = FALSE)
+  # Seule l'extremite ouest, dans la donnee, produit une amorce.
+  expect_equal(length(a), 1L)
+  co <- sf::st_coordinates(a)
+  expect_lt(co[nrow(co), 1], 100)
+
+  # Et si on force l'agent a partir d'un point hors donnee, il le dit.
+  hors <- sf::st_sfc(sf::st_linestring(cbind(c(140, 160), c(100, 100))),
+                     crs = "EPSG:2154")
+  b <- dsr_conduire(r, hors, portee = 40)
+  expect_equal(b$n_troncons, 0L)
+})
+
+
+test_that("n_troncons distingue une route parcourue d'une amorce rendue telle quelle", {
+  a <- dsr_conduire(carte_route(), amorce_ouest(), portee = 40)
+  expect_gt(a$n_troncons, 0L)
+
+  # Fond uniforme : rien a suivre, l'agent ne decouvre rien.
+  vide <- carte_route()
+  terra::values(vide) <- 0.1
+  b <- dsr_conduire(vide, amorce_ouest(), portee = 40)
+  expect_equal(b$n_troncons, 0L)
+})
+
+
+test_that("l'agent ne sort pas de l'emprise qu'on lui a fixee", {
+  # Les NA ne sont pas une trouee de detection mais une absence de donnee : les
+  # ramener au plancher de conductivite laisserait l'agent rouler hors emprise.
+  r <- carte_route()
+  r[terra::xyFromCell(r, seq_len(terra::ncell(r)))[, 1] > 120] <- NA
+
+  a <- dsr_conduire(r, amorce_ouest(), portee = 40)
+  expect_lte(max(sf::st_coordinates(a$route)[, 1]), 122)
+})

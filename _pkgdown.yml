@@ -81,6 +81,7 @@ reference:
       - dsr_indice_detection
       - dsr_vectoriser
       - dsr_conduire
+      - dsr_amorces
   - title: Utilitaires
     contents:
       - dsr_ncores

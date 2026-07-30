@@ -158,8 +158,13 @@
   # Plancher de conductivite : une cellule nulle rendrait le cout infini et
   # interdirait de franchir la moindre trouee, ce qui est precisement ce que
   # l'agent doit savoir faire.
-  f <- terra::classify(f, cbind(NA, seuil))
-  f[f < seuil] <- seuil
+  #
+  # Les NA, eux, RESTENT infranchissables. Une trouee de detection (valeur
+  # basse) et une absence de donnee (NA) ne sont pas la meme chose : hors
+  # emprise, hors corridor, hors dalle, il n'y a rien a suivre. Les ramener au
+  # plancher -- ce que fait vecnet, ou une conductivite nulle donne malgre tout
+  # un cout infini -- laisserait l'agent sortir de l'emprise qu'on lui a fixee.
+  f[!is.na(f) & f < seuil] <- seuil
 
   # Le reseau deja connu est INFRANCHISSABLE (NA) : c'est ce qui permet de
   # detecter qu'on l'a rejoint, le cout devenant inatteignable de ce cote.
@@ -233,7 +238,10 @@
 #'
 #' @return Une liste : `route` (`sfc` `LINESTRING`, l'amorce comprise),
 #'   `amorces` (`sfc` des embranchements rencontres, ou `NULL`), `n_pas`,
-#'   et `arret` (motif d'arret).
+#'   `arret` (motif d'arret) et `n_troncons`, le nombre de pas reellement
+#'   parcourus, amorce exclue. **`n_troncons == 0` signifie que l'agent n'a pas
+#'   pu avancer** : `route` n'est alors que l'amorce rendue telle quelle, et non
+#'   une route decouverte.
 #' @seealso [dsr_pathfinder()], [dsr_vectoriser()], [dsr_reseau()].
 #' @examples
 #' # Carte synthetique : une route rectiligne de conductivite 1 sur fond a 0.1.
@@ -382,5 +390,178 @@ dsr_conduire <- function(sigma, amorce, reseau = NULL, portee = 100, fov = 160,
   }
   route <- sf::st_sfc(sf::st_linestring(do.call(rbind, segments)), crs = crs)
   am <- if (length(amorces)) sf::st_sfc(amorces, crs = crs) else NULL
-  list(route = route, amorces = am, n_pas = pas, arret = arret)
+  # `n_troncons` compte ce qui a REELLEMENT ete parcouru, amorce exclue. Un
+  # agent qui n'a jamais pu avancer rend son amorce telle quelle : ce n'est pas
+  # une route decouverte, et l'appelant doit pouvoir le distinguer.
+  list(route = route, amorces = am, n_pas = pas, arret = arret,
+       n_troncons = length(segments) - 1L)
+}
+
+
+#' Amorces d'exploration pour l'agent conducteur
+#'
+#' Fabrique les amorces orientees dont [dsr_conduire()] a besoin pour demarrer,
+#' a partir de deux sources complementaires.
+#'
+#' @details
+#' **Depuis la reference (recommande).** Les extremites libres du reseau deja
+#' connu -- typiquement la BD TOPO -- sont les meilleures amorces qui soient :
+#' elles pointent exactement la ou la desserte cartographiee s'arrete, donc la
+#' ou commence celle qui manque. C'est le cas d'usage central du paquet, et il
+#' n'a pas d'equivalent dans vecnet, qui ne dispose d'aucune reference.
+#'
+#' **Depuis la bordure.** A defaut de reference, on cherche les endroits ou une
+#' conductivite forte touche le bord de l'emprise : une route qui entre dans la
+#' dalle. vecnet obtient le meme resultat en faisant rouler un agent le long
+#' d'un contour interieur ; le balayage direct du bord donne la meme chose sans
+#' le detour.
+#'
+#' Les routes entierement interieures a l'emprise et sans lien avec la reference
+#' ne sont atteintes par aucune des deux sources : elles le seront par
+#' propagation, l'agent rendant a chaque pas les embranchements rencontres.
+#'
+#' @param p Conductivite (`SpatRaster` mono-couche).
+#' @param reference Reseau connu (`sf`/`sfc`), ou `NULL`.
+#' @param seuil Conductivite minimale pour qu'un point de bordure amorce une
+#'   exploration. Defaut 0.6.
+#' @param longueur Longueur des amorces produites, en metres. Defaut 20.
+#' @param bordure Chercher aussi les entrees de route sur le bord de l'emprise.
+#'   Defaut `TRUE`.
+#'
+#' @return Un `sfc` de `LINESTRING` orientes vers l'interieur, ou `NULL`.
+#' @seealso [dsr_conduire()], [dsr_vectoriser()].
+#' @examples
+#' r <- terra::rast(nrows = 50, ncols = 50, xmin = 0, xmax = 100, ymin = 0,
+#'   ymax = 100, crs = "EPSG:2154")
+#' terra::values(r) <- 0.1
+#' xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
+#' r[abs(xy[, 2] - 50) < 3] <- 1
+#' length(dsr_amorces(r))
+#' @export
+dsr_amorces <- function(p, reference = NULL, seuil = 0.6, longueur = 20,
+                        bordure = TRUE) {
+  if (!inherits(p, "SpatRaster")) dsr_abort("{.arg p} doit etre un {.cls SpatRaster}.")
+  if (terra::nlyr(p) > 1L) p <- p[[1]]
+  crs <- sf::st_crs(terra::crs(p))
+  e <- terra::ext(p)
+  res <- terra::res(p)[1]
+  out <- list()
+
+  # 1. Extremites libres de la reference : les bouts de route connus.
+  if (!is.null(reference) && length(sf::st_geometry(reference))) {
+    g <- sf::st_geometry(reference)
+    for (i in seq_along(g)) {
+      co <- sf::st_coordinates(g[i])[, 1:2, drop = FALSE]
+      n <- nrow(co)
+      if (n < 2L) next
+      # Une amorce a chaque bout, orientee vers l'exterieur du troncon.
+      for (bout in list(list(p = co[1, ], q = co[min(2L, n), ]),
+                        list(p = co[n, ], q = co[max(1L, n - 1L), ]))) {
+        d <- bout$p - bout$q
+        nd <- sqrt(sum(d^2))
+        if (!is.finite(nd) || nd == 0) next
+        d <- d / nd
+        out[[length(out) + 1L]] <- sf::st_linestring(
+          rbind(bout$p - longueur * d, bout$p))
+      }
+    }
+  }
+
+  # 2. Entrees de route sur le bord de l'emprise.
+  if (isTRUE(bordure)) {
+    marge <- 2 * res
+    cotes <- list(
+      list(fixe = "y", v = e[3] + marge, sens = c(0, 1)),   # bas  -> vers le nord
+      list(fixe = "y", v = e[4] - marge, sens = c(0, -1)),  # haut -> vers le sud
+      list(fixe = "x", v = e[1] + marge, sens = c(1, 0)),   # ouest -> vers l'est
+      list(fixe = "x", v = e[2] - marge, sens = c(-1, 0))   # est  -> vers l'ouest
+    )
+    for (co in cotes) {
+      s <- if (co$fixe == "y") {
+        seq(e[1] + marge, e[2] - marge, by = res)
+      } else {
+        seq(e[3] + marge, e[4] - marge, by = res)
+      }
+      pts <- if (co$fixe == "y") cbind(s, co$v) else cbind(co$v, s)
+      val <- terra::extract(p, pts)[, 1]
+      fort <- !is.na(val) & val >= seuil
+      if (!any(fort)) next
+      # Une amorce par plage contigue : une route large ne doit pas en produire
+      # une par cellule.
+      grp <- cumsum(c(1L, diff(which(fort)) != 1L))
+      for (k in unique(grp)) {
+        idx <- which(fort)[grp == k]
+        c0 <- pts[idx[length(idx) %/% 2L + 1L], ]
+        out[[length(out) + 1L]] <- sf::st_linestring(
+          rbind(c0 - longueur * co$sens, c0))
+      }
+    }
+  }
+
+  if (!length(out)) return(NULL)
+  g <- sf::st_sfc(out, crs = crs)
+
+  # Une amorce dont le point de depart tombe hors donnee (hors emprise, hors
+  # corridor, hors dalle) n'est pas conduisible. Le cas n'est pas theorique :
+  # un troncon de reference qui deborde de l'emprise d'analyse a son extremite
+  # au-dela, et produirait une amorce inerte.
+  depart <- t(vapply(g, function(l) l[nrow(l), 1:2], numeric(2)))
+  dedans <- !is.na(terra::extract(p, depart)[, 1])
+  if (!any(dedans)) return(NULL)
+  g[dedans]
+}
+
+
+# Sinuosite : longueur parcourue rapportee a la distance a vol d'oiseau. Une
+# route qui serpente exagerement est le signe que l'agent a suivi du bruit et
+# non un lineaire.
+#' @noRd
+.dsr_sinuosite <- function(g) {
+  co <- sf::st_coordinates(g)[, 1:2, drop = FALSE]
+  n <- nrow(co)
+  if (n < 2L) return(Inf)
+  direct <- sqrt(sum((co[n, ] - co[1, ])^2))
+  if (direct <= 0) return(Inf)
+  as.numeric(sf::st_length(g)) / direct
+}
+
+
+# Exploration de proche en proche : on conduit depuis chaque amorce, on retient
+# les routes assez longues et pas trop sinueuses, et les embranchements
+# rencontres deviennent les amorces du tour suivant. Le reseau deja trouve est
+# passe a l'agent, qui s'y arrete : c'est ce qui fait converger la boucle et
+# garantit qu'un axe n'est pas parcouru deux fois.
+#' @noRd
+.dsr_vectoriser_agent <- function(p, long_min, reference, seuil = 0.6,
+                                  sinuosite_max = 1.8, max_tours = 10L, ...) {
+  amorces <- dsr_amorces(p, reference, seuil = seuil)
+  if (is.null(amorces)) return(list())
+
+  reseau <- if (is.null(reference)) NULL else sf::st_geometry(reference)
+  trouve <- list()
+
+  for (tour in seq_len(max_tours)) {
+    suivantes <- list()
+    for (i in seq_along(amorces)) {
+      a <- tryCatch(dsr_conduire(p, amorces[i], reseau = reseau, ...),
+        error = function(e) NULL)
+      if (is.null(a)) next
+      # L'agent n'a pas bouge : il rend son amorce, qui n'est pas une decouverte.
+      if (a$n_troncons < 1L) next
+      lg <- as.numeric(sf::st_length(a$route))
+      if (!is.finite(lg) || lg < long_min) next
+      if (.dsr_sinuosite(a$route) > sinuosite_max) next
+
+      trouve[[length(trouve) + 1L]] <- a$route[[1]]
+      reseau <- if (is.null(reseau)) a$route else c(reseau, a$route)
+      if (!is.null(a$amorces)) {
+        suivantes <- c(suivantes, lapply(seq_along(a$amorces),
+          function(j) a$amorces[[j]]))
+      }
+    }
+    if (!length(suivantes)) break
+    amorces <- sf::st_sfc(suivantes, crs = sf::st_crs(amorces))
+  }
+
+  trouve
 }

@@ -2,6 +2,7 @@
 
 S3method(predict,dsr_modele_conductivite)
 S3method(print,dsr_modele_conductivite)
+export(dsr_amorces)
 export(dsr_appartenance)
 export(dsr_apprendre_conductivite)
 export(dsr_calibrer_largeur)

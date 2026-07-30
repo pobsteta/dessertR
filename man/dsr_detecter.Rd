@@ -15,7 +15,7 @@ dsr_detecter(
   long_min = 30,
   ratio_min = 3,
   pas_bin = 5,
-  methode = c("auto", "squelette", "vecnet", "acp"),
+  methode = c("auto", "agent", "squelette", "vecnet", "acp"),
   poids = c(geo = 1, surf = 2, vessel = 1),
   regime = c("complet", "corridor"),
   emprise = NULL,
@@ -55,7 +55,7 @@ distingue une piste ouverte d'une trace fossile ; \code{NULL} pour s'en passer.}
 \item{pas_bin}{Pas d'echantillonnage (m) le long de l'axe principal
 (methode \code{"acp"} seulement). Defaut 5.}
 
-\item{methode}{Vectoriseur : \code{"auto"}, \code{"squelette"}, \code{"vecnet"} ou \code{"acp"}
+\item{methode}{Vectoriseur : \code{"auto"}, \code{"agent"}, \code{"squelette"} ou \code{"acp"}
 (voir \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}).}
 
 \item{poids}{Poids des canaux dans l'indice ; voir \code{\link[=dsr_indice_detection]{dsr_indice_detection()}}.}
