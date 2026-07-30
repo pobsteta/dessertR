@@ -1,3 +1,39 @@
+# dessertR (cycle de developpement)
+
+## Parallelisation : tous les coeurs sauf un
+
+`lasR` alloue par defaut la moitie des coeurs ([lasR::half_cores()]). C'est un
+reglage prudent pour un usage interactif, trop prudent pour un traitement de
+bloc ou `lasR::exec()` est le poste dominant du temps de calcul : sur une
+machine a 16 coeurs, la moitie du parc reste inutilisee pendant toute la
+lecture du nuage.
+
+[dsr_ncores()] pose la politique du paquet : **tous les coeurs sauf un**, au
+minimum 1. En garder un de libre laisse la machine utilisable et evite
+d'affamer les threads GDAL/terra qui tournent entre deux etages du pipeline.
+
+La base de calcul est [lasR::ncores()] -- le nombre de threads que `lasR` peut
+reellement utiliser, soit 1 si la version installee est compilee sans OpenMP --
+et non `parallel::detectCores()`, qui annoncerait des coeurs inexploitables.
+
+Trois garde-fous. L'option `dessertR.ncores` impose une valeur fixe. Le
+resultat est plafonne a 2 sous `R CMD check` (`_R_CHECK_LIMIT_CORES_`), comme
+l'exige la politique du CRAN. Enfin, une strategie posee globalement par
+[lasR::set_parallel_strategy()] reste prioritaire sur ce reglage : c'est `lasR`
+qui arbitre, le paquet ne fait que proposer un defaut moins timide.
+
+La strategie suit le nombre de dalles a traiter. Une seule dalle parallelise
+les **points** : il n'y a qu'un fichier a lire, rien a repartir entre threads
+de lecture. Plusieurs dalles parallelisent les **fichiers**, ou le gain est
+franc. Les deux appels `lasR::exec()` du paquet ([dsr_layers_pc()] et
+[dsr_gabarit_libre()]) sont cables dessus, ainsi que le script
+`data-raw/make_example.R` -- ce dernier en dur, puisqu'il tourne avant et
+independamment de l'installation du paquet.
+
+Aucun changement d'interface ni de resultat : a nombre de coeurs egal, les
+sorties sont identiques. Seul le temps de calcul bouge.
+
+
 # dessertR 1.0.0
 
 Premiere version complete. La chaine fonctionnelle du BRIEF est implementee de

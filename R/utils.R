@@ -33,3 +33,49 @@ dsr_verifier_lasR <- function() {
   }
   invisible(TRUE)
 }
+
+
+#' Nombre de coeurs alloues aux traitements lasR
+#'
+#' Politique du paquet : **tous les coeurs sauf un**, au minimum 1. Le defaut de
+#' `lasR` est la moitie des coeurs ([lasR::half_cores()]), trop conservateur
+#' pour un traitement de bloc ; en garder un seul de libre laisse la machine
+#' utilisable et evite d'affamer les threads GDAL/terra qui tournent entre deux
+#' etages du pipeline.
+#'
+#' @details
+#' La base de calcul est [lasR::ncores()] -- le nombre de threads que `lasR`
+#' peut reellement utiliser (1 si la version installee est sans OpenMP) -- et
+#' non `parallel::detectCores()`, qui annoncerait des coeurs inexploitables.
+#'
+#' Deux garde-fous : l'option `dessertR.ncores` impose une valeur fixe, et le
+#' resultat est plafonne a 2 sous `R CMD check` (`_R_CHECK_LIMIT_CORES_`).
+#' Enfin, une strategie posee globalement par [lasR::set_parallel_strategy()]
+#' reste prioritaire sur ce reglage : c'est `lasR` qui arbitre.
+#'
+#' @param reserve Nombre de coeurs laisses libres. Defaut 1.
+#' @return Un entier >= 1.
+#' @seealso [lasR::set_parallel_strategy()], [lasR::ncores()].
+#' @examples
+#' dsr_ncores()
+#' @export
+dsr_ncores <- function(reserve = 1L) {
+  n <- getOption("dessertR.ncores")
+  if (is.null(n)) {
+    dispo <- if (requireNamespace("lasR", quietly = TRUE)) lasR::ncores() else 1L
+    n <- as.integer(dispo) - as.integer(reserve)
+  }
+  n <- max(1L, as.integer(n))
+  if (nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_"))) n <- min(n, 2L)
+  n
+}
+
+
+# Strategie de parallelisation passee a `lasR::exec(ncores = )`. Une seule dalle
+# -> paralleliser les POINTS (un seul fichier a lire, rien a repartir) ;
+# plusieurs dalles -> paralleliser les FICHIERS, ou le gain est franc.
+#' @noRd
+dsr_strategie_lasr <- function(n_dalles = 1L) {
+  n <- dsr_ncores()
+  if (n_dalles > 1L) lasR::concurrent_files(n) else lasR::concurrent_points(n)
+}

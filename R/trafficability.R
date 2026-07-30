@@ -55,7 +55,8 @@ dsr_gabarit_libre <- function(trace, dalle, demi_largeur_route = 1.5,
     lasR::normalize() +
     lasR::rasterize(res, "min", filter = lasR::keep_z_above(seuil_bas),
       ofile = lasR::temptif())
-  ans <- lasR::exec(pipeline, on = dalle)
+  ans <- lasR::exec(pipeline, on = dalle,
+    ncores = dsr_strategie_lasr(length(dalle)))
   # exec renvoie un SpatRaster (un seul etage de sortie), une liste, ou un chemin.
   gab <- ans
   if (is.list(gab) && !inherits(gab, "SpatRaster")) {

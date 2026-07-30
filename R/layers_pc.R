@@ -95,7 +95,8 @@ dsr_layers_pc <- function(dalle, res = DSR_RES_MULTIECHELLE, grille = NULL,
       filter = lasR::keep_class(classe_pont), ofile = lasR::temptif())
   )
   pipeline <- Reduce(`+`, etages, lecteur + lasR::normalize())
-  res_exec <- lasR::exec(pipeline, on = dalle)
+  res_exec <- lasR::exec(pipeline, on = dalle,
+    ncores = dsr_strategie_lasr(length(dalle)))
 
   # exec renvoie une liste ordonnee ; on la remappe sur les noms d'etages.
   rasters <- res_exec[vapply(res_exec, inherits, logical(1), "SpatRaster")]
