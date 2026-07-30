@@ -23,7 +23,10 @@ emp <- sf::st_as_sfc(sf::st_bbox(c(xmin = xmin, ymin = ymin, xmax = xmax, ymax =
 pipe <- lasR::reader_las_rectangles(xmin, ymin, xmax, ymax) +
   lasR::sampling_poisson(0.5) +
   lasR::write_las(file.path(OUT, "exemple_nuage.laz"))
-lasR::exec(pipe, on = file.path(P, "layers/lidar_nuage"))
+# Meme politique que le paquet (dsr_ncores()) : tous les coeurs sauf un. Ecrit
+# en dur ici, ce script tournant avant/independamment de l'installation.
+lasR::exec(pipe, on = file.path(P, "layers/lidar_nuage"),
+  ncores = lasR::concurrent_files(max(1L, lasR::ncores() - 1L)))
 
 # 2. MNT et MNH 50 cm croppes.
 ext_r <- terra::ext(xmin, xmax, ymin, ymax)
