@@ -1,10 +1,11 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://pobsteta.github.io/dessertR/404.html</loc></url>
-<url><loc>https://pobsteta.github.io/dessertR/LICENSE-text.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/LICENSE.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/authors.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/index.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/news/index.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dessertR-package.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_amorces.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_appartenance.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_apprendre_conductivite.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_calibrer_largeur.html</loc></url>
@@ -12,7 +13,9 @@
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_catalog.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_coller_noeuds.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_conductivite.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_conduire.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_corridor.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_cubature.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_dalles_requises.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_dedupe_paralleles.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_detecter.html</loc></url>
@@ -31,6 +34,7 @@
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_layers_pc.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_measure.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_micro_relief.html</loc></url>
+<url><loc>https://pobsteta.github.io/dessertR/reference/dsr_ncores.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_ndvi.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_parse_dalle.html</loc></url>
 <url><loc>https://pobsteta.github.io/dessertR/reference/dsr_pathfinder.html</loc></url>

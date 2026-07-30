@@ -13,7 +13,7 @@ l'interface."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">dessertR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -51,7 +51,7 @@ l'interface.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">dsr_vectoriser</span><span class="op">(</span></span>
 <span>  <span class="va">p</span>,</span>
 <span>  seuil <span class="op">=</span> <span class="fl">0.6</span>,</span>
-<span>  methode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"squelette"</span>, <span class="st">"vecnet"</span>, <span class="st">"acp"</span><span class="op">)</span>,</span>
+<span>  methode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"agent"</span>, <span class="st">"squelette"</span>, <span class="st">"vecnet"</span>, <span class="st">"acp"</span><span class="op">)</span>,</span>
 <span>  long_min <span class="op">=</span> <span class="fl">30</span>,</span>
 <span>  ratio_min <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  pas_bin <span class="op">=</span> <span class="fl">5</span>,</span>
@@ -78,7 +78,8 @@ l'interface.</p>
 
 
 <dt id="arg-methode">methode<a class="anchor" aria-label="anchor" href="#arg-methode"></a></dt>
-<dd><p><code>"auto"</code>, <code>"squelette"</code>, <code>"vecnet"</code> ou <code>"acp"</code>.</p></dd>
+<dd><p><code>"auto"</code>, <code>"agent"</code>, <code>"squelette"</code> ou <code>"acp"</code>. <code>"vecnet"</code> est
+accepte comme synonyme de <code>"agent"</code>.</p></dd>
 
 
 <dt id="arg-long-min">long_min<a class="anchor" aria-label="anchor" href="#arg-long-min"></a></dt>
@@ -125,13 +126,14 @@ produites ; <code>0</code> ou <code>NULL</code> pour ne pas simplifier. Defaut 1
 
 
 <dt id="arg-reference">reference<a class="anchor" aria-label="anchor" href="#arg-reference"></a></dt>
-<dd><p><code>sf</code>/<code>sfc</code> du reseau deja connu, transmis a <code>vecnet</code> comme
-reseau existant a ne pas revectoriser ; ignore par les autres methodes.</p></dd>
+<dd><p><code>sf</code>/<code>sfc</code> du reseau deja connu. Pour <code>"agent"</code>, il sert
+deux fois : ses extremites amorcent l'exploration, et il est infranchissable
+(l'agent s'y arrete au lieu de le revectoriser). Ignore par les autres
+methodes.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Arguments supplementaires transmis a
-<code>vecnet::vectorize_network()</code>.</p></dd>
+<dd><p>Arguments supplementaires transmis a <code><a href="dsr_conduire.html">dsr_conduire()</a></code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -141,7 +143,7 @@ retenu. L'attribut <code>"methode"</code> porte le vectoriseur reellement employ
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Trois methodes :</p><ul><li><p><code>"squelette"</code> (defaut interne) — binarisation a <code>seuil</code>, amincissement de
+    <p>Trois methodes :</p><ul><li><p><code>"squelette"</code> — binarisation a <code>seuil</code>, amincissement de
 <strong>Zhang-Suen</strong>, puis tracage du graphe du squelette : chaque chaine entre
 deux noeuds (extremite ou embranchement) devient une arete. Deterministe,
 sans dependance, et surtout <strong>il conserve les embranchements</strong> : un peigne
@@ -150,9 +152,15 @@ Le graphe est ensuite nettoye (<code>elaguer</code>) : contraction des grappes d
 jonction, elagage des barbules, fusion des chaines. Sans cette etape, les
 bavures de bord d'une emprise binarisee reelle hachent une piste de 190 m en
 plusieurs dizaines de troncons dont aucun n'atteint <code>long_min</code>.</p></li>
-<li><p><code>"vecnet"</code> — delegue a <code>vecnet::vectorize_network()</code> (Roussel <em>et al.</em>
-2023), pathfinder natif vectoriel robuste aux trouees. Paquet non present
-sur le CRAN : <code>remotes::install_github("r-lidar-lab/vecnet")</code>.</p></li>
+<li><p><code>"agent"</code> (defaut) — <strong>agent conducteur</strong> (<code><a href="dsr_conduire.html">dsr_conduire()</a></code>) : la route est
+vectorisee en la parcourant, l'agent avancant par pas vers la direction la
+moins couteuse de son champ de vision. Reimplementation terra/sf de
+l'algorithme de vecnet (Roussel <em>et al.</em> 2023) sur le noyau Rust du paquet.
+Deux atouts sur le squelette : il <strong>franchit les trouees</strong> de detection, et
+il rend des lignes lisses sans passer par un escalier de pixels. Il exige
+en revanche des <strong>amorces</strong> (<code><a href="dsr_amorces.html">dsr_amorces()</a></code>) : fournir <code>reference</code> est de
+loin le meilleur amorcage, les extremites du reseau connu pointant la ou
+commence la desserte qui manque.</p></li>
 <li><p><code>"acp"</code> — methode historique : composantes connexes, puis centre-ligne par
 analyse en composantes principales. Rapide, mais une composante donne une
 seule ligne ; ne convient qu'aux axes isoles et bien allonges.</p></li>
@@ -182,9 +190,12 @@ dense, franchissement). Au critere de distance de Wang <em>et al.</em> on ajoute
 critere d'alignement, faute de quoi une piste serait soudee au cloisonnement
 voisin qu'elle croise sans le rejoindre. Cette etape <strong>invente de la
 geometrie la ou la donnee ne montre rien</strong> : elle est desactivee par defaut.</p>
-<p><code>"auto"</code> prend <code>"vecnet"</code> s'il est installe, <code>"squelette"</code> sinon. Si
-<code>vecnet</code> echoue en mode <code>"auto"</code>, le repli sur le squelette est signale ;
-demande explicitement, son echec est une erreur.</p>
+<p><code>"auto"</code> prend <code>"agent"</code>. Si l'agent echoue – ou si aucune amorce n'est
+exploitable, faute de reference et de route touchant le bord de l'emprise –
+le repli sur le squelette est signale. Demande explicitement, son echec est
+une erreur et l'absence d'amorce rend un resultat vide.</p>
+<p><code>"vecnet"</code> reste accepte et vaut <code>"agent"</code> : le paquet externe du meme nom a
+ete remplace par une implementation native, sans dependance.</p>
 <p>Le cout de l'amincissement croit avec la demi-largeur des taches : sur une
 carte tres bruitee, relever <code>seuil</code> avant d'elargir la grille.</p>
     </div>

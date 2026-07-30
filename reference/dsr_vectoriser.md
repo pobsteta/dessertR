@@ -12,7 +12,7 @@ changer l'interface.
 dsr_vectoriser(
   p,
   seuil = 0.6,
-  methode = c("auto", "squelette", "vecnet", "acp"),
+  methode = c("auto", "agent", "squelette", "vecnet", "acp"),
   long_min = 30,
   ratio_min = 3,
   pas_bin = 5,
@@ -38,7 +38,8 @@ dsr_vectoriser(
 
 - methode:
 
-  `"auto"`, `"squelette"`, `"vecnet"` ou `"acp"`.
+  `"auto"`, `"agent"`, `"squelette"` ou `"acp"`. `"vecnet"` est accepte
+  comme synonyme de `"agent"`.
 
 - long_min:
 
@@ -85,12 +86,15 @@ dsr_vectoriser(
 
 - reference:
 
-  `sf`/`sfc` du reseau deja connu, transmis a `vecnet` comme reseau
-  existant a ne pas revectoriser ; ignore par les autres methodes.
+  `sf`/`sfc` du reseau deja connu. Pour `"agent"`, il sert deux fois :
+  ses extremites amorcent l'exploration, et il est infranchissable
+  (l'agent s'y arrete au lieu de le revectoriser). Ignore par les autres
+  methodes.
 
 - ...:
 
-  Arguments supplementaires transmis a `vecnet::vectorize_network()`.
+  Arguments supplementaires transmis a
+  [`dsr_conduire()`](https://pobsteta.github.io/dessertR/reference/dsr_conduire.md).
 
 ## Value
 
@@ -101,8 +105,8 @@ retenu. L'attribut `"methode"` porte le vectoriseur reellement employe.
 
 Trois methodes :
 
-- `"squelette"` (defaut interne) — binarisation a `seuil`, amincissement
-  de **Zhang-Suen**, puis tracage du graphe du squelette : chaque chaine
+- `"squelette"` — binarisation a `seuil`, amincissement de
+  **Zhang-Suen**, puis tracage du graphe du squelette : chaque chaine
   entre deux noeuds (extremite ou embranchement) devient une arete.
   Deterministe, sans dependance, et surtout **il conserve les
   embranchements** : un peigne de cloisonnements sort en autant de
@@ -112,9 +116,18 @@ Trois methodes :
   d'une emprise binarisee reelle hachent une piste de 190 m en plusieurs
   dizaines de troncons dont aucun n'atteint `long_min`.
 
-- `"vecnet"` — delegue a `vecnet::vectorize_network()` (Roussel *et al.*
-  2023), pathfinder natif vectoriel robuste aux trouees. Paquet non
-  present sur le CRAN : `remotes::install_github("r-lidar-lab/vecnet")`.
+- `"agent"` (defaut) — **agent conducteur**
+  ([`dsr_conduire()`](https://pobsteta.github.io/dessertR/reference/dsr_conduire.md))
+  : la route est vectorisee en la parcourant, l'agent avancant par pas
+  vers la direction la moins couteuse de son champ de vision.
+  Reimplementation terra/sf de l'algorithme de vecnet (Roussel *et
+  al.* 2023) sur le noyau Rust du paquet. Deux atouts sur le squelette :
+  il **franchit les trouees** de detection, et il rend des lignes lisses
+  sans passer par un escalier de pixels. Il exige en revanche des
+  **amorces**
+  ([`dsr_amorces()`](https://pobsteta.github.io/dessertR/reference/dsr_amorces.md))
+  : fournir `reference` est de loin le meilleur amorcage, les extremites
+  du reseau connu pointant la ou commence la desserte qui manque.
 
 - `"acp"` — methode historique : composantes connexes, puis centre-ligne
   par analyse en composantes principales. Rapide, mais une composante
@@ -161,9 +174,14 @@ cloisonnement voisin qu'elle croise sans le rejoindre. Cette etape
 **invente de la geometrie la ou la donnee ne montre rien** : elle est
 desactivee par defaut.
 
-`"auto"` prend `"vecnet"` s'il est installe, `"squelette"` sinon. Si
-`vecnet` echoue en mode `"auto"`, le repli sur le squelette est signale
-; demande explicitement, son echec est une erreur.
+`"auto"` prend `"agent"`. Si l'agent echoue – ou si aucune amorce n'est
+exploitable, faute de reference et de route touchant le bord de
+l'emprise – le repli sur le squelette est signale. Demande
+explicitement, son echec est une erreur et l'absence d'amorce rend un
+resultat vide.
+
+`"vecnet"` reste accepte et vaut `"agent"` : le paquet externe du meme
+nom a ete remplace par une implementation native, sans dependance.
 
 Le cout de l'amincissement croit avec la demi-largeur des taches : sur
 une carte tres bruitee, relever `seuil` avant d'elargir la grille.

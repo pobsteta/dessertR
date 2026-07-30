@@ -95,6 +95,8 @@
   : Calibrer la mesure de largeur sur une reference terrain
 - [`dsr_emprise_certu()`](https://pobsteta.github.io/dessertR/reference/dsr_emprise_certu.md)
   : Emprise routiere normative (methode Certu, fiche 1.7)
+- [`dsr_cubature()`](https://pobsteta.github.io/dessertR/reference/dsr_cubature.md)
+  : Cubature deblai / remblai le long d'un trace
 
 ## Canal optique (ortho)
 
@@ -144,3 +146,12 @@
   : Indice de detection de desserte hors reference
 - [`dsr_vectoriser()`](https://pobsteta.github.io/dessertR/reference/dsr_vectoriser.md)
   : Vectoriser une carte de desserte
+- [`dsr_conduire()`](https://pobsteta.github.io/dessertR/reference/dsr_conduire.md)
+  : Suivre une route depuis une amorce (agent conducteur)
+- [`dsr_amorces()`](https://pobsteta.github.io/dessertR/reference/dsr_amorces.md)
+  : Amorces d'exploration pour l'agent conducteur
+
+## Utilitaires
+
+- [`dsr_ncores()`](https://pobsteta.github.io/dessertR/reference/dsr_ncores.md)
+  : Nombre de coeurs alloues aux traitements lasR

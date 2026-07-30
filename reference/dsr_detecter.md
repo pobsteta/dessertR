@@ -22,7 +22,7 @@ dsr_detecter(
   long_min = 30,
   ratio_min = 3,
   pas_bin = 5,
-  methode = c("auto", "squelette", "vecnet", "acp"),
+  methode = c("auto", "agent", "squelette", "vecnet", "acp"),
   poids = c(geo = 1, surf = 2, vessel = 1),
   regime = c("complet", "corridor"),
   emprise = NULL,
@@ -88,7 +88,7 @@ dsr_detecter(
 
 - methode:
 
-  Vectoriseur : `"auto"`, `"squelette"`, `"vecnet"` ou `"acp"` (voir
+  Vectoriseur : `"auto"`, `"agent"`, `"squelette"` ou `"acp"` (voir
   [`dsr_vectoriser()`](https://pobsteta.github.io/dessertR/reference/dsr_vectoriser.md)).
 
 - poids:
