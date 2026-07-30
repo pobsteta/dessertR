@@ -52,6 +52,7 @@ reference:
       - dsr_profils
       - dsr_calibrer_largeur
       - dsr_emprise_certu
+      - dsr_cubature
   - title: Canal optique (ortho)
     contents:
       - dsr_ndvi
