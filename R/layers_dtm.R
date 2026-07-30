@@ -116,7 +116,7 @@ dsr_grille_reference <- function(mnt, res = DSR_RES_MULTIECHELLE) {
 #' jamais a mesurer une largeur (voir [dsr_gabarit_lateral()]).
 #'
 #' @param couches Liste **nommee** : nom de canal -> chemin de GeoTIFF ou
-#'   `SpatRaster`. Les noms attendus figurent dans [DSR_CANAUX_DTM] ; les
+#'   `SpatRaster`. Les noms attendus figurent dans `DSR_CANAUX_DTM` ; les
 #'   variantes multi-echelles se suffixent par le rayon (`openness_neg_5`). Le
 #'   vocabulaire connu figure dans `DSR_CANAUX_DTM` ; un nom hors vocabulaire est
 #'   accepte mais signale (garde-fou anti-faute).

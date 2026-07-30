@@ -25,8 +25,7 @@ Imports:
     rlas,
     sf,
     stats,
-    terra,
-    tools
+    terra
 Suggests:
     igraph,
     knitr,
@@ -35,10 +34,12 @@ Suggests:
     ranger,
     rmarkdown,
     sfnetworks,
+    vecnet,
     xml2,
     testthat (>= 3.0.0),
     withr
 Additional_repositories: https://r-lidar.r-universe.dev
+Remotes: github::r-lidar-lab/vecnet
 Config/testthat/edition: 3
 URL: https://github.com/pobsteta/dessertR, https://pobsteta.github.io/dessertR
 BugReports: https://github.com/pobsteta/dessertR/issues
