@@ -80,6 +80,7 @@ reference:
       - dsr_detecter
       - dsr_indice_detection
       - dsr_vectoriser
+      - dsr_conduire
   - title: Utilitaires
     contents:
       - dsr_ncores
