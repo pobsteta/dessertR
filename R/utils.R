@@ -79,3 +79,28 @@ dsr_strategie_lasr <- function(n_dalles = 1L) {
   n <- dsr_ncores()
   if (n_dalles > 1L) lasR::concurrent_files(n) else lasR::concurrent_points(n)
 }
+
+
+# Validation commune des entrees « dalle » des fonctions adossees a lasR.
+#
+# Accepte UN OU PLUSIEURS chemins. L'ancienne garde testait
+# `!file.exists(dalle)` dans un `if`, ce qui erre des que le vecteur depasse un
+# element (« 'length = 4' in coercion to 'logical(1)' » sous R >= 4.2) -- et la
+# variante catalogue ne gardait que la premiere ligne, silencieusement. La
+# consequence n'etait pas seulement une limitation : la strategie
+# `concurrent_files` de dsr_strategie_lasr() ne pouvait jamais se declencher,
+# puisque `length(dalle)` valait toujours 1.
+#' @noRd
+dsr_valider_dalles <- function(dalle, nom = "dalle") {
+  if (!is.character(dalle) || !length(dalle)) {
+    dsr_abort("{.arg {nom}} doit etre un ou plusieurs chemins de fichiers LAZ/LAS.")
+  }
+  manquants <- dalle[!file.exists(dalle)]
+  if (length(manquants)) {
+    dsr_abort(c(
+      "{.arg {nom}} : {length(manquants)} fichier{?s} introuvable{?s}.",
+      "x" = "{.file {utils::head(manquants, 3)}}"
+    ))
+  }
+  dalle
+}

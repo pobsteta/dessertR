@@ -56,5 +56,5 @@ test_that("dsr_gabarit_libre : refuse une dalle inexistante", {
   skip_if_not_installed("lasR")
   tr <- sf::st_sf(geometry = sf::st_sfc(
     sf::st_linestring(cbind(c(0, 10), c(0, 0))), crs = 2154))
-  expect_error(dsr_gabarit_libre(tr, "/introuvable.laz"), "existant")
+  expect_error(dsr_gabarit_libre(tr, "/introuvable.laz"), "introuvable")
 })

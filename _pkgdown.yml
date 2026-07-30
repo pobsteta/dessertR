@@ -82,6 +82,10 @@ reference:
       - dsr_vectoriser
       - dsr_conduire
       - dsr_amorces
+  - title: Acquisition de donnees externes
+    contents:
+      - dsr_osm
+      - dsr_ortho_ign
   - title: Utilitaires
     contents:
       - dsr_ncores

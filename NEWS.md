@@ -1,5 +1,68 @@
 # dessertR (cycle de developpement)
 
+## Acquisition : OpenStreetMap et ortho IGN
+
+Deux sources que le paquet ne produit pas mais dont il a besoin, entrees sans
+aucune dependance nouvelle.
+
+[dsr_osm()] telecharge les lineaires `highway`, **dalle par dalle** sur la
+grille kilometrique du Lidar HD -- donc celle de [dsr_catalog()] et du reste du
+traitement. Une requete unique sur un massif entier depasse les quotas et
+echoue en bloc ; decoupee, elle devient une suite de requetes courtes dont
+chacune est relancable, et une dalle qui echoue n'emporte pas les autres. Les
+voies a cheval sur deux dalles sont dedupliquees par `osm_id`.
+
+**Pourquoi c'est utile.** La question de [dsr_detecter()] -- « quelle desserte
+la BD TOPO ignore-t-elle ? » -- n'a pas de verite terrain par construction. OSM
+en couvre une partie : sur le bloc wsfi (4 km2), il porte 29,1 km contre 15,5 km
+a la BD TOPO, et **56 % de ce lineaire est a plus de 20 m de toute route de la
+reference**. C'est la premiere verite partielle disponible pour mesurer le
+rappel de la detection. Avec la meme reserve que pour toute sortie d'un autre
+algorithme : ni metre etalon de largeur, ni verite de position -- une part du
+lineaire forestier y est tracee sur trace GPS agregee (`source=strava heatmap`).
+
+[dsr_ortho_ign()] telecharge l'ortho IRC de la Geoplateforme **a sa resolution
+native**, en tuilant la requete. Au-dela d'environ 4096 pixels de cote, un appel
+unique force a degrader la resolution ; comme tout l'interet du canal optique
+est d'etre a l'echelle d'une chaussee, on decoupe pour preserver le 20 cm.
+
+Trois pieges du WMS, tous silencieux, tous rencontres et documentes : le service
+**impose `VERSION=1.3.0`** ; en `EPSG:2154` l'ordre des axes est **(X, Y)** et un
+BBOX inverse rend un GeoTIFF valide et **entierement vide** ; le GeoTIFF rendu
+**n'a pas toujours de CRS**, ce qui fait sortir des `CRS do not match` a chaque
+croisement ulterieur.
+
+**Une lecon, chere.** Une instance Overpass saturee ne rend pas d'erreur : elle
+rend un XML bien forme de quelques centaines d'octets, ou elle fait attendre.
+Les deux cas ont ete pris pour « aucune donnee ici » pendant la validation --
+la meme requete relancee rendait 194 ko. La rotation d'instances est reprise de
+`foretaccess` (GPL-3), avec deux corrections qui la rendent effective :
+`osmdata::osmdata_sf()` boucle en backoff au lieu d'echouer, donc une rotation
+qui ne bascule que sur erreur n'est jamais atteinte, et `setTimeLimit()` n'y
+change rien puisqu'il n'interrompt pas un socket bloque dans du C. Le backend
+est donc `curl`, dont `--max-time` borne l'appel au niveau du processus. Une
+reponse portant un `<remark>` est un refus et declenche la bascule ; une reponse
+sans `<way>` ni `<remark>` est un vide legitime ; toutes instances refusant,
+**on leve une erreur** plutot qu'un resultat vide.
+
+
+## `dsr_layers_pc()` et `dsr_gabarit_libre()` acceptent plusieurs dalles
+
+Leur garde testait `!file.exists(dalle)` dans un `if` : elle erre des que le
+vecteur depasse un element (`'length = 4' in coercion to 'logical(1)'` sous
+R >= 4.2), et la variante catalogue ne gardait que la **premiere ligne**,
+silencieusement.
+
+Consequence qui depasse la limitation : la strategie `concurrent_files`
+introduite plus bas dans ce meme cycle ne pouvait **jamais** se declencher,
+puisque `length(dalle)` valait toujours 1. Du code mort, documente comme
+fonctionnel, qu'aucun test n'a vu parce qu'ils exercaient
+`dsr_strategie_lasr()` isolement et jamais son integration.
+
+Les deux fonctions passent par `dsr_valider_dalles()`, qui accepte un vecteur
+ou un catalogue entier et nomme les fichiers manquants.
+
+
 ## Le vectoriseur ne depend plus de `vecnet`
 
 `dsr_vectoriser()` s'appuyait, quand il etait installe, sur le paquet `vecnet`

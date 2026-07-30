@@ -19,8 +19,11 @@ dsr_layers_pc(
 )
 }
 \arguments{
-\item{dalle}{Chemin d'un fichier LAZ/LAS/COPC, ou une ligne de
-\code{\link[=dsr_catalog]{dsr_catalog()}} (colonne \code{laz}).}
+\item{dalle}{Chemin d'un ou plusieurs fichiers LAZ/LAS/COPC, ou un
+\code{\link[=dsr_catalog]{dsr_catalog()}} (colonne \code{laz}) -- toutes ses lignes sont traitees. Passer
+plusieurs dalles en un appel vaut mieux que boucler : \code{lasR} parallelise
+alors sur les FICHIERS (voir \code{\link[=dsr_ncores]{dsr_ncores()}}) et les metriques de bord sont
+calculees avec le voisinage des dalles adjacentes.}
 
 \item{res}{Resolution des rasters en metres. Defaut 1 (aligne sur la grille de
 reference ; 2 suffit pour les seules metriques de couvert).}

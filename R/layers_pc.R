@@ -38,8 +38,11 @@
 #' passer `emprise` limite la lecture a un rectangle ; passer en plus `masque`
 #' decoupe finement les sorties au corridor.
 #'
-#' @param dalle Chemin d'un fichier LAZ/LAS/COPC, ou une ligne de
-#'   [dsr_catalog()] (colonne `laz`).
+#' @param dalle Chemin d'un ou plusieurs fichiers LAZ/LAS/COPC, ou un
+#'   [dsr_catalog()] (colonne `laz`) -- toutes ses lignes sont traitees. Passer
+#'   plusieurs dalles en un appel vaut mieux que boucler : `lasR` parallelise
+#'   alors sur les FICHIERS (voir [dsr_ncores()]) et les metriques de bord sont
+#'   calculees avec le voisinage des dalles adjacentes.
 #' @param res Resolution des rasters en metres. Defaut 1 (aligne sur la grille de
 #'   reference ; 2 suffit pour les seules metriques de couvert).
 #' @param grille Grille de reference ([dsr_grille_reference()]) pour aligner les
@@ -71,11 +74,9 @@ dsr_layers_pc <- function(dalle, res = DSR_RES_MULTIECHELLE, grille = NULL,
                           seuil_couvert = 0.95) {
   dsr_verifier_lasR()
   if (inherits(dalle, "sf") || inherits(dalle, "data.frame")) {
-    dalle <- as.character(dalle$laz)[1]
+    dalle <- as.character(dalle$laz)
   }
-  if (!is.character(dalle) || !file.exists(dalle)) {
-    dsr_abort("{.arg dalle} doit etre un chemin de fichier LAZ/LAS existant.")
-  }
+  dalle <- dsr_valider_dalles(dalle)
 
   lecteur <- dsr_lecteur_lasr(emprise)
   op_couvert <- sprintf("z_p%d", as.integer(round(seuil_couvert * 100)))

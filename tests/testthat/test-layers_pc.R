@@ -22,7 +22,10 @@ test_that("dsr_lecteur_lasr construit un lecteur pour NULL / numeric / sf", {
 
 test_that("dsr_layers_pc refuse une dalle inexistante", {
   skip_if_not_installed("lasR")
-  expect_error(dsr_layers_pc("/introuvable/dalle.laz"), "existant")
+  expect_error(dsr_layers_pc("/introuvable/dalle.laz"), "introuvable")
+  # Un vecteur de dalles est desormais accepte : c'est ce qui rend la strategie
+  # `concurrent_files` atteignable (voir dsr_ncores).
+  expect_error(dsr_layers_pc(c("/a.laz", "/b.laz")), "2 fichiers introuvables")
 })
 
 # L'integration complete exige lasR ET une vraie dalle classee (non versionnee

@@ -27,7 +27,7 @@ dsr_seuils_grumier <- function() {
 #' `plafond`) signifie un ciel degage au-dessus de la chaussee.
 #'
 #' @param trace Un `sf`/`sfc` `LINESTRING` (ou la sortie de [dsr_pathfinder()]).
-#' @param dalle Chemin d'un fichier LAZ/LAS/COPC classe.
+#' @param dalle Chemin d'un ou plusieurs fichiers LAZ/LAS/COPC classes.
 #' @param demi_largeur_route Demi-largeur de chaussee consideree, en metres.
 #'   Defaut 1.5.
 #' @param seuil_bas Hauteur au sol minimale (m) d'un echo pour compter comme
@@ -44,9 +44,7 @@ dsr_gabarit_libre <- function(trace, dalle, demi_largeur_route = 1.5,
                               seuil_bas = 0.3, plafond = 8, res = 1, pas = 2) {
   dsr_verifier_lasR()
   if (is.list(trace) && !is.null(trace$trace)) trace <- trace$trace
-  if (!is.character(dalle) || !file.exists(dalle)) {
-    dsr_abort("{.arg dalle} doit etre un chemin de fichier LAZ/LAS existant.")
-  }
+  dalle <- dsr_valider_dalles(dalle)
   geom <- sf::st_geometry(trace)
   bb <- as.numeric(sf::st_bbox(sf::st_buffer(geom, demi_largeur_route + 2)))
 

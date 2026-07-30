@@ -17,7 +17,7 @@ dsr_gabarit_libre(
 \arguments{
 \item{trace}{Un \code{sf}/\code{sfc} \code{LINESTRING} (ou la sortie de \code{\link[=dsr_pathfinder]{dsr_pathfinder()}}).}
 
-\item{dalle}{Chemin d'un fichier LAZ/LAS/COPC classe.}
+\item{dalle}{Chemin d'un ou plusieurs fichiers LAZ/LAS/COPC classes.}
 
 \item{demi_largeur_route}{Demi-largeur de chaussee consideree, en metres.
 Defaut 1.5.}

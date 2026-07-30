@@ -45,7 +45,16 @@
 # Usage :  Rscript dev/03_validation.R
 #          DSR_INVENTAIRE=1 Rscript dev/03_validation.R   (voir ce qui est vu)
 
-suppressMessages({library(terra); library(sf); library(dessertR)})
+suppressMessages({library(terra); library(sf)})
+
+# Charger l'ARBRE DE TRAVAIL quand on est dans le depot, le paquet installe
+# sinon. Un harnais qui valide la version installee alors qu'on developpe
+# valide une version perimee, sans jamais le dire.
+if (file.exists("DESCRIPTION") && requireNamespace("pkgload", quietly = TRUE)) {
+  suppressMessages(pkgload::load_all(".", quiet = TRUE))
+} else {
+  library(dessertR)
+}
 
 # --- Ou vit nemeton ? ---------------------------------------------------------
 # L'emplacement suit la convention de chaque systeme. Sous Windows, le double
