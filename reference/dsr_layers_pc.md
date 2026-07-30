@@ -26,9 +26,14 @@ dsr_layers_pc(
 
 - dalle:
 
-  Chemin d'un fichier LAZ/LAS/COPC, ou une ligne de
+  Chemin d'un ou plusieurs fichiers LAZ/LAS/COPC, ou un
   [`dsr_catalog()`](https://pobsteta.github.io/dessertR/reference/dsr_catalog.md)
-  (colonne `laz`).
+  (colonne `laz`) – toutes ses lignes sont traitees. Passer plusieurs
+  dalles en un appel vaut mieux que boucler : `lasR` parallelise alors
+  sur les FICHIERS (voir
+  [`dsr_ncores()`](https://pobsteta.github.io/dessertR/reference/dsr_ncores.md))
+  et les metriques de bord sont calculees avec le voisinage des dalles
+  adjacentes.
 
 - res:
 

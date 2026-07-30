@@ -65,8 +65,11 @@ grille alignee sur le MNT :</p>
 
 
 <dl><dt id="arg-dalle">dalle<a class="anchor" aria-label="anchor" href="#arg-dalle"></a></dt>
-<dd><p>Chemin d'un fichier LAZ/LAS/COPC, ou une ligne de
-<code><a href="dsr_catalog.html">dsr_catalog()</a></code> (colonne <code>laz</code>).</p></dd>
+<dd><p>Chemin d'un ou plusieurs fichiers LAZ/LAS/COPC, ou un
+<code><a href="dsr_catalog.html">dsr_catalog()</a></code> (colonne <code>laz</code>) – toutes ses lignes sont traitees. Passer
+plusieurs dalles en un appel vaut mieux que boucler : <code>lasR</code> parallelise
+alors sur les FICHIERS (voir <code><a href="dsr_ncores.html">dsr_ncores()</a></code>) et les metriques de bord sont
+calculees avec le voisinage des dalles adjacentes.</p></dd>
 
 
 <dt id="arg-res">res<a class="anchor" aria-label="anchor" href="#arg-res"></a></dt>

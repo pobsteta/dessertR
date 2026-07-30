@@ -151,6 +151,13 @@
 - [`dsr_amorces()`](https://pobsteta.github.io/dessertR/reference/dsr_amorces.md)
   : Amorces d'exploration pour l'agent conducteur
 
+## Acquisition de donnees externes
+
+- [`dsr_osm()`](https://pobsteta.github.io/dessertR/reference/dsr_osm.md)
+  : Reseau routier OpenStreetMap sur une emprise
+- [`dsr_ortho_ign()`](https://pobsteta.github.io/dessertR/reference/dsr_ortho_ign.md)
+  : Ortho IGN (RVB ou IRC) sur une emprise
+
 ## Utilitaires
 
 - [`dsr_ncores()`](https://pobsteta.github.io/dessertR/reference/dsr_ncores.md)

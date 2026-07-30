@@ -30,7 +30,7 @@ dsr_gabarit_libre(
 
 - dalle:
 
-  Chemin d'un fichier LAZ/LAS/COPC classe.
+  Chemin d'un ou plusieurs fichiers LAZ/LAS/COPC classes.
 
 - demi_largeur_route:
 
