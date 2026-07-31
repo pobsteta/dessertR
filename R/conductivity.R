@@ -222,6 +222,7 @@ dsr_conductivite <- function(couches, specs = dsr_specs_geomorpho(),
   n <- terra::ncell(couches)
   log_acc <- rep(0, n)
   poids_tot <- 0
+  satures <- list()
   for (base in utilises) {
     sp <- specs[[base]]
     idx <- which(bases == base)
@@ -231,11 +232,56 @@ dsr_conductivite <- function(couches, specs = dsr_specs_geomorpho(),
         marge = sp$marge)[]
     }
     mu <- mu / length(idx)
+    # Bornes EXPLICITES mal adaptees a la donnee : le canal sature d'un seul
+    # cote et cesse de discriminer. Voir .dsr_alerter_bornes.
+    if (!is.null(sp$a) || !is.null(sp$b)) {
+      f <- mu[is.finite(mu)]
+      if (length(f)) {
+        s <- max(mean(f <= 0), mean(f >= 1))
+        if (s >= SEUIL_SATURATION) satures[[base]] <- s
+      }
+    }
     w <- if (is.null(sp$poids)) 1 else sp$poids
     log_acc <- log_acc + w * log(pmax(mu, sigma_min))
     poids_tot <- poids_tot + w
   }
+  .dsr_alerter_bornes(satures)
   pmax(exp(log_acc / poids_tot), sigma_min)
+}
+
+
+# Part d'un canal saturee a une extremite au-dela de laquelle la regle ne
+# discrimine plus rien. Mesure : des bornes calibrees sur le MEME massif saturent
+# au plus 50 % (par construction, `a` etant la mediane de l'absence) et de facon
+# equilibree ; des bornes venues d'un autre massif saturent 85 a 99 % du meme
+# cote. 0,8 separe les deux sans faux positif sur les jeux de validation.
+SEUIL_SATURATION <- 0.8
+
+
+# Alerte quand des bornes EXPLICITES ne correspondent pas a la donnee.
+#
+# Le cas type : des specs calibrees sur un massif appliquees a un autre. Les
+# bornes sont dans l'unite du canal et ne se transportent pas -- des bornes de
+# plaine appliquees a une montagne poussent tout au plafond. Mesure sur les deux
+# massifs de validation, dans les DEUX sens : le contraste route / hors-route
+# tombe a +0,010 et +0,018, contre +0,176 et +0,112 avec des bornes propres.
+#
+# L'AUC ne voit rien de tout cela : elle est invariante d'echelle. C'est
+# precisement pourquoi ce garde-fou existe -- le defaut est invisible a la
+# metrique qui sert habituellement a juger, et ne se manifeste qu'en aval, sur
+# un agent qui divague parce que les couts ne sont plus a la bonne echelle.
+#' @noRd
+.dsr_alerter_bornes <- function(satures) {
+  if (!length(satures)) return(invisible(NULL))
+  if (!isTRUE(getOption("dessertR.verifier_bornes", TRUE))) return(invisible(NULL))
+  pc <- sprintf("%s (%.0f %%)", names(satures), 100 * unlist(satures))
+  dsr_inform(c(
+    "!" = "Bornes mal adaptees a la donnee : {.val {pc}} sature{?nt} a une extremite.",
+    "i" = "Des bornes calibrees sur un AUTRE massif ne se transportent pas : elles sont dans l'unite du canal.",
+    "i" = "Recalibrer avec {.fun dsr_calibrer_specs} sur ces donnees, ou utiliser {.code bornes = FALSE}.",
+    "i" = "Silence : {.code options(dessertR.verifier_bornes = FALSE)}."
+  ))
+  invisible(NULL)
 }
 
 

@@ -125,7 +125,12 @@ if (nzchar(calib) && dir.exists(calib)) {
     cc[2] - cote / 2, cc[2] + cote / 2), terra::ext(cm))
   cemp <- sf::st_as_sfc(sf::st_bbox(cf)); sf::st_crs(cemp) <- sf::st_crs(cr)
   crd <- suppressWarnings(sf::st_cast(sf::st_intersection(cr, cemp), "LINESTRING"))
-  cal <- dsr_calibrer_specs(dsr_layers_dtm(terra::crop(cm, cf), res = 1), crd)
+  # bornes = FALSE : la calibration est CROISEE (massif disjoint), et des bornes
+  # absolues ne se transportent pas d'un massif a l'autre -- elles sont dans
+  # l'unite du canal. Mesure : appliquees en croise elles font tomber le
+  # contraste route / hors-route a +0,018 contre +0,112 avec des bornes propres.
+  cal <- dsr_calibrer_specs(dsr_layers_dtm(terra::crop(cm, cf), res = 1), crd,
+    bornes = FALSE)
   specs <- cal$specs
   cat("  regles retenues :\n")
   print(cal$diagnostic[cal$diagnostic$retenu, c("canal", "auc", "sens", "poids")],
