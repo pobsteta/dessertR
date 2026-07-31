@@ -330,3 +330,24 @@ test_that("franchissabilite : NULL n'a aucun effet, et un raster desaligne est r
     "SpatRaster"
   )
 })
+
+
+test_that("une amorce posee sur le reseau connu peut demarrer", {
+  skip_if_not_installed("terra")
+  # Verrou de non-regression. Le reseau deja decouvert est rendu
+  # infranchissable ; sans exception autour du depart, une amorce posee dessus
+  # -- le cas NOMINAL, puisque les amorces viennent du reseau de reference --
+  # mourait en `depart_infranchissable` sans avancer d'un pas. Mesure sur donnee
+  # reelle avant correction : 32 amorces sur 54 (wsfi) et 19 sur 26 (ltcp).
+  r <- carte_route()
+  # Un reseau qui recouvre exactement la route suivie, donc aussi le depart.
+  reseau <- sf::st_sfc(sf::st_linestring(cbind(c(5, 195), c(100, 100))),
+    crs = "EPSG:2154")
+
+  a <- dsr_conduire(r, amorce_ouest(), reseau = reseau, portee = 40)
+  expect_false(identical(a$arret, "depart_infranchissable"))
+
+  # Le reseau reste infranchissable AILLEURS : l'agent ne le parcourt pas de
+  # bout en bout, il s'arrete des qu'il en rencontre une portion non protegee.
+  expect_lt(x_final(a), 190)
+})

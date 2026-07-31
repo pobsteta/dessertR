@@ -1,5 +1,48 @@
 # dessertR (cycle de developpement)
 
+## L'agent sabotait ses propres amorces
+
+[dsr_conduire()] rendait le reseau deja decouvert infranchissable **y compris
+sous le point de depart de l'amorce suivante**. Comme les amorces viennent du
+reseau de reference et que le reseau decouvert le recouvre par construction,
+**plus l'agent reussissait tot, plus il tuait ses amorces suivantes**.
+
+**Le diagnostic.** Le motif d'arret le disait, encore fallait-il le regarder :
+sur ltcp, **19 amorces sur 26** mouraient en `depart_infranchissable` sans avoir
+avance d'un seul pas, et **32 sur 54** sur wsfi. Le chiffre etait *identique avec
+et sans contrainte de franchissabilite* -- ce qui disqualifie l'explication
+retenue jusqu'ici, qui attribuait le deficit de rappel a une contrainte trop
+serree.
+
+**La correction.** Un trou de la taille du `tampon` dans le masque du reseau,
+autour du point de **depart fige** -- pas de la position courante, sinon le
+reseau deviendrait franchissable partout et la detection de jonction tomberait.
+La jonction se joue de toute facon a `portee` metres devant, tres au-dela du
+trou. C'est la symetrie de ce que le code faisait deja pour la trace de l'agent
+lui-meme.
+
+**Mesure A/B**, code identique au correctif pres, agent amorce par la reference :
+
+| | amorces mortes | routes | km | rappel | precision | F1 |
+|---|---|---|---|---|---|---|
+| wsfi sans | 32 / 54 | 17 | 4,21 | 0,335 | 0,661 | 0,445 |
+| wsfi **avec** | **0** | 26 | 5,45 | **0,390** | 0,637 | **0,484** |
+| ltcp sans | 19 / 26 | 6 | 2,51 | 0,175 | 0,306 | 0,223 |
+| ltcp **avec** | **0** | 18 | 3,55 | **0,213** | 0,322 | **0,257** |
+
+Rappel **+16 % sur wsfi et +22 % sur ltcp**, F1 +9 % et +15 %, precision quasi
+inchangee.
+
+**Le cout, et ce qui n'est pas resolu.** L'ecart median a la reference se
+degrade sur ltcp (9,36 -> 12,91 m) : les amorces reanimees produisent aussi du
+lineaire plus eloigne. Et le deficit de rappel de ltcp est **reduit, pas
+supprime** -- il reste tres en dessous de wsfi.
+
+Ce defaut expliquait par ailleurs l'instabilite des mesures sur ltcp d'un
+passage a l'autre : le resultat dependait de l'ordre de traitement des amorces,
+puisque chaque reussite condamnait les suivantes.
+
+
 ## `rugosite` etait utilisee a l'envers dans les regles par defaut
 
 [dsr_specs_geomorpho()] declare desormais `rugosite` **croissante**. Le canal le
