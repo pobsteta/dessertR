@@ -353,6 +353,9 @@ GPL (\>= 3).
 - [`dsr_specs_geomorpho()`](https://pobsteta.github.io/dessertR/reference/dsr_specs_geomorpho.md)
   : Specifications d'appartenance par defaut du canal geomorphologique
 
+- [`dsr_calibrer_specs()`](https://pobsteta.github.io/dessertR/reference/dsr_calibrer_specs.md)
+  : Calibrer les regles de conductivite sur un reseau de reference
+
 - [`dsr_specs_surface()`](https://pobsteta.github.io/dessertR/reference/dsr_specs_surface.md)
   : Specifications d'appartenance par defaut du canal de surface
 
