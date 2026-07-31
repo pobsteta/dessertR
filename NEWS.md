@@ -1,4 +1,27 @@
-# dessertR (cycle de developpement)
+# dessertR 1.1.0
+
+Version de la **mesure contre l'intuition**. Quatre reglages qui reposaient sur
+un raisonnement physique plausible mais jamais verifie ont ete confrontes a deux
+massifs Lidar HD, et trois d'entre eux se sont reveles faux :
+
+* le canal de surface pesait **quatre fois trop lourd** dans la detection -- son
+  ancien poids etait la pire valeur de tout l'intervalle testable, moins bonne
+  que retirer le canal ;
+* `densite_sousetage`, presente comme le signal qui justifiait a lui seul
+  l'ajout du nuage de points, ne discrimine pas la **presence** d'une route --
+  il mesure un etat, et une route recolonisee reste une route ;
+* la detection **dependait de l'etendue analysee** : le meme terrain rendait
+  1727 m ou 2328 m de desserte selon la taille de la fenetre soumise.
+
+Aucune de ces corrections n'a demande de nouvelle donnee : seulement de mesurer
+ce qui etait suppose. Le quatrieme reglage, le seuil de franchissabilite, a
+survecu a son balayage -- mais pour une raison differente de celle qu'on lui
+pretait.
+
+Deux defauts de comportement changent (`poids` du canal de surface,
+[dsr_calibrer_specs()] qui rend desormais des bornes), et trois entrees d'API
+s'ajoutent ([dsr_c_vessel()], `franchissabilite`, `c_vessel`). Le detail suit,
+avec les chiffres.
 
 ## La detection ne depend plus de l'emprise qu'on lui passe
 
