@@ -13,10 +13,34 @@ liste \code{type} / \code{a} / \code{b} / \code{poids} pour \code{\link[=dsr_con
 \description{
 Jeu de regles \emph{provisoire} reliant les couches de \code{\link[=dsr_layers_dtm]{dsr_layers_dtm()}} a leur
 appartenance a « empreinte de route » : une route est un lineaire en creux
-(\code{vesselness} haute), aux bords concaves (\code{openness_neg} haute) et
-anormalement lisse (\code{rugosite} basse). Les bornes sont laissees a \code{NULL}
-(derivees des quantiles) tant qu'un jeu de validation ne permet pas de les
-caler (BRIEF section 4). A adapter librement.
+(\code{vesselness} haute), aux bords concaves (\code{openness_neg} haute) et \strong{plus
+rugueuse que son environnement} (\code{rugosite} haute). Les bornes sont laissees
+a \code{NULL} (derivees des quantiles) tant qu'un jeu de validation ne permet pas
+de les caler (BRIEF section 4). A adapter librement.
+}
+\details{
+\strong{\code{rugosite} est croissante, ce qui surprend.} L'intuition dit qu'une route
+est lisse. A 50 cm de resolution, c'est faux : une piste empierree a
+ornieres est plus rugueuse qu'un versant forestier localement plan, et le
+profil en travers -- fosse, talus, devers -- domine dans une fenetre de
+quelques cellules. Le canal etait declare \code{decroissante} jusqu'ici, donc
+utilise a l'envers.
+
+Mesure a l'appui (\code{\link[=dsr_calibrer_specs]{dsr_calibrer_specs()}}, fenetres de 1,5 km2) : \code{rugosite}
+est le canal le plus discriminant des sept, \code{sens = +1} sur les deux massifs
+(AUC 0,759 et 0,744 ; 0,753 en conjoint), et l'AUC de \code{sigma_geo} gagne
+\strong{+0,175 sur chacun} -- 0,530 -> 0,705 sur wsfi, 0,479 -> 0,654 sur ltcp. Le
+defaut precedent passait donc \strong{sous le hasard} sur un des deux massifs.
+
+Les autres signes sont inchangees. \code{pente} et \code{slrm} s'inversent d'un massif
+a l'autre (\code{stable = FALSE}) et n'ont rien a faire dans un defaut ;
+\code{openness_neg} mesure \code{-1} sur les deux massifs mais \code{+1} sur une dalle
+Lozere recouvrant wsfi, avec une AUC proche du hasard (0,527) la ou le signe
+se decide -- pas de quoi trancher.
+
+Ces regles restent un \strong{point de depart}. Le chemin recommande est
+\code{\link[=dsr_calibrer_specs]{dsr_calibrer_specs()}}, qui mesure les signes, les poids et les bornes sur
+vos donnees plutot que de les supposer.
 }
 \seealso{
 \code{\link[=dsr_conductivite]{dsr_conductivite()}}, \code{\link[=dsr_appartenance]{dsr_appartenance()}}.

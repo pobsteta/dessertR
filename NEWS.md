@@ -1,3 +1,94 @@
+# dessertR (cycle de developpement)
+
+## `rugosite` etait utilisee a l'envers dans les regles par defaut
+
+[dsr_specs_geomorpho()] declare desormais `rugosite` **croissante**. Le canal le
+plus discriminant du jeu etait utilise a l'envers depuis l'origine.
+
+**Le constat n'est pas neuf, la condition pour agir l'est.** La 1.0.0 avait
+mesure l'inversion, et avait choisi de ne PAS toucher au defaut : figer un signe
+qu'un troisieme jeu pourrait dementir aurait reproduit l'erreur qu'on venait de
+corriger. Trois jeux concordent maintenant -- wsfi, ltcp, et une dalle Lozere
+mesuree independamment par l'audit ForetAccess -- et la calibration conjointe
+rend `stable = TRUE`.
+
+| massif | AUC `rugosite` | sens |
+|---|---|---|
+| wsfi (1,5 km2) | 0,759 | +1 |
+| ltcp (1,5 km2) | 0,744 | +1 |
+| conjoint | **0,753** | **+1, stable** |
+
+**Ce que la correction rapporte**, AUC route / hors route de `sigma_geo` avec
+les regles par defaut :
+
+| massif | avant | apres |
+|---|---|---|
+| wsfi | 0,530 | **0,705** |
+| ltcp | **0,479** | **0,654** |
+
+**+0,175 sur chacun**, gain identique. A noter : sur ltcp le defaut precedent
+tombait **sous le hasard** -- il n'etait pas seulement inutile, il degradait.
+
+**Pourquoi l'intuition trompait.** Une route est censee etre lisse. A 50 cm de
+resolution c'est faux : une piste empierree a ornieres est plus rugueuse qu'un
+versant forestier localement plan, et dans une fenetre de quelques cellules
+c'est le profil en travers -- fosse, talus, devers -- qui domine, pas l'etat de
+la chaussee.
+
+**Les autres signes sont inchanges.** `pente` et `slrm` s'inversent d'un massif
+a l'autre (`stable = FALSE`) et n'ont rien a faire dans un defaut.
+`openness_neg` mesure `-1` sur les deux massifs, mais `+1` sur la dalle Lozere
+-- qui recouvre wsfi -- avec une AUC de 0,527 la ou le signe se decide : trop
+proche du hasard pour trancher. Il reste `croissante`.
+
+Ces regles restent un point de depart ; [dsr_calibrer_specs()] demeure le chemin
+recommande.
+
+
+## La faiblesse de `sigma_surf` n'est pas un artefact de calcul
+
+Resultat **negatif**, et il ferme une piste que le cycle precedent laissait
+ouverte. Aucun changement de code : seulement une hypothese testee et abandonnee.
+
+**L'hypothese.** La version 1.1.0 constatait que les bornes quantilees saturent
+la moitie de `sigma_surf` -- `mu(taux_penetration) = 0` et
+`mu(densite_sousetage) = 1` par construction -- et suggerait que son AUC
+mediocre (0,578 et 0,607) pourrait n'etre qu'un artefact de cette saturation.
+[dsr_calibrer_specs()] rendant desormais des bornes absolues, l'hypothese
+devenait testable (`dev/09_bornes_surface.R`).
+
+| massif | regles | AUC `sigma_surf` | saturation |
+|---|---|---|---|
+| wsfi | defaut | 0,583 | 50,1 % |
+| wsfi | calibre nu, croise | 0,528 | 30,4 % |
+| wsfi | calibre + bornes, croise | 0,524 | 31,7 % |
+| wsfi | calibre + bornes, *propre* | 0,577 | 58,3 % |
+| ltcp | defaut | 0,599 | 34,0 % |
+| ltcp | calibre nu, croise | 0,613 | 57,3 % |
+| ltcp | calibre + bornes, croise | 0,604 | 23,5 % |
+| ltcp | calibre + bornes, *propre* | **0,645** | 43,1 % |
+
+**La saturation n'explique rien.** Sur wsfi, la faire tomber de 50,1 % a 31,7 %
+fait *baisser* l'AUC a 0,524 ; et le meilleur reglage du massif (0,577) est
+celui ou elle *monte* a 58,3 %. Les deux grandeurs ne sont pas liees.
+
+**Et le plafond est bas.** Le protocole « propre » calibre sur le massif
+lui-meme, donc les regles ont vu les reponses : c'est un majorant optimiste,
+pas une mesure. Meme la, le gain est nul sur wsfi (-0,006) et modeste sur ltcp
+(+0,045).
+
+**Les bornes ne se transportent pas**, comme annonce en 1.1.0 : calibrees sur
+l'autre massif elles coutent -0,059 sur wsfi. Une borne est dans l'unite du
+canal, et `taux_penetration` brut differe d'un facteur 7 entre les deux
+massifs. Le protocole croise est le seul honnete, et c'est le moins bon.
+
+**Conclusion.** La faiblesse de `sigma_surf` pour LOCALISER une route est
+physique, pas computationnelle -- coherent avec ce qui etait deja etabli sur
+`densite_sousetage` : ce canal mesure un **etat**, et on lui pose la mauvaise
+question en lui demandant ou est la route. Inutile d'investir davantage dans
+son reparametrage ; le levier est ailleurs.
+
+
 # dessertR 1.1.0
 
 Version de la **mesure contre l'intuition**. Quatre reglages qui reposaient sur
