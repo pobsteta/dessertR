@@ -23,7 +23,7 @@ dsr_detecter(
   ratio_min = 3,
   pas_bin = 5,
   methode = c("auto", "agent", "squelette", "vecnet", "acp"),
-  poids = c(geo = 1, surf = 2, vessel = 1),
+  poids = c(geo = 1, surf = 0.5, vessel = 1),
   regime = c("complet", "corridor"),
   emprise = NULL,
   elaguer = 5,
@@ -58,7 +58,14 @@ dsr_detecter(
   Conductivite de surface
   ([`dsr_sigma_surf()`](https://pobsteta.github.io/dessertR/reference/dsr_sigma_surf.md))
   — le canal qui distingue une piste ouverte d'une trace fossile ;
-  `NULL` pour s'en passer.
+  `NULL` pour s'en passer. Il sert **deux fois** : comme preuve de
+  presence dans l'indice (poids 0,5, voir
+  [`dsr_indice_detection()`](https://pobsteta.github.io/dessertR/reference/dsr_indice_detection.md))
+  et, avec `methode = "agent"`, comme contrainte de franchissabilite
+  transmise a
+  [`dsr_conduire()`](https://pobsteta.github.io/dessertR/reference/dsr_conduire.md).
+  Ce ne sont pas deux emplois du meme signal mais deux questions
+  differentes – ou est la route, et ou l'on ne passe plus.
 
 - seuil:
 

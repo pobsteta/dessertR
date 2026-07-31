@@ -59,7 +59,9 @@ moins couteuse. Reimplementation terra/sf de l'algorithme de vecnet
 <span>  tampon <span class="op">=</span> <span class="fl">10</span>,</span>
 <span>  avance <span class="op">=</span> <span class="fl">0.8</span>,</span>
 <span>  trouee_max <span class="op">=</span> <span class="fl">2.5</span>,</span>
-<span>  max_pas <span class="op">=</span> <span class="fl">500</span></span>
+<span>  max_pas <span class="op">=</span> <span class="fl">500</span>,</span>
+<span>  franchissabilite <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  franchissabilite_min <span class="op">=</span> <span class="fl">0.4</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -120,6 +122,19 @@ portee. Defaut 2.5.</p></dd>
 <dt id="arg-max-pas">max_pas<a class="anchor" aria-label="anchor" href="#arg-max-pas"></a></dt>
 <dd><p>Nombre maximal de pas. Defaut 500.</p></dd>
 
+
+<dt id="arg-franchissabilite">franchissabilite<a class="anchor" aria-label="anchor" href="#arg-franchissabilite"></a></dt>
+<dd><p><code>SpatRaster</code> <strong>aligne sur <code>sigma</code></strong> disant ou
+l'emprise est encore degagee – typiquement <code><a href="dsr_sigma_surf.html">dsr_sigma_surf()</a></code>. Les cellules
+sous <code>franchissabilite_min</code> deviennent maximalement resistantes sans
+devenir infranchissables. <code>NULL</code> (defaut) pour ne poser aucune contrainte.
+Voir les details.</p></dd>
+
+
+<dt id="arg-franchissabilite-min">franchissabilite_min<a class="anchor" aria-label="anchor" href="#arg-franchissabilite-min"></a></dt>
+<dd><p>Seuil sous lequel une cellule est tenue pour
+refermee. Defaut 0.4. Sans effet si <code>franchissabilite</code> est <code>NULL</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -145,6 +160,21 @@ pour explorer le reseau de proche en proche.</p></li>
 n'est admissible, quand il sort de l'emprise, quand il a roule trop longtemps
 au-dessus du cout maximal (<code>trouee_max</code> fois la portee), ou apres <code>max_pas</code>
 pas.</p>
+<p><strong>Suivre une carte et etre arrete par une autre.</strong> <code>sigma</code> dit ou aller,
+<code>franchissabilite</code> dit ou l'on ne passe plus. C'est la separation posee par
+le BRIEF section 3.4 – <code>sigma_geo</code> porte l'empreinte, <code>sigma_surf</code> porte
+l'etat present – appliquee au conducteur : il suit l'empreinte et se fait
+freiner par l'etat, au lieu de suivre un melange des deux.</p>
+<p>Cette separation a ete introduite apres une mesure. <code><a href="dsr_indice_detection.html">dsr_indice_detection()</a></code>
+ponderait le canal de surface a 2 ; ramene a sa valeur mesuree (0,5), la
+carte s'ameliore nettement (AUC 0,698 -&gt; 0,738) et le vectoriseur par
+squelette avec elle, mais l'agent, lui, se degrade – il divague, son ecart
+median a la reference passant de 3,3 a 5,2 m. L'explication tient en une
+phrase : l'ancien poids ecrasait la carte partout ou le sous-etage est
+ferme, ce qui <strong>retenait</strong> l'agent. Ce garde-fou etait reel mais accidentel,
+et il se payait d'une carte de detection degradee. Passer <code>franchissabilite</code>
+le retablit la ou il doit etre, sans rien devoir a la ponderation de la
+detection.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

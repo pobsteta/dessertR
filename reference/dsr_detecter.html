@@ -63,7 +63,7 @@ Complementaire du recalage, qui lui conserve la reference
 <span>  ratio_min <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  pas_bin <span class="op">=</span> <span class="fl">5</span>,</span>
 <span>  methode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"agent"</span>, <span class="st">"squelette"</span>, <span class="st">"vecnet"</span>, <span class="st">"acp"</span><span class="op">)</span>,</span>
-<span>  poids <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>geo <span class="op">=</span> <span class="fl">1</span>, surf <span class="op">=</span> <span class="fl">2</span>, vessel <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
+<span>  poids <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>geo <span class="op">=</span> <span class="fl">1</span>, surf <span class="op">=</span> <span class="fl">0.5</span>, vessel <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
 <span>  regime <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"complet"</span>, <span class="st">"corridor"</span><span class="op">)</span>,</span>
 <span>  emprise <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  elaguer <span class="op">=</span> <span class="fl">5</span>,</span>
@@ -95,7 +95,12 @@ les structures lineaires ; <code>NULL</code> pour l'ignorer.</p></dd>
 
 <dt id="arg-sigma-surf">sigma_surf<a class="anchor" aria-label="anchor" href="#arg-sigma-surf"></a></dt>
 <dd><p>Conductivite de surface (<code><a href="dsr_sigma_surf.html">dsr_sigma_surf()</a></code>) — le canal qui
-distingue une piste ouverte d'une trace fossile ; <code>NULL</code> pour s'en passer.</p></dd>
+distingue une piste ouverte d'une trace fossile ; <code>NULL</code> pour s'en passer.
+Il sert <strong>deux fois</strong> : comme preuve de presence dans l'indice (poids 0,5,
+voir <code><a href="dsr_indice_detection.html">dsr_indice_detection()</a></code>) et, avec <code>methode = "agent"</code>, comme
+contrainte de franchissabilite transmise a <code><a href="dsr_conduire.html">dsr_conduire()</a></code>. Ce ne sont pas
+deux emplois du meme signal mais deux questions differentes – ou est la
+route, et ou l'on ne passe plus.</p></dd>
 
 
 <dt id="arg-seuil">seuil<a class="anchor" aria-label="anchor" href="#arg-seuil"></a></dt>
