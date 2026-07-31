@@ -392,6 +392,85 @@ dsr_slrm <- function(mnt, fenetres_m = c(5, 15)) {
 
 #' Linearite (vesselness de Frangi) et orientation du MNT
 #'
+# Normalise `c` en un vecteur d'une valeur par echelle, ou NULL (auto-echelle).
+#' @noRd
+.dsr_valider_c_vessel <- function(c, n_echelles) {
+  if (is.null(c)) return(NULL)
+  if (!is.numeric(c) || anyNA(c) || any(!is.finite(c)) || any(c <= 0)) {
+    dsr_abort("{.arg c} doit etre numerique, fini et strictement positif.")
+  }
+  if (length(c) == 1L) return(rep(c, n_echelles))
+  if (length(c) != n_echelles) {
+    dsr_abort(c(
+      "{.arg c} doit etre un scalaire ou de longueur {n_echelles} ({length(c)} fourni{?s}).",
+      "i" = "Une valeur par echelle : {.fun dsr_c_vessel} les calcule sur une emprise de reference."
+    ))
+  }
+  c
+}
+
+
+#' Ancrer l'echelle de la vesselness sur une emprise de reference
+#'
+#' Calcule, echelle par echelle, le `c` que [dsr_vesselness()] deriverait de
+#' `mnt` -- la moitie du maximum de la norme de Frobenius du Hessien. Le
+#' resultat se repasse tel quel a [dsr_vesselness()] ou [dsr_layers_dtm()] pour
+#' que la vesselness cesse de dependre de l'etendue analysee.
+#'
+#' @details
+#' **Le probleme.** Sans `c` fixe, la vesselness est relative a l'emprise
+#' fournie : le meme terrain, analyse seul ou au sein d'un bloc plus vaste, ne
+#' rend pas la meme valeur. Le defaut agit **en amont** des fonctions
+#' d'appartenance, donc aucun reglage de bornes dans
+#' [dsr_specs_geomorpho()] ne le rattrape, et il touche aussi le
+#' `seuil_vessel` de [dsr_indice_detection()], ou une vesselness rescalee est
+#' comparee a un seuil absolu.
+#'
+#' **L'usage.** Calculer une fois sur l'emprise de reference du chantier -- le
+#' massif entier, pas la fenetre du jour -- puis passer le vecteur obtenu a tous
+#' les traitements ulterieurs. Deux fenetres traitees avec le meme `c` sont
+#' alors comparables, y compris en regime `corridor`.
+#'
+#' @param mnt Le MNT de reference (`SpatRaster` ou chemin). Prendre l'emprise la
+#'   plus large du chantier : c'est elle qui fixe le bareme.
+#' @param echelles_m Echelles, en metres. Doit valoir ce qui sera passe ensuite a
+#'   [dsr_vesselness()]. Defaut `c(1, 2, 4)`.
+#'
+#' @return Un vecteur numerique nomme (`c_1`, `c_2`, ...), une valeur par
+#'   echelle.
+#' @seealso [dsr_vesselness()], [dsr_layers_dtm()].
+#' @examples
+#' mnt <- terra::rast(nrows = 40, ncols = 40, xmin = 0, xmax = 40, ymin = 0,
+#'   ymax = 40, crs = "EPSG:2154")
+#' terra::values(mnt) <- runif(1600)
+#' dsr_c_vessel(mnt, echelles_m = c(1, 2))
+#' @export
+dsr_c_vessel <- function(mnt, echelles_m = c(1, 2, 4)) {
+  if (is.character(mnt)) mnt <- terra::rast(mnt)
+  if (!inherits(mnt, "SpatRaster")) {
+    dsr_abort("{.arg mnt} doit etre un {.cls SpatRaster} ou un chemin de fichier.")
+  }
+  if (terra::nlyr(mnt) > 1L) mnt <- mnt[[1]]
+  res_m <- terra::res(mnt)[1]
+
+  out <- vapply(echelles_m, function(sig) {
+    h <- dsr_hessien(mnt, sig, res_m)
+    # Meme grandeur que dsr_frangi() : la norme de Frobenius se deduit des
+    # valeurs propres, mais elle vaut aussi sqrt(l1^2 + l2^2) = sqrt(somme des
+    # carres des composantes propres. On la recalcule ici a l'identique pour
+    # que l'ancrage soit exactement ce que le defaut aurait produit.
+    moyenne <- (h$xx + h$yy) / 2
+    d <- sqrt(((h$xx - h$yy) / 2)^2 + h$xy^2)
+    s <- sqrt((moyenne - d)^2 + (moyenne + d)^2)
+    smax <- suppressWarnings(max(s, na.rm = TRUE))
+    if (is.finite(smax) && smax > 0) 0.5 * smax else 1
+  }, numeric(1))
+
+  names(out) <- sprintf("c_%g", echelles_m)
+  out
+}
+
+
 #' Probabilite qu'un pixel appartienne a une structure **lineaire en creux**
 #' (une route deprimee : plateforme en deblai, chemin creux, fosse), calculee par
 #' l'analyse des valeurs propres du **Hessien** a plusieurs echelles (filtre de
@@ -409,8 +488,23 @@ dsr_slrm <- function(mnt, fenetres_m = c(5, 15)) {
 #' @param mnt Le MNT (`SpatRaster` ou chemin), de preference a 1 m.
 #' @param echelles_m Ecarts-types gaussiens en metres. Defaut `c(1, 2, 4)`.
 #' @param beta Sensibilite au rapport d'anisotropie (Frangi). Defaut 0.5.
-#' @param c Sensibilite a l'intensite de structure ; `NULL` (defaut) -> moitie du
-#'   maximum de la norme de Frobenius du Hessien, par echelle (auto-echelle).
+#' @param c Sensibilite a l'intensite de structure. `NULL` (defaut) -> moitie du
+#'   maximum de la norme de Frobenius du Hessien, **derive de l'image**, echelle
+#'   par echelle. Sinon un scalaire, ou un vecteur de longueur
+#'   `length(echelles_m)` applique echelle par echelle.
+#'
+#'   **Le defaut rend la sortie dependante de l'emprise fournie** : une fenetre
+#'   plus vaste contient un maximum de norme plus eleve, ce qui comprime
+#'   `1 - exp(-s^2 / 2c^2)` pour tous les pixels. Mesure sur un meme terrain,
+#'   `c` derive sur 4 km2 vaut environ le DOUBLE de celui derive sur 1 km2 (x2,12
+#'   / x2,16 / x1,93 aux echelles 1 / 2 / 4 m). Deux sites d'etendues
+#'   differentes ne sont donc pas comparables, et le regime `corridor` change le
+#'   bareme. Passer un `c` fixe ancre l'echelle et rend la vesselness absolue ;
+#'   [dsr_c_vessel()] le calcule sur une emprise de reference.
+#'
+#'   Un scalaire unique ne convient pas : `c` varie d'un facteur ~3,5 entre les
+#'   echelles d'un meme site, et l'aplatir fausserait la selection du maximum
+#'   multi-echelle. Utiliser un vecteur.
 #' @return Un `SpatRaster` a deux couches : `vesselness` (0..1) et `theta`
 #'   (orientation de la ligne en degres, 0..180), alignees sur `mnt`.
 #' @seealso [dsr_layers_dtm()].
@@ -420,11 +514,15 @@ dsr_vesselness <- function(mnt, echelles_m = c(1, 2, 4), beta = 0.5, c = NULL) {
   if (terra::nlyr(mnt) > 1L) mnt <- mnt[[1]]
   res_m <- terra::res(mnt)[1]
 
+  c <- .dsr_valider_c_vessel(c, length(echelles_m))
+
   best_v <- NULL
   best_theta <- NULL
-  for (sig in echelles_m) {
+  for (i in seq_along(echelles_m)) {
+    sig <- echelles_m[i]
     h <- dsr_hessien(mnt, sig, res_m) # liste Hxx, Hyy, Hxy (vecteurs)
-    fr <- dsr_frangi(h$xx, h$yy, h$xy, beta = beta, c = c)
+    fr <- dsr_frangi(h$xx, h$yy, h$xy, beta = beta,
+      c = if (is.null(c)) NULL else c[i])
     if (is.null(best_v)) {
       best_v <- fr$v
       best_theta <- fr$theta
@@ -461,6 +559,12 @@ dsr_vesselness <- function(mnt, echelles_m = c(1, 2, 4), beta = 0.5, c = NULL) {
 #'   Defaut `c(2, 5, 10)`.
 #' @param echelles_vessel Echelles de la vesselness, en metres. Defaut
 #'   `c(1, 2, 4)`.
+#' @param c_vessel Sensibilite de la vesselness, **une valeur par echelle**
+#'   (aligne sur `echelles_vessel`) ou un scalaire. `NULL` (defaut) conserve le
+#'   comportement historique : `c` derive de l'image, donc **une sortie qui
+#'   depend de l'etendue analysee**. Fixer ce vecteur -- via [dsr_c_vessel()]
+#'   sur l'emprise de reference du chantier -- rend la pile comparable d'une
+#'   fenetre a l'autre. Voir [dsr_vesselness()].
 #' @param fenetres_slrm Fenetres du SLRM, en metres. Defaut `c(5, 15)`.
 #' @param fenetre_rugosite Fenetre de la rugosite, en metres. Defaut 5.
 #' @return Un `SpatRaster` multi-bandes aligne sur la grille : `pente`,
@@ -471,6 +575,7 @@ dsr_vesselness <- function(mnt, echelles_m = c(1, 2, 4), beta = 0.5, c = NULL) {
 dsr_layers_dtm <- function(mnt, grille = NULL, res = DSR_RES_MULTIECHELLE,
                            rayons_openness = c(2, 5, 10),
                            echelles_vessel = c(1, 2, 4),
+                           c_vessel = NULL,
                            fenetres_slrm = c(5, 15),
                            fenetre_rugosite = 5) {
   if (is.character(mnt)) mnt <- terra::rast(mnt)
@@ -496,7 +601,7 @@ dsr_layers_dtm <- function(mnt, grille = NULL, res = DSR_RES_MULTIECHELLE,
     dsr_slrm(m, fenetres_m = fenetres_slrm),
     do.call(c, on),
     svf_op,
-    dsr_vesselness(m, echelles_m = echelles_vessel)
+    dsr_vesselness(m, echelles_m = echelles_vessel, c = c_vessel)
   )
   couches
 }

@@ -2,7 +2,11 @@
 % Please edit documentation in R/layers_dtm.R
 \name{dsr_vesselness}
 \alias{dsr_vesselness}
-\title{Linearite (vesselness de Frangi) et orientation du MNT}
+\title{Probabilite qu'un pixel appartienne a une structure \strong{lineaire en creux}
+(une route deprimee : plateforme en deblai, chemin creux, fosse), calculee par
+l'analyse des valeurs propres du \strong{Hessien} a plusieurs echelles (filtre de
+Frangi). Fournit aussi l'\strong{orientation} locale de la ligne, qui alimente le
+cout anisotrope du pathfinder (BRIEF sections 3.2 et 3.5).}
 \usage{
 dsr_vesselness(mnt, echelles_m = c(1, 2, 4), beta = 0.5, c = NULL)
 }
@@ -13,8 +17,23 @@ dsr_vesselness(mnt, echelles_m = c(1, 2, 4), beta = 0.5, c = NULL)
 
 \item{beta}{Sensibilite au rapport d'anisotropie (Frangi). Defaut 0.5.}
 
-\item{c}{Sensibilite a l'intensite de structure ; \code{NULL} (defaut) -> moitie du
-maximum de la norme de Frobenius du Hessien, par echelle (auto-echelle).}
+\item{c}{Sensibilite a l'intensite de structure. \code{NULL} (defaut) -> moitie du
+maximum de la norme de Frobenius du Hessien, \strong{derive de l'image}, echelle
+par echelle. Sinon un scalaire, ou un vecteur de longueur
+\code{length(echelles_m)} applique echelle par echelle.
+
+\strong{Le defaut rend la sortie dependante de l'emprise fournie} : une fenetre
+plus vaste contient un maximum de norme plus eleve, ce qui comprime
+\verb{1 - exp(-s^2 / 2c^2)} pour tous les pixels. Mesure sur un meme terrain,
+\code{c} derive sur 4 km2 vaut environ le DOUBLE de celui derive sur 1 km2 (x2,12
+/ x2,16 / x1,93 aux echelles 1 / 2 / 4 m). Deux sites d'etendues
+differentes ne sont donc pas comparables, et le regime \code{corridor} change le
+bareme. Passer un \code{c} fixe ancre l'echelle et rend la vesselness absolue ;
+\code{\link[=dsr_c_vessel]{dsr_c_vessel()}} le calcule sur une emprise de reference.
+
+Un scalaire unique ne convient pas : \code{c} varie d'un facteur ~3,5 entre les
+echelles d'un meme site, et l'aplatir fausserait la selection du maximum
+multi-echelle. Utiliser un vecteur.}
 }
 \value{
 Un \code{SpatRaster} a deux couches : \code{vesselness} (0..1) et \code{theta}
