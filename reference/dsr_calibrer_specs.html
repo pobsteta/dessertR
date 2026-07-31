@@ -53,7 +53,8 @@ tel quel par <code><a href="dsr_conductivite.html">dsr_conductivite()</a></code>
 <span>  auc_min <span class="op">=</span> <span class="fl">0.55</span>,</span>
 <span>  poids_max <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  n <span class="op">=</span> <span class="fl">2500</span>,</span>
-<span>  exclure <span class="op">=</span> <span class="st">"theta"</span></span>
+<span>  exclure <span class="op">=</span> <span class="st">"theta"</span>,</span>
+<span>  bornes <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -101,14 +102,20 @@ sont proportionnels a leur ecart au hasard. Defaut 3.</p></dd>
 <dd><p>Canaux ignores. Defaut <code>"theta"</code>, qui est une orientation et
 non une intensite.</p></dd>
 
+
+<dt id="arg-bornes">bornes<a class="anchor" aria-label="anchor" href="#arg-bornes"></a></dt>
+<dd><p>Produire aussi les bornes d'appartenance <code>a</code> et <code>b</code>, en unites
+du canal. Defaut <code>TRUE</code>. Voir « Bornes absolues » ci-dessous ; <code>FALSE</code>
+rend des regles sans bornes, donc <strong>relatives a l'emprise</strong>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Une liste : <code>specs</code>, directement utilisable comme argument <code>specs</code> de
 <code><a href="dsr_conductivite.html">dsr_conductivite()</a></code>, et <code>diagnostic</code>, un <code>data.frame</code> (<code>canal</code>, <code>auc</code>,
-<code>sens</code>, <code>retenu</code>, <code>poids</code>) trie par pouvoir discriminant decroissant. Avec
-plusieurs massifs, <code>auc</code> est la mediane et une colonne <code>stable</code> indique si
-le sens concorde partout.</p>
+<code>sens</code>, <code>stable</code>, <code>retenu</code>, <code>poids</code>, <code>a</code>, <code>b</code>) trie par pouvoir
+discriminant decroissant. Avec plusieurs massifs, <code>auc</code> est la mediane et
+<code>stable</code> indique si le sens concorde partout.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -135,6 +142,24 @@ la <code>pente</code> marque les routes par le bas dans l'un et par le haut dans
 l'autre. Calibree sur un seul, elle entrait dans les regles ; calibree sur
 les deux, elle en est ecartee. Un canal dont le signe depend du relief n'a
 rien a faire dans une regle.</p>
+<p><strong>Bornes absolues, et pourquoi elles comptent.</strong> La fonction rend aussi les
+bornes <code>a</code> et <code>b</code> de chaque rampe, en unites du canal (<code>bornes = TRUE</code>).
+Ce n'est pas un agrement : sans elles, <code><a href="dsr_appartenance.html">dsr_appartenance()</a></code> derive ses bornes
+des quantiles de la donnee qu'on lui passe, et <strong>la sortie depend alors de
+l'etendue analysee</strong>. Mesure sur le bloc wsfi, une fenetre de 0,25 km2 rend
+116 m de desserte detectee analysee seule, et <strong>0 m</strong> analysee au sein de
+4 km2 : le <code>seuil</code> de <code><a href="dsr_detecter.html">dsr_detecter()</a></code> n'est pas une quantite absolue mais un
+rang dans la population fournie. Deux sites d'etendues differentes ne sont
+pas comparables, et le regime <code>corridor</code> change le bareme.</p>
+<p>La convention est de faire aller la rampe du typique de l'ENVIRONNEMENT
+(<code>mu = 0</code>) au franchement ROUTIER (<code>mu = 1</code>) :</p><table class="table table"><tr><td>sens</td><td><code>a</code></td><td><code>b</code></td></tr><tr><td><code>croissante</code></td><td>q50(absence)</td><td>q75(presence)</td></tr><tr><td><code>decroissante</code></td><td>q25(presence)</td><td>q50(absence)</td></tr></table><p>Une borne, contrairement au sens et a l'AUC, est dans l'unite du canal et ne
+se transporte pas forcement d'un massif a l'autre – le taux de penetration
+brut varie d'un facteur 7 entre les deux massifs de validation. Avec
+plusieurs massifs les bornes sont donc medianes, et <strong>calibrer sur les
+massifs qu'on va effectivement traiter reste la bonne pratique</strong>.</p>
+<p>Cette correction ne suffit pas a elle seule a rendre une pile independante de
+l'emprise : <code>vesselness</code> est rescalee <strong>en amont</strong> des fonctions
+d'appartenance et demande son propre ancrage (<code><a href="dsr_c_vessel.html">dsr_c_vessel()</a></code>).</p>
 <p><strong>Ce que la reference peut et ne peut pas etre.</strong> Sa POSITION doit faire
 autorite – la BD TOPO convient, sa precision planimetrique etant metrique.
 Sa largeur, non : elle n'entre pas dans le calcul. Un reseau approximatif
@@ -156,14 +181,14 @@ Sa largeur, non : elle n'entre pas dans le calcul. Un reseau approximatif
 <span class="r-in"><span><span class="va">axe</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">st_sfc</a></span><span class="op">(</span><span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st.html" class="external-link">st_linestring</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">55</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">30</span>, <span class="fl">30</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>, crs <span class="op">=</span> <span class="fl">2154</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">cal</span> <span class="op">&lt;-</span> <span class="fu">dsr_calibrer_specs</span><span class="op">(</span><span class="va">couches</span>, <span class="va">axe</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">cal</span><span class="op">$</span><span class="va">diagnostic</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          canal       auc sens stable retenu poids</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   vesselness 0.6678266    1   TRUE   TRUE     3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2     rugosite 0.5542620   -1   TRUE   TRUE     1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3        pente 0.5189014    1   TRUE  FALSE     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 openness_neg 0.5109477    1   TRUE  FALSE     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5 openness_pos 0.5036254    1   TRUE  FALSE     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6          svf 0.5026314    1   TRUE  FALSE     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7         slrm 0.5003655    1   TRUE  FALSE     0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>          canal       auc sens stable retenu poids         a         b</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   vesselness 0.7104864    1   TRUE   TRUE     3 0.0000000 0.3107341</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2     rugosite 0.5682943   -1   TRUE   TRUE     1 0.2522887 0.2828020</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3        pente 0.5408892   -1   TRUE  FALSE     0        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 openness_neg 0.5091054    1   TRUE  FALSE     0        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5         slrm 0.5075298   -1   TRUE  FALSE     0        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6 openness_pos 0.5059567   -1   TRUE  FALSE     0        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7          svf 0.5055245   -1   TRUE  FALSE     0        NA        NA</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

@@ -51,6 +51,7 @@ l'entree du calcul de <code>sigma_geo</code> (<code><a href="dsr_conductivite.ht
 <span>  res <span class="op">=</span> <span class="va">DSR_RES_MULTIECHELLE</span>,</span>
 <span>  rayons_openness <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">5</span>, <span class="fl">10</span><span class="op">)</span>,</span>
 <span>  echelles_vessel <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">4</span><span class="op">)</span>,</span>
+<span>  c_vessel <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  fenetres_slrm <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">15</span><span class="op">)</span>,</span>
 <span>  fenetre_rugosite <span class="op">=</span> <span class="fl">5</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -81,6 +82,15 @@ Defaut <code>c(2, 5, 10)</code>.</p></dd>
 <dt id="arg-echelles-vessel">echelles_vessel<a class="anchor" aria-label="anchor" href="#arg-echelles-vessel"></a></dt>
 <dd><p>Echelles de la vesselness, en metres. Defaut
 <code>c(1, 2, 4)</code>.</p></dd>
+
+
+<dt id="arg-c-vessel">c_vessel<a class="anchor" aria-label="anchor" href="#arg-c-vessel"></a></dt>
+<dd><p>Sensibilite de la vesselness, <strong>une valeur par echelle</strong>
+(aligne sur <code>echelles_vessel</code>) ou un scalaire. <code>NULL</code> (defaut) conserve le
+comportement historique : <code>c</code> derive de l'image, donc <strong>une sortie qui
+depend de l'etendue analysee</strong>. Fixer ce vecteur – via <code><a href="dsr_c_vessel.html">dsr_c_vessel()</a></code>
+sur l'emprise de reference du chantier – rend la pile comparable d'une
+fenetre a l'autre. Voir <code><a href="dsr_vesselness.html">dsr_vesselness()</a></code>.</p></dd>
 
 
 <dt id="arg-fenetres-slrm">fenetres_slrm<a class="anchor" aria-label="anchor" href="#arg-fenetres-slrm"></a></dt>

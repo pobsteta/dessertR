@@ -134,7 +134,14 @@
           <code><a href="dsr_vesselness.html">dsr_vesselness()</a></code>
 
         </dt>
-        <dd>Linearite (vesselness de Frangi) et orientation du MNT</dd>
+        <dd>Probabilite qu'un pixel appartienne a une structure <strong>lineaire en creux</strong> (une route deprimee : plateforme en deblai, chemin creux, fosse), calculee par l'analyse des valeurs propres du <strong>Hessien</strong> a plusieurs echelles (filtre de Frangi). Fournit aussi l'<strong>orientation</strong> locale de la ligne, qui alimente le cout anisotrope du pathfinder (BRIEF sections 3.2 et 3.5).</dd>
+
+        <dt>
+
+          <code><a href="dsr_c_vessel.html">dsr_c_vessel()</a></code>
+
+        </dt>
+        <dd>Ancrer l'echelle de la vesselness sur une emprise de reference</dd>
 
         <dt>
 

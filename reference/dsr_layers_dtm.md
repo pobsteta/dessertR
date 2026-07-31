@@ -14,6 +14,7 @@ dsr_layers_dtm(
   res = DSR_RES_MULTIECHELLE,
   rayons_openness = c(2, 5, 10),
   echelles_vessel = c(1, 2, 4),
+  c_vessel = NULL,
   fenetres_slrm = c(5, 15),
   fenetre_rugosite = 5
 )
@@ -43,6 +44,17 @@ dsr_layers_dtm(
 - echelles_vessel:
 
   Echelles de la vesselness, en metres. Defaut `c(1, 2, 4)`.
+
+- c_vessel:
+
+  Sensibilite de la vesselness, **une valeur par echelle** (aligne sur
+  `echelles_vessel`) ou un scalaire. `NULL` (defaut) conserve le
+  comportement historique : `c` derive de l'image, donc **une sortie qui
+  depend de l'etendue analysee**. Fixer ce vecteur – via
+  [`dsr_c_vessel()`](https://pobsteta.github.io/dessertR/reference/dsr_c_vessel.md)
+  sur l'emprise de reference du chantier – rend la pile comparable d'une
+  fenetre a l'autre. Voir
+  [`dsr_vesselness()`](https://pobsteta.github.io/dessertR/reference/dsr_vesselness.md).
 
 - fenetres_slrm:
 

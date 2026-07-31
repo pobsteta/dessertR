@@ -16,7 +16,8 @@ dsr_calibrer_specs(
   auc_min = 0.55,
   poids_max = 3,
   n = 2500,
-  exclure = "theta"
+  exclure = "theta",
+  bornes = TRUE
 )
 ```
 
@@ -63,14 +64,20 @@ dsr_calibrer_specs(
   Canaux ignores. Defaut `"theta"`, qui est une orientation et non une
   intensite.
 
+- bornes:
+
+  Produire aussi les bornes d'appartenance `a` et `b`, en unites du
+  canal. Defaut `TRUE`. Voir « Bornes absolues » ci-dessous ; `FALSE`
+  rend des regles sans bornes, donc **relatives a l'emprise**.
+
 ## Value
 
 Une liste : `specs`, directement utilisable comme argument `specs` de
 [`dsr_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_conductivite.md),
-et `diagnostic`, un `data.frame` (`canal`, `auc`, `sens`, `retenu`,
-`poids`) trie par pouvoir discriminant decroissant. Avec plusieurs
-massifs, `auc` est la mediane et une colonne `stable` indique si le sens
-concorde partout.
+et `diagnostic`, un `data.frame` (`canal`, `auc`, `sens`, `stable`,
+`retenu`, `poids`, `a`, `b`) trie par pouvoir discriminant decroissant.
+Avec plusieurs massifs, `auc` est la mediane et `stable` indique si le
+sens concorde partout.
 
 ## Details
 
@@ -102,6 +109,40 @@ et par le haut dans l'autre. Calibree sur un seul, elle entrait dans les
 regles ; calibree sur les deux, elle en est ecartee. Un canal dont le
 signe depend du relief n'a rien a faire dans une regle.
 
+**Bornes absolues, et pourquoi elles comptent.** La fonction rend aussi
+les bornes `a` et `b` de chaque rampe, en unites du canal
+(`bornes = TRUE`). Ce n'est pas un agrement : sans elles,
+[`dsr_appartenance()`](https://pobsteta.github.io/dessertR/reference/dsr_appartenance.md)
+derive ses bornes des quantiles de la donnee qu'on lui passe, et **la
+sortie depend alors de l'etendue analysee**. Mesure sur le bloc wsfi,
+une fenetre de 0,25 km2 rend 116 m de desserte detectee analysee seule,
+et **0 m** analysee au sein de 4 km2 : le `seuil` de
+[`dsr_detecter()`](https://pobsteta.github.io/dessertR/reference/dsr_detecter.md)
+n'est pas une quantite absolue mais un rang dans la population fournie.
+Deux sites d'etendues differentes ne sont pas comparables, et le regime
+`corridor` change le bareme.
+
+La convention est de faire aller la rampe du typique de l'ENVIRONNEMENT
+(`mu = 0`) au franchement ROUTIER (`mu = 1`) :
+
+|                |               |               |
+|----------------|---------------|---------------|
+| sens           | `a`           | `b`           |
+| `croissante`   | q50(absence)  | q75(presence) |
+| `decroissante` | q25(presence) | q50(absence)  |
+
+Une borne, contrairement au sens et a l'AUC, est dans l'unite du canal
+et ne se transporte pas forcement d'un massif a l'autre – le taux de
+penetration brut varie d'un facteur 7 entre les deux massifs de
+validation. Avec plusieurs massifs les bornes sont donc medianes, et
+**calibrer sur les massifs qu'on va effectivement traiter reste la bonne
+pratique**.
+
+Cette correction ne suffit pas a elle seule a rendre une pile
+independante de l'emprise : `vesselness` est rescalee **en amont** des
+fonctions d'appartenance et demande son propre ancrage
+([`dsr_c_vessel()`](https://pobsteta.github.io/dessertR/reference/dsr_c_vessel.md)).
+
 **Ce que la reference peut et ne peut pas etre.** Sa POSITION doit faire
 autorite – la BD TOPO convient, sa precision planimetrique etant
 metrique. Sa largeur, non : elle n'entre pas dans le calcul. Un reseau
@@ -126,13 +167,13 @@ couches <- dsr_layers_dtm(mnt, res = 1)
 axe <- sf::st_sfc(sf::st_linestring(cbind(c(5, 55), c(30, 30))), crs = 2154)
 cal <- dsr_calibrer_specs(couches, axe)
 cal$diagnostic
-#>          canal       auc sens stable retenu poids
-#> 1   vesselness 0.6678266    1   TRUE   TRUE     3
-#> 2     rugosite 0.5542620   -1   TRUE   TRUE     1
-#> 3        pente 0.5189014    1   TRUE  FALSE     0
-#> 4 openness_neg 0.5109477    1   TRUE  FALSE     0
-#> 5 openness_pos 0.5036254    1   TRUE  FALSE     0
-#> 6          svf 0.5026314    1   TRUE  FALSE     0
-#> 7         slrm 0.5003655    1   TRUE  FALSE     0
+#>          canal       auc sens stable retenu poids         a         b
+#> 1   vesselness 0.7104864    1   TRUE   TRUE     3 0.0000000 0.3107341
+#> 2     rugosite 0.5682943   -1   TRUE   TRUE     1 0.2522887 0.2828020
+#> 3        pente 0.5408892   -1   TRUE  FALSE     0        NA        NA
+#> 4 openness_neg 0.5091054    1   TRUE  FALSE     0        NA        NA
+#> 5         slrm 0.5075298   -1   TRUE  FALSE     0        NA        NA
+#> 6 openness_pos 0.5059567   -1   TRUE  FALSE     0        NA        NA
+#> 7          svf 0.5055245   -1   TRUE  FALSE     0        NA        NA
 # }
 ```
