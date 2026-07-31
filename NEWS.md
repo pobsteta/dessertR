@@ -1,5 +1,72 @@
 # dessertR (cycle de developpement)
 
+## Le seuil de franchissabilite est un critere de rang deguise
+
+`franchissabilite_min` reste a **0,4**, mais on sait desormais pourquoi il
+marche -- et ce n'est pas ce que son nom annonce.
+
+**Le balayage.** Huit seuils, deux massifs (`dev/07_calibrer_franchissabilite.R`) :
+
+| seuil | F1 wsfi | F1 ltcp | ecart median wsfi | ecart median ltcp |
+|---|---|---|---|---|
+| aucune contrainte | 0,351 | 0,289 | 5,17 m | 16,13 m |
+| 0,30 | 0,382 | 0,346 | 5,06 m | 3,42 m |
+| 0,35 | 0,358 | **0,369** | 4,54 m | 2,73 m |
+| 0,365 | 0,362 | 0,313 | 4,39 m | 11,18 m |
+| 0,375 | **0,459** | 0,338 | 2,67 m | 2,97 m |
+| **0,40** | 0,444 | 0,350 | 2,40 m | 2,06 m |
+| 0,45 | 0,442 | 0,359 | 3,13 m | 2,31 m |
+| 0,50 | 0,418 | 0,331 | 2,62 m | 3,52 m |
+| 0,60 | 0,413 | 0,319 | 2,12 m | 3,33 m |
+
+Entre 0,375 et 0,45 les F1 sont indiscernables (ltcp ne produit que 3 a 6
+lignes : ces chiffres sont instables). **Ce qui compte n'est pas la valeur mais
+le cote du mode** de `sigma_surf` : au-dessus, l'ecart median tombe a 2,1-3,1 m
+sur les deux massifs ; en dessous il remonte a 4,4-11,2 m.
+
+**Le mode vient du calcul, pas du terrain.** [dsr_specs_surface()] laisse ses
+bornes d'appartenance a `NULL`, donc [dsr_appartenance()] les derive des
+quantiles : `a` = mediane, `b` = 95e centile. Par construction, la moitie des
+cellules ont donc `mu(taux_penetration) = 0` -- ramene au plancher `sigma_min`
+-- et `mu(densite_sousetage) = 1`. Leur fusion vaut
+`exp((2*log(1) + log(0,05))/3) = 0,368`, et c'est bien la que se concentre la
+masse : **50 % des cellules sur wsfi, 34 % sur ltcp**.
+
+Le seuil de 0,4 se pose juste au-dessus. Il ne mesure donc pas une fermeture de
+sous-etage : il retient les cellules dont le **taux de penetration depasse sa
+propre mediane**. Physiquement : ne pas circuler la ou le lidar ne voit pas le
+sol -- ce qui est raisonnable, mais n'est pas ce que le parametre annonce.
+
+**Deux consequences.** La bonne : le seuil se transporte bien mieux qu'un seuil
+absolu ne le devrait. Le taux de penetration brut vaut **0,04 sur wsfi et 0,31
+sur ltcp**, un facteur 7, et le meme 0,4 convient aux deux -- la normalisation
+par quantiles absorbe l'ecart en amont. Le doute consigne au cycle precedent
+(« le seuil frole un mode susceptible de se deplacer ») tombe : le mode est au
+meme endroit sur tout massif.
+
+La genante : fixer `a` et `b` explicitement dans `specs` deplace le mode et
+**invalide le defaut de 0,4**. C'est documente dans [dsr_conduire()].
+
+**Une piste ouverte au passage.** Si la moitie de `sigma_surf` est saturee par
+construction, le canal porte beaucoup moins d'information qu'il n'y parait --
+et c'est une explication candidate a son AUC mediocre (0,578 et 0,607). Des
+bornes d'appartenance calees plutot que quantilees sont a instruire.
+
+**Ce qui a ete essaye et rejete.** Exprimer le seuil en quantile plutot qu'en
+valeur absolue, pour le rendre robuste par construction. La parametrisation est
+**degeneree** : entre les seuils 0,365 et 0,375, le quantile correspondant saute
+de 0,183 a 0,685 sur wsfi et de 0,304 a 0,645 sur ltcp. Les quantiles 0,2 a
+0,69 pointent tous sur la meme valeur ; un seuil ne s'adresse pas par quantile
+ici.
+
+Calibrer le seuil sur une verite d'ETAT a egalement ete envisage, puis abandonne
+faute de matiere : sur les deux fenetres, OSM ne porte **aucun** tag de cycle de
+vie (`abandoned:`/`disused:`/`razed:highway` : zero) et quasiment aucun attribut
+de praticabilite (`surface` 0 et 1 voie, `tracktype` 0 et 5, sur 25 et 14
+voies). Le parametre se regle contre la metrique qui compte -- ce que l'agent
+retrouve de la reference -- sans avoir besoin de cette verite.
+
+
 ## L'agent suit une carte et se fait arreter par une autre
 
 [dsr_conduire()] accepte `franchissabilite` (+ `franchissabilite_min`, defaut
@@ -32,12 +99,10 @@ sur ltcp (16,1 m -> 2,1 m). La precision monte de 28 et 57 points relatifs.
 
 **Ce qui n'est pas resolu, et qu'il faut lire avant de s'y fier.** Sur ltcp le
 F1 reste sous le montage couple d'origine (0,350 contre 0,394) : la contrainte
-y est trop serree et coupe le rappel, la production tombant de 2,91 a 1,28 km.
-`franchissabilite_min = 0,4` est le meilleur reglage sur wsfi et un reglage
-median sur ltcp ; il n'est pas etabli sur un troisieme massif. Le seuil se
-trouve par ailleurs juste au-dessus du mode de `sigma_surf` (0,368 sur les deux
-massifs), donc dans une zone ou un petit deplacement de la distribution change
-beaucoup de choses. A calibrer plutot qu'a subir.
+y coupe le rappel, la production tombant de 2,91 a 1,28 km.
+
+*(Mise a jour apres `dev/07` : le doute sur la fragilite du seuil, lui, est
+leve -- voir la section suivante. Le deficit de rappel sur ltcp reste.)*
 
 Le plancher est applique **sans** rendre les cellules infranchissables : un
 `NA` interdirait a l'agent de traverser vingt metres de ronces pour retrouver
