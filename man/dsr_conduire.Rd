@@ -60,7 +60,9 @@ devenir infranchissables. \code{NULL} (defaut) pour ne poser aucune contrainte.
 Voir les details.}
 
 \item{franchissabilite_min}{Seuil sous lequel une cellule est tenue pour
-refermee. Defaut 0.4. Sans effet si \code{franchissabilite} est \code{NULL}.}
+refermee. Defaut 0.4. Sans effet si \code{franchissabilite} est \code{NULL}. Ce que
+ce chiffre fait reellement est explique dans les details -- ce n'est pas
+tout a fait ce qu'il annonce.}
 }
 \value{
 Une liste : \code{route} (\code{sfc} \code{LINESTRING}, l'amorce comprise),
@@ -111,6 +113,35 @@ ferme, ce qui \strong{retenait} l'agent. Ce garde-fou etait reel mais accidentel
 et il se payait d'une carte de detection degradee. Passer \code{franchissabilite}
 le retablit la ou il doit etre, sans rien devoir a la ponderation de la
 detection.
+
+\strong{Ce que \code{franchissabilite_min = 0.4} fait vraiment.} Pas ce que son nom
+laisse croire. Avec les regles par defaut de \code{\link[=dsr_specs_surface]{dsr_specs_surface()}}, les
+bornes d'appartenance sont laissees a \code{NULL}, donc derivees des quantiles :
+\code{a} est la \strong{mediane} du canal et \code{b} son 95e centile
+(\code{\link[=dsr_appartenance]{dsr_appartenance()}}). Il en decoule que la moitie des cellules ont, par
+construction, \code{mu(taux_penetration) = 0} -- ramene au plancher \code{sigma_min}
+-- et \code{mu(densite_sousetage) = 1}. Leur fusion vaut alors
+\code{exp((2 * log(1) + log(0.05)) / 3) = 0.368}, et \code{sigma_surf} presente un mode
+massif a cette valeur : 50 \% des cellules sur wsfi, 34 \% sur ltcp.
+
+Le seuil de 0,4 se place juste au-dessus de ce mode. Il ne mesure donc pas
+une fermeture de sous-etage : il selectionne les cellules dont le \strong{taux de
+penetration depasse sa propre mediane}. C'est un critere de RANG deguise en
+valeur absolue, et physiquement il dit « ne pas circuler la ou le lidar ne
+voit pas le sol ».
+
+Cette lecture a une consequence pratique heureuse : le seuil se transporte
+d'un massif a l'autre bien mieux qu'un seuil absolu ne le devrait. Le taux de
+penetration brut vaut 0,04 sur wsfi et 0,31 sur ltcp -- un facteur 7 -- et le
+meme 0,4 convient aux deux, parce que la normalisation par quantiles absorbe
+l'ecart en amont. Elle a aussi une consequence genante, a garder en tete :
+fixer \code{a} et \code{b} explicitement dans \code{specs} deplace le mode et \strong{invalide le
+defaut de 0,4}.
+
+Le balayage complet (\verb{dev/07_calibrer_franchissabilite.R}, 8 seuils sur deux
+massifs) donne des F1 indiscernables entre 0,375 et 0,45. Ce qui compte n'est
+pas la valeur mais le COTE du mode : au-dessus, l'ecart median a la reference
+tombe a 2,1-3,1 m sur les deux massifs ; en dessous, il remonte a 4,4-11,2 m.
 }
 \examples{
 # Carte synthetique : une route rectiligne de conductivite 1 sur fond a 0.1.
