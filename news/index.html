@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dessertR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -32,6 +32,259 @@
       <small>Source: <a href="https://github.com/pobsteta/dessertR/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.1.0" id="dessertr-110">dessertR 1.1.0<a class="anchor" aria-label="anchor" href="#dessertr-110"></a></h2>
+<p>Version de la <strong>mesure contre l’intuition</strong>. Quatre reglages qui reposaient sur un raisonnement physique plausible mais jamais verifie ont ete confrontes a deux massifs Lidar HD, et trois d’entre eux se sont reveles faux :</p>
+<ul><li>le canal de surface pesait <strong>quatre fois trop lourd</strong> dans la detection – son ancien poids etait la pire valeur de tout l’intervalle testable, moins bonne que retirer le canal ;</li>
+<li>
+<code>densite_sousetage</code>, presente comme le signal qui justifiait a lui seul l’ajout du nuage de points, ne discrimine pas la <strong>presence</strong> d’une route – il mesure un etat, et une route recolonisee reste une route ;</li>
+<li>la detection <strong>dependait de l’etendue analysee</strong> : le meme terrain rendait 1727 m ou 2328 m de desserte selon la taille de la fenetre soumise.</li>
+</ul><p>Aucune de ces corrections n’a demande de nouvelle donnee : seulement de mesurer ce qui etait suppose. Le quatrieme reglage, le seuil de franchissabilite, a survecu a son balayage – mais pour une raison differente de celle qu’on lui pretait.</p>
+<p>Deux defauts de comportement changent (<code>poids</code> du canal de surface, [dsr_calibrer_specs()] qui rend desormais des bornes), et trois entrees d’API s’ajoutent ([dsr_c_vessel()], <code>franchissabilite</code>, <code>c_vessel</code>). Le detail suit, avec les chiffres.</p>
+<div class="section level3">
+<h3 id="la-detection-ne-depend-plus-de-lemprise-quon-lui-passe-1-1-0">La detection ne depend plus de l’emprise qu’on lui passe<a class="anchor" aria-label="anchor" href="#la-detection-ne-depend-plus-de-lemprise-quon-lui-passe-1-1-0"></a></h3>
+<p>Signale par un audit ForetAccess sur le commit <code>cb9376c</code> : <code><a href="../reference/dsr_detecter.html">dsr_detecter()</a></code> rendait des resultats <strong>differents pour le meme terrain</strong> selon l’etendue du raster soumis. Le <code>seuil</code> n’etait pas une quantite absolue mais un <strong>rang dans la population de l’emprise fournie</strong> – donc deux sites d’etendues differentes n’etaient pas comparables, et le regime <code>corridor</code>, qui restreint l’emprise, changeait le bareme du chantier.</p>
+<p><strong>Deux causes independantes, aucune suffisante seule.</strong></p>
+<ol style="list-style-type: decimal"><li>[dsr_appartenance()] derive ses bornes des quantiles de la donnee recue quand <code>a</code>/<code>b</code> ne sont pas fournis – et ni [dsr_specs_geomorpho()] ni [dsr_specs_surface()] ne les fournissent jamais.</li>
+<li>
+<code>dsr_frangi()</code> derive son <code>c</code> du maximum de la norme de Frobenius du Hessien <strong>de l’image</strong>. Celui-ci agit <strong>en amont</strong> des fonctions d’appartenance : aucune borne ne peut le rattraper. Mesure sur wsfi, <code>c</code> derive sur 3,12 km2 contre 0,25 km2 : <strong>x1,65 / x2,14 / x2,27</strong> aux echelles 1 / 2 / 4 m.</li>
+</ol><p><strong>Les corrections.</strong></p>
+<ul><li>[dsr_c_vessel()] (nouveau) calcule le <code>c</code> d’une emprise de reference, une valeur par echelle. [dsr_vesselness()] accepte desormais un vecteur en plus du scalaire, et [dsr_layers_dtm()] le relaie via <code>c_vessel</code>. Un scalaire unique ne convient pas : <code>c</code> varie de <strong>x3,20</strong> entre les echelles d’un meme site, et l’aplatir fausserait la selection du maximum multi-echelle.</li>
+<li>[dsr_calibrer_specs()] rend maintenant les bornes <code>a</code> et <code>b</code> avec les regles (<code>bornes = TRUE</code>), en unites du canal. La rampe va du typique de l’environnement au franchement routier : <code>croissante</code> -&gt; <code>a</code> = q50(absence), <code>b</code> = q75(presence) ; <code>decroissante</code> -&gt; <code>a</code> = q25(presence), <code>b</code> = q50(absence). Les quantiles sortent de la boucle qui calcule deja l’AUC, donc sans surcout.</li>
+</ul><p><strong>La preuve</strong> (<code>dev/08_ancrage_emprise.R</code>, wsfi, fenetre de 0,25 km2 comparee a elle-meme vue depuis 3,12 km2, interieur hors marge de bord) :</p>
+<table class="table"><colgroup><col width="33%"><col width="33%"><col width="33%"></colgroup><thead><tr><th>reglage</th>
+<th>ecart max sur <code>sigma_geo</code>
+</th>
+<th>lineaire detecte, fenetre vs bloc</th>
+</tr></thead><tbody><tr><td>aucun ancrage (etat audite)</td>
+<td>2,6e-01</td>
+<td>1727 m vs 2328 m (<strong>26 % d’ecart</strong>)</td>
+</tr><tr><td>bornes seules</td>
+<td>1,9e-01</td>
+<td>—</td>
+</tr><tr><td>
+<code>c</code> seul</td>
+<td>2,3e-01</td>
+<td>—</td>
+</tr><tr><td><strong>bornes + <code>c</code></strong></td>
+<td><strong>2,1e-14</strong></td>
+<td><strong>2552 m vs 2552 m (0 %)</strong></td>
+</tr></tbody></table><p>A la precision machine. Et les deux corrections sont bien necessaires : chacune prise seule laisse un ecart de l’ordre de 0,2 sur <code>sigma_geo</code>.</p>
+<p><strong>Ce que ca change en pratique.</strong> [dsr_calibrer_specs()] devient suffisant a lui seul pour produire des regles absolues, ce qui etait sa vocation affichee. Une reserve demeure : une borne est dans l’unite du canal et ne se transporte pas forcement d’un massif a l’autre – le taux de penetration brut varie d’un facteur 7 entre les deux massifs de validation. Avec plusieurs massifs les bornes sont medianes, et <strong>calibrer sur les massifs qu’on va effectivement traiter reste la bonne pratique</strong>.</p>
+<p><code>bornes = FALSE</code> restaure l’ancien comportement, relatif a l’emprise.</p>
+<p><strong>Interaction avec le lot suivant, a lire.</strong> Le seuil <code>franchissabilite_min</code> de [dsr_conduire()] vaut 0,4 parce qu’il se place juste au-dessus du mode que les bornes <strong>quantilees</strong> creent dans <code>sigma_surf</code> (section suivante). Calibrer les regles de SURFACE avec <code>bornes = TRUE</code> et les passer a [dsr_sigma_surf()] deplace ce mode et <strong>invalide le defaut de 0,4</strong>. Le cas ne se presente pas par defaut – [dsr_specs_surface()] reste sans bornes, et calibrer le canal de surface a de toute facon ete mesure comme contre-productif – mais qui le fait doit recalibrer son seuil.</p>
+</div>
+<div class="section level3">
+<h3 id="le-seuil-de-franchissabilite-est-un-critere-de-rang-deguise-1-1-0">Le seuil de franchissabilite est un critere de rang deguise<a class="anchor" aria-label="anchor" href="#le-seuil-de-franchissabilite-est-un-critere-de-rang-deguise-1-1-0"></a></h3>
+<p><code>franchissabilite_min</code> reste a <strong>0,4</strong>, mais on sait desormais pourquoi il marche – et ce n’est pas ce que son nom annonce.</p>
+<p><strong>Le balayage.</strong> Huit seuils, deux massifs (<code>dev/07_calibrer_franchissabilite.R</code>) :</p>
+<table class="table"><thead><tr><th>seuil</th>
+<th>F1 wsfi</th>
+<th>F1 ltcp</th>
+<th>ecart median wsfi</th>
+<th>ecart median ltcp</th>
+</tr></thead><tbody><tr><td>aucune contrainte</td>
+<td>0,351</td>
+<td>0,289</td>
+<td>5,17 m</td>
+<td>16,13 m</td>
+</tr><tr><td>0,30</td>
+<td>0,382</td>
+<td>0,346</td>
+<td>5,06 m</td>
+<td>3,42 m</td>
+</tr><tr><td>0,35</td>
+<td>0,358</td>
+<td><strong>0,369</strong></td>
+<td>4,54 m</td>
+<td>2,73 m</td>
+</tr><tr><td>0,365</td>
+<td>0,362</td>
+<td>0,313</td>
+<td>4,39 m</td>
+<td>11,18 m</td>
+</tr><tr><td>0,375</td>
+<td><strong>0,459</strong></td>
+<td>0,338</td>
+<td>2,67 m</td>
+<td>2,97 m</td>
+</tr><tr><td><strong>0,40</strong></td>
+<td>0,444</td>
+<td>0,350</td>
+<td>2,40 m</td>
+<td>2,06 m</td>
+</tr><tr><td>0,45</td>
+<td>0,442</td>
+<td>0,359</td>
+<td>3,13 m</td>
+<td>2,31 m</td>
+</tr><tr><td>0,50</td>
+<td>0,418</td>
+<td>0,331</td>
+<td>2,62 m</td>
+<td>3,52 m</td>
+</tr><tr><td>0,60</td>
+<td>0,413</td>
+<td>0,319</td>
+<td>2,12 m</td>
+<td>3,33 m</td>
+</tr></tbody></table><p>Entre 0,375 et 0,45 les F1 sont indiscernables (ltcp ne produit que 3 a 6 lignes : ces chiffres sont instables). <strong>Ce qui compte n’est pas la valeur mais le cote du mode</strong> de <code>sigma_surf</code> : au-dessus, l’ecart median tombe a 2,1-3,1 m sur les deux massifs ; en dessous il remonte a 4,4-11,2 m.</p>
+<p><strong>Le mode vient du calcul, pas du terrain.</strong> [dsr_specs_surface()] laisse ses bornes d’appartenance a <code>NULL</code>, donc [dsr_appartenance()] les derive des quantiles : <code>a</code> = mediane, <code>b</code> = 95e centile. Par construction, la moitie des cellules ont donc <code>mu(taux_penetration) = 0</code> – ramene au plancher <code>sigma_min</code> – et <code>mu(densite_sousetage) = 1</code>. Leur fusion vaut <code>exp((2*log(1) + log(0,05))/3) = 0,368</code>, et c’est bien la que se concentre la masse : <strong>50 % des cellules sur wsfi, 34 % sur ltcp</strong>.</p>
+<p>Le seuil de 0,4 se pose juste au-dessus. Il ne mesure donc pas une fermeture de sous-etage : il retient les cellules dont le <strong>taux de penetration depasse sa propre mediane</strong>. Physiquement : ne pas circuler la ou le lidar ne voit pas le sol – ce qui est raisonnable, mais n’est pas ce que le parametre annonce.</p>
+<p><strong>Deux consequences.</strong> La bonne : le seuil se transporte bien mieux qu’un seuil absolu ne le devrait. Le taux de penetration brut vaut <strong>0,04 sur wsfi et 0,31 sur ltcp</strong>, un facteur 7, et le meme 0,4 convient aux deux – la normalisation par quantiles absorbe l’ecart en amont. Le doute consigne au cycle precedent (« le seuil frole un mode susceptible de se deplacer ») tombe : le mode est au meme endroit sur tout massif.</p>
+<p>La genante : fixer <code>a</code> et <code>b</code> explicitement dans <code>specs</code> deplace le mode et <strong>invalide le defaut de 0,4</strong>. C’est documente dans [dsr_conduire()].</p>
+<p><strong>Une piste ouverte au passage.</strong> Si la moitie de <code>sigma_surf</code> est saturee par construction, le canal porte beaucoup moins d’information qu’il n’y parait – et c’est une explication candidate a son AUC mediocre (0,578 et 0,607). Des bornes d’appartenance calees plutot que quantilees sont a instruire.</p>
+<p><strong>Ce qui a ete essaye et rejete.</strong> Exprimer le seuil en quantile plutot qu’en valeur absolue, pour le rendre robuste par construction. La parametrisation est <strong>degeneree</strong> : entre les seuils 0,365 et 0,375, le quantile correspondant saute de 0,183 a 0,685 sur wsfi et de 0,304 a 0,645 sur ltcp. Les quantiles 0,2 a 0,69 pointent tous sur la meme valeur ; un seuil ne s’adresse pas par quantile ici.</p>
+<p>Calibrer le seuil sur une verite d’ETAT a egalement ete envisage, puis abandonne faute de matiere : sur les deux fenetres, OSM ne porte <strong>aucun</strong> tag de cycle de vie (<code>abandoned:</code>/<code>disused:</code>/<code>razed:highway</code> : zero) et quasiment aucun attribut de praticabilite (<code>surface</code> 0 et 1 voie, <code>tracktype</code> 0 et 5, sur 25 et 14 voies). Le parametre se regle contre la metrique qui compte – ce que l’agent retrouve de la reference – sans avoir besoin de cette verite.</p>
+</div>
+<div class="section level3">
+<h3 id="lagent-suit-une-carte-et-se-fait-arreter-par-une-autre-1-1-0">L’agent suit une carte et se fait arreter par une autre<a class="anchor" aria-label="anchor" href="#lagent-suit-une-carte-et-se-fait-arreter-par-une-autre-1-1-0"></a></h3>
+<p>[dsr_conduire()] accepte <code>franchissabilite</code> (+ <code>franchissabilite_min</code>, defaut 0,4) : un raster, typiquement [dsr_sigma_surf()], qui ne dit pas ou est la route mais <strong>ou l’on ne passe plus</strong>. [dsr_detecter()] le transmet automatiquement quand <code>sigma_surf</code> est fourni et que la methode est l’agent.</p>
+<p><strong>Ce qui l’a rendu necessaire.</strong> Ramener le poids du canal de surface de 2 a 0,5 ameliore la carte (AUC 0,698 -&gt; 0,738) et le vectoriseur par squelette avec elle, mais degradait l’agent. La cause, mesuree : l’ancien poids ecrasait la carte partout ou le sous-etage est ferme, ce qui <strong>retenait</strong> l’agent. Un garde-fou reel, mais accidentel – une ponderation de DETECTION jouait une regle de FRANCHISSABILITE, et se payait d’une carte degradee.</p>
+<p>Rendue explicite, la contrainte fait mieux que restaurer l’ancien comportement. Sur deux massifs, agent amorce par la reference, meme <code>sigma_geo</code> et meme <code>sigma_surf</code> :</p>
+<table class="table"><colgroup><col width="20%"><col width="20%"><col width="20%"><col width="20%"><col width="20%"></colgroup><thead><tr><th></th>
+<th>rappel</th>
+<th>precision</th>
+<th>ecart median</th>
+<th>F1</th>
+</tr></thead><tbody><tr><td>
+<strong>wsfi</strong> — poids 2, couple</td>
+<td>0,342</td>
+<td>0,577</td>
+<td>3,34 m</td>
+<td>0,429</td>
+</tr><tr><td>poids 0,5, sans contrainte</td>
+<td>0,273</td>
+<td>0,492</td>
+<td>5,17 m</td>
+<td>0,351</td>
+</tr><tr><td>poids 0,5 + franchissabilite</td>
+<td>0,317</td>
+<td><strong>0,740</strong></td>
+<td><strong>2,40 m</strong></td>
+<td><strong>0,444</strong></td>
+</tr><tr><td>
+<strong>ltcp</strong> — poids 2, couple</td>
+<td>0,321</td>
+<td>0,509</td>
+<td>4,64 m</td>
+<td><strong>0,394</strong></td>
+</tr><tr><td>poids 0,5, sans contrainte</td>
+<td>0,232</td>
+<td>0,381</td>
+<td>16,13 m</td>
+<td>0,289</td>
+</tr><tr><td>poids 0,5 + franchissabilite</td>
+<td>0,224</td>
+<td><strong>0,800</strong></td>
+<td><strong>2,06 m</strong></td>
+<td>0,350</td>
+</tr></tbody></table><p>La derive positionnelle est corrigee sur les deux massifs, et spectaculairement sur ltcp (16,1 m -&gt; 2,1 m). La precision monte de 28 et 57 points relatifs.</p>
+<p><strong>Ce qui n’est pas resolu, et qu’il faut lire avant de s’y fier.</strong> Sur ltcp le F1 reste sous le montage couple d’origine (0,350 contre 0,394) : la contrainte y coupe le rappel, la production tombant de 2,91 a 1,28 km.</p>
+<p><em>(Mise a jour apres <code>dev/07</code> : le doute sur la fragilite du seuil, lui, est leve – voir la section suivante. Le deficit de rappel sur ltcp reste.)</em></p>
+<p>Le plancher est applique <strong>sans</strong> rendre les cellules infranchissables : un <code>NA</code> interdirait a l’agent de traverser vingt metres de ronces pour retrouver une piste degagee, et le hacherait a chaque fourre. C’est le mecanisme de trouee (<code>trouee_max</code>) qui arbitre sur la longueur du passage difficile.</p>
+</div>
+<div class="section level3">
+<h3 id="le-canal-de-surface-pesait-quatre-fois-trop-lourd-dans-la-detection-1-1-0">Le canal de surface pesait quatre fois trop lourd dans la detection<a class="anchor" aria-label="anchor" href="#le-canal-de-surface-pesait-quatre-fois-trop-lourd-dans-la-detection-1-1-0"></a></h3>
+<p>[dsr_indice_detection()] et [dsr_detecter()] passent de <code>surf = 2</code> a <code>surf = 0.5</code>. L’ancien defaut n’etait pas approximatif : mesure sur deux massifs, il etait <strong>la pire valeur de tout l’intervalle teste, moins bonne que retirer le canal purement et simplement</strong>.</p>
+<p>AUC route / hors route de l’indice, 15 tirages par point, ecart-type 0,006 (<code>dev/06_calibrer_surface.R</code>) :</p>
+<table class="table"><thead><tr><th>poids <code>surf</code>
+</th>
+<th>wsfi</th>
+<th>ltcp</th>
+</tr></thead><tbody><tr><td>0 (canal retire)</td>
+<td>0,715</td>
+<td>0,667</td>
+</tr><tr><td>0,25</td>
+<td>0,734</td>
+<td>0,682</td>
+</tr><tr><td><strong>0,5</strong></td>
+<td><strong>0,739</strong></td>
+<td><strong>0,684</strong></td>
+</tr><tr><td>1</td>
+<td>0,727</td>
+<td>0,679</td>
+</tr><tr><td>2 (ancien defaut)</td>
+<td>0,697</td>
+<td>0,666</td>
+</tr></tbody></table><p>Les deux massifs placent leur maximum au meme endroit. Bien dose, le canal apporte un gain net – +0,024 (4 ecarts-types) sur wsfi, +0,017 (2,8) sur ltcp –, ce qui ecarte la conclusion paresseuse qui aurait ete de le supprimer.</p>
+<p><strong>Ce que l’intuition avait mal lu.</strong> Le raisonnement d’origine (BRIEF section 3.9) tenait qu’une piste se lit d’abord dans la discontinuite du sous-etage, d’ou le poids double. Or <code>densite_sousetage</code> ne discrimine pas la presence d’une route : AUC <strong>0,535</strong> et <strong>0,521</strong>, le hasard. Ce n’est pas une defaillance du canal, c’est un malentendu sur la question qu’on lui pose. Il mesure un <strong>etat</strong> – emprise degagee ou recolonisee – et une route recolonisee reste une route. Un canal qui detecterait parfaitement la recolonisation aurait une AUC de 0,5 sur la question « y a-t-il une route ici ? ». Il garde donc toute sa valeur dans [dsr_etat()], ou c’est sa divergence avec <code>sigma_geo</code> qui parle ; il n’en a guere pour localiser.</p>
+<p>Le canal de surface reellement discriminant est <code>h_couvert</code> (AUC 0,660 sur ltcp), qui marque les routes par une vegetation haute plus basse : il lit l’ouverture de la canopee. C’est utile a faible poids, et c’est exactement pourquoi il ne faut pas le laisser dominer – une coupe rase ou une ligne electrique l’allument autant qu’une route, soit le faux positif « trouee sans route » que la table de divergence du BRIEF section 3.4 cherche a ecarter.</p>
+<p><strong>Calibrer <code>sigma_surf</code> a ete essaye, et rejete.</strong> Le reflexe, apres [dsr_calibrer_specs()], etait d’appliquer la meme recette au canal nuage. La mesure dit le contraire : les regles calibrees font tomber l’indice a 0,626 sur wsfi et 0,658 sur ltcp, sous le jeu par defaut. La calibration donne le poids fort a <code>h_couvert</code> et fabrique un detecteur de clairieres. Les signes de [dsr_specs_surface()] sont d’ailleurs confirmes corrects par la mesure – <code>densite_sousetage</code> decroissante, <code>taux_penetration</code> croissante. Contrairement au canal geomorphologique, ou le signe de la rugosite etait inverse, <strong>le defaut de surface n’etait pas faux ; seule sa ponderation dans la fusion l’etait.</strong></p>
+</div>
+<div class="section level3">
+<h3 id="les-regles-de-conductivite-se-calibrent-au-lieu-de-se-supposer-1-1-0">Les regles de conductivite se calibrent au lieu de se supposer<a class="anchor" aria-label="anchor" href="#les-regles-de-conductivite-se-calibrent-au-lieu-de-se-supposer-1-1-0"></a></h3>
+<p>[dsr_calibrer_specs()] mesure, canal par canal, ce qui distingue reellement une route de son environnement sur <strong>vos</strong> donnees, et en deduit des regles utilisables telles quelles par [dsr_conductivite()].</p>
+<p><strong>Ce qui l’a rendue necessaire.</strong> Les regles par defaut reposaient sur une intuition physique jamais mesuree : une route est lisse, elle occupe un creux, elle est lineaire. Confrontee a deux blocs Lidar HD, l’intuition sur la rugosite est <strong>fausse, et inversee</strong> – une piste empierree a ornieres est plus rugueuse, a 50 cm, qu’un versant forestier localement plan. Le canal le plus discriminant des deux jeux (AUC 0,78 et 0,68) etait donc utilise a l’envers, et <code>openness_neg</code> avec lui. La conductivite qui en resultait tombait au niveau du hasard :</p>
+<table class="table"><thead><tr><th>massif</th>
+<th>regles par defaut</th>
+<th>regles calibrees</th>
+</tr></thead><tbody><tr><td>wsfi (montagne, 4 dalles)</td>
+<td>0,523</td>
+<td><strong>0,787</strong></td>
+</tr><tr><td>ltcp (25 dalles)</td>
+<td>0,531</td>
+<td><strong>0,688</strong></td>
+</tr></tbody></table><p>Deux hypotheses ont ete testees et ecartees avant de conclure : un artefact de densite de points sol (correlation rugosite / <code>densite_sol</code> : <strong>-0,02</strong>), et un effet de bord capte par le tampon de mesure (a 1 m de l’axe, sur la chaussee meme, l’AUC monte a <strong>0,803</strong>). Les routes forestieres sont bel et bien plus rugueuses a 50 cm.</p>
+<p><strong>Pourquoi une fonction plutot qu’un nouveau defaut.</strong> Parce qu’un des canaux n’est pas stable. La <code>pente</code> marque les routes par le bas sur wsfi et par le haut sur ltcp : calibree sur un seul massif elle entre dans les regles, calibree sur les deux elle en est ecartee. Figer un signe qu’un troisieme massif pourrait dementir reproduirait l’erreur qu’on vient de corriger. La fonction accepte donc <strong>une liste de massifs</strong> et ne retient un canal que si son sens concorde partout – le <code>diagnostic</code> porte une colonne <code>stable</code> qui le dit.</p>
+<p>Le diagnostic est rendu meme quand aucune regle n’est produite : savoir qu’aucun canal ne discrimine est un resultat, et c’est ce qu’il faut lire avant de s’etonner d’une detection mediocre.</p>
+<p>La reference sert par sa POSITION seulement – la BD TOPO convient, sa largeur n’entre pas dans le calcul. Un reseau approximatif deplacerait les echantillons « presence » hors de l’emprise reelle et calibrerait du bruit.</p>
+<p><code><a href="../reference/dsr_specs_geomorpho.html">dsr_specs_geomorpho()</a></code> est inchangee : le defaut reste le defaut, et il est maintenant possible de le mesurer.</p>
+</div>
+<div class="section level3">
+<h3 id="acquisition--openstreetmap-et-ortho-ign-1-1-0">Acquisition : OpenStreetMap et ortho IGN<a class="anchor" aria-label="anchor" href="#acquisition--openstreetmap-et-ortho-ign-1-1-0"></a></h3>
+<p>Deux sources que le paquet ne produit pas mais dont il a besoin, entrees sans aucune dependance nouvelle.</p>
+<p>[dsr_osm()] telecharge les lineaires <code>highway</code>, <strong>dalle par dalle</strong> sur la grille kilometrique du Lidar HD – donc celle de [dsr_catalog()] et du reste du traitement. Une requete unique sur un massif entier depasse les quotas et echoue en bloc ; decoupee, elle devient une suite de requetes courtes dont chacune est relancable, et une dalle qui echoue n’emporte pas les autres. Les voies a cheval sur deux dalles sont dedupliquees par <code>osm_id</code>.</p>
+<p><strong>Pourquoi c’est utile.</strong> La question de [dsr_detecter()] – « quelle desserte la BD TOPO ignore-t-elle ? » – n’a pas de verite terrain par construction. OSM en couvre une partie : sur le bloc wsfi (4 km2), il porte 29,1 km contre 15,5 km a la BD TOPO, et <strong>56 % de ce lineaire est a plus de 20 m de toute route de la reference</strong>. C’est la premiere verite partielle disponible pour mesurer le rappel de la detection. Avec la meme reserve que pour toute sortie d’un autre algorithme : ni metre etalon de largeur, ni verite de position – une part du lineaire forestier y est tracee sur trace GPS agregee (<code>source=strava heatmap</code>).</p>
+<p>[dsr_ortho_ign()] telecharge l’ortho IRC de la Geoplateforme <strong>a sa resolution native</strong>, en tuilant la requete. Au-dela d’environ 4096 pixels de cote, un appel unique force a degrader la resolution ; comme tout l’interet du canal optique est d’etre a l’echelle d’une chaussee, on decoupe pour preserver le 20 cm.</p>
+<p>Trois pieges du WMS, tous silencieux, tous rencontres et documentes : le service <strong>impose <code>VERSION=1.3.0</code></strong> ; en <code>EPSG:2154</code> l’ordre des axes est <strong>(X, Y)</strong> et un BBOX inverse rend un GeoTIFF valide et <strong>entierement vide</strong> ; le GeoTIFF rendu <strong>n’a pas toujours de CRS</strong>, ce qui fait sortir des <code>CRS do not match</code> a chaque croisement ulterieur.</p>
+<p><strong>Une lecon, chere.</strong> Une instance Overpass saturee ne rend pas d’erreur : elle rend un XML bien forme de quelques centaines d’octets, ou elle fait attendre. Les deux cas ont ete pris pour « aucune donnee ici » pendant la validation – la meme requete relancee rendait 194 ko. La rotation d’instances est reprise de <code>foretaccess</code> (GPL-3), avec deux corrections qui la rendent effective : <code>osmdata::osmdata_sf()</code> boucle en backoff au lieu d’echouer, donc une rotation qui ne bascule que sur erreur n’est jamais atteinte, et <code><a href="https://rdrr.io/r/base/setTimeLimit.html" class="external-link">setTimeLimit()</a></code> n’y change rien puisqu’il n’interrompt pas un socket bloque dans du C. Le backend est donc <code>curl</code>, dont <code>--max-time</code> borne l’appel au niveau du processus. Une reponse portant un <code>&lt;remark&gt;</code> est un refus et declenche la bascule ; une reponse sans <code>&lt;way&gt;</code> ni <code>&lt;remark&gt;</code> est un vide legitime ; toutes instances refusant, <strong>on leve une erreur</strong> plutot qu’un resultat vide.</p>
+</div>
+<div class="section level3">
+<h3 id="dsr_layers_pc-et-dsr_gabarit_libre-acceptent-plusieurs-dalles-1-1-0">
+<code>dsr_layers_pc()</code> et <code>dsr_gabarit_libre()</code> acceptent plusieurs dalles<a class="anchor" aria-label="anchor" href="#dsr_layers_pc-et-dsr_gabarit_libre-acceptent-plusieurs-dalles-1-1-0"></a></h3>
+<p>Leur garde testait <code>!file.exists(dalle)</code> dans un <code>if</code> : elle erre des que le vecteur depasse un element (<code>'length = 4' in coercion to 'logical(1)'</code> sous R &gt;= 4.2), et la variante catalogue ne gardait que la <strong>premiere ligne</strong>, silencieusement.</p>
+<p>Consequence qui depasse la limitation : la strategie <code>concurrent_files</code> introduite plus bas dans ce meme cycle ne pouvait <strong>jamais</strong> se declencher, puisque <code>length(dalle)</code> valait toujours 1. Du code mort, documente comme fonctionnel, qu’aucun test n’a vu parce qu’ils exercaient <code>dsr_strategie_lasr()</code> isolement et jamais son integration.</p>
+<p>Les deux fonctions passent par <code>dsr_valider_dalles()</code>, qui accepte un vecteur ou un catalogue entier et nomme les fichiers manquants.</p>
+</div>
+<div class="section level3">
+<h3 id="le-vectoriseur-ne-depend-plus-de-vecnet-1-1-0">Le vectoriseur ne depend plus de <code>vecnet</code>
+<a class="anchor" aria-label="anchor" href="#le-vectoriseur-ne-depend-plus-de-vecnet-1-1-0"></a></h3>
+<p><code><a href="../reference/dsr_vectoriser.html">dsr_vectoriser()</a></code> s’appuyait, quand il etait installe, sur le paquet <code>vecnet</code> (Roussel <em>et al.</em> 2023). Cette dependance posait trois problemes : <code>vecnet</code> importe <code>sp</code>, <code>raster</code> et <code>gdistance</code> – la pile spatiale en fin de vie – alors que dessertR est terra/sf ; il n’est ni sur le CRAN ni sur un r-universe, donc non installable declarativement ; et il s’annonce « proof of concept », sans commit depuis septembre 2023.</p>
+<p>L’algorithme est desormais <strong>natif</strong> : [dsr_conduire()] reimplemente l’agent conducteur en terra/sf, sur le noyau Rust du paquet. La route est vectorisee en la <strong>parcourant</strong> – depuis une amorce orientee, l’agent avance par pas, regarde en eventail devant lui et part vers la direction la moins couteuse.</p>
+<p>C’est une difference de nature avec [dsr_pathfinder()], et c’est pourquoi les deux coexistent : le pathfinder relie deux points <strong>connus</strong>, il sait ou il va ; l’agent ne le sait pas, il suit la conductivite. D’ou deux proprietes que ni le pathfinder ni le squelette n’ont – il <strong>franchit les trouees</strong> de detection (le cout admissible est module par la <em>profondeur</em> du creux dans le profil angulaire, pas par sa seule valeur), et il <strong>decouvre les embranchements</strong>, les directions ecartees a chaque pas devenant les amorces du tour suivant.</p>
+<p>Le noyau Rust n’a pas eu a bouger : <code>dst</code> n’y servant qu’a un test d’egalite, une destination hors grille vide le tas et rend un champ de cout complet. Le un-vers-tous dont l’agent a besoin etait deja la. Le modele de cout, lui, etait deja celui de <code>gdistance</code> (resistance moyenne x distance), mais sur 16 voisins au lieu de 8 – sans le biais de metrication.</p>
+<p>[dsr_amorces()] fabrique les amorces. Deux sources, dont une qui n’a pas d’equivalent dans <code>vecnet</code> : les <strong>extremites libres du reseau de reference</strong>. Elles pointent exactement la ou la desserte cartographiee s’arrete, donc la ou commence celle qui manque – c’est le cas d’usage central du paquet, et <code>vecnet</code> ne dispose d’aucune reference pour le servir. A defaut, les entrees de route sur le bord de l’emprise sont balayees directement, la ou <code>vecnet</code> fait rouler un agent le long d’un contour interieur pour obtenir la meme chose.</p>
+<p><code>methode = "vecnet"</code> reste accepte et vaut <code>"agent"</code> : aucun code existant ne casse, et plus rien n’est charge. <code>"auto"</code> prend <code>"agent"</code>, avec repli annonce sur le squelette si aucune amorce n’est exploitable.</p>
+<p><strong>Un piege, corrige.</strong> Une trouee de detection (valeur basse) et une absence de donnee (<code>NA</code>) ne sont pas la meme chose. Les confondre – ce que fait <code>vecnet</code>, ou une conductivite nulle donne malgre tout un cout infini – laissait l’agent sortir de l’emprise qu’on lui avait fixee. Les <code>NA</code> restent infranchissables, et le regime <code>corridor</code> tient. De meme, une amorce dont le depart tombe hors donnee est ecartee : sans quoi un troncon de reference debordant de l’emprise ressortait tel quel comme une « route decouverte », alors que l’agent n’avait pas avance d’un metre. <code>n_troncons</code> permet desormais de distinguer les deux.</p>
+</div>
+<div class="section level3">
+<h3 id="cubature-deblai--remblai-1-1-0">Cubature deblai / remblai<a class="anchor" aria-label="anchor" href="#cubature-deblai--remblai-1-1-0"></a></h3>
+<p>[dsr_cubature()] chiffre, tous les <code>pas</code> metres, les volumes qu’exige la mise a un gabarit donne, par construction d’un profil en travers theorique confronte au terrain. Methode reimplementee d’apres CubaRoad (Dupire, SylvaLab / ONF, 2021).</p>
+<p>L’interet ne tient pas a la reprise de l’outil mais a son <strong>inversion</strong> : CubaRoad chiffre une route a construire sur MNT vierge, dessertR mesure des routes qui existent sur un MNT Lidar HD ou la plateforme est deja creusee. Le meme calcul repond alors a la question metier francaise – non pas « ou creer une route » mais « que coute la mise au gabarit de celle-ci ». [dsr_trafficability()] dit que le grumier ne passe pas ; la cubature dit combien pour qu’il passe.</p>
+<p>Le partage de l’assise entre deblai et remblai est arbitre par le <strong>ripage</strong>, interpolation du devers amont entre deux seuils : <code>largeur / 2 * (1 + ripage^2)</code>. Sur pente douce, deblai et remblai s’equilibrent ; sur pente raide, le remblai ne tient pas et tout passe en deblai. Le volume <strong>a evacuer</strong> n’est pas le volume de deblai : sur un profil equilibre, le deblai est reemploye sur place.</p>
+<p>Verifie analytiquement plutot que par non-regression : sur un plan incline, deblai et remblai ont une forme fermee. Pente 30 %, largeur 4 m, talus 100 %/60 % – theorie 0,857 m2 et 1,200 m2, calcul 0,857 et 1,202.</p>
+<p>Deux ecarts assumes avec CubaRoad : l’intersection talus/terrain est retenue au <strong>changement de signe</strong> et non sous une tolerance, qui echoue quand le croisement tombe entre deux echantillons ; et le point de niveau est choisi sur <strong>l’altitude</strong>, l’axe n’arbitrant qu’a egalite – l’autre regle biaisait l’ancrage de 0,17 m sur un versant a 30 %. Un defaut absent de la spec, trouve en ecrivant les tests : sur terrain plat le talus part du niveau du sol et ne le recoupe jamais, donc il courait jusqu’au bord du profil et fabriquait un volume entierement fictif.</p>
+<p>Restent a faire : le regime construction (comblement prealable de l’emprise existante), les lacets, et les sorties SIG assise/emprise.</p>
+</div>
+<div class="section level3">
+<h3 id="deux-specs-de-lots-non-arbitres-1-1-0">Deux specs de lots non arbitres<a class="anchor" aria-label="anchor" href="#deux-specs-de-lots-non-arbitres-1-1-0"></a></h3>
+<p><code>dev/SPEC_TRACER.md</code> et <code>dev/SPEC_CUBATURE.md</code> decrivent les equivalents dessertR de SylvaRoaD et CubaRoad, ecrits depuis la lecture du code des portages QGIS et non de leurs READMEs. La premiere pose surtout pourquoi la conception de trace neuf <strong>n’est pas</strong> <code><a href="../reference/dsr_pathfinder.html">dsr_pathfinder()</a></code> avec d’autres parametres : le cout d’une arete y depend de l’azimut et de la pente au noeud precedent, de la longueur cumulee en devers excessif et de la distance au dernier lacet, et chaque arete est testee en non-auto-intersection contre tout le chemin deja pose. Le probleme n’est pas markovien, un noyau dedie est necessaire.</p>
+</div>
+<div class="section level3">
+<h3 id="check--plus-aucun-warning-imputable-au-paquet-1-1-0">Check : plus aucun warning imputable au paquet<a class="anchor" aria-label="anchor" href="#check--plus-aucun-warning-imputable-au-paquet-1-1-0"></a></h3>
+<p><code>R CMD check</code> passe de trois WARNING a zero. <code>LICENSE</code> devient <code>LICENSE.md</code> (deja ignore a la construction), <code>CITATION.cff</code> sort de l’archive, <code>tools</code> quitte les Imports ou il ne servait a rien, et le lien Rd vers l’objet interne <code>DSR_CANAUX_DTM</code> devient du code inline.</p>
+</div>
+<div class="section level3">
+<h3 id="parallelisation--tous-les-coeurs-sauf-un-1-1-0">Parallelisation : tous les coeurs sauf un<a class="anchor" aria-label="anchor" href="#parallelisation--tous-les-coeurs-sauf-un-1-1-0"></a></h3>
+<p><code>lasR</code> alloue par defaut la moitie des coeurs ([lasR::half_cores()]). C’est un reglage prudent pour un usage interactif, trop prudent pour un traitement de bloc ou <code><a href="https://rdrr.io/pkg/lasR/man/exec.html" class="external-link">lasR::exec()</a></code> est le poste dominant du temps de calcul : sur une machine a 16 coeurs, la moitie du parc reste inutilisee pendant toute la lecture du nuage.</p>
+<p>[dsr_ncores()] pose la politique du paquet : <strong>tous les coeurs sauf un</strong>, au minimum 1. En garder un de libre laisse la machine utilisable et evite d’affamer les threads GDAL/terra qui tournent entre deux etages du pipeline.</p>
+<p>La base de calcul est [lasR::ncores()] – le nombre de threads que <code>lasR</code> peut reellement utiliser, soit 1 si la version installee est compilee sans OpenMP – et non <code><a href="https://rdrr.io/r/parallel/detectCores.html" class="external-link">parallel::detectCores()</a></code>, qui annoncerait des coeurs inexploitables.</p>
+<p>Trois garde-fous. L’option <code>dessertR.ncores</code> impose une valeur fixe. Le resultat est plafonne a 2 sous <code>R CMD check</code> (<code>_R_CHECK_LIMIT_CORES_</code>), comme l’exige la politique du CRAN. Enfin, une strategie posee globalement par [lasR::set_parallel_strategy()] reste prioritaire sur ce reglage : c’est <code>lasR</code> qui arbitre, le paquet ne fait que proposer un defaut moins timide.</p>
+<p>La strategie suit le nombre de dalles a traiter. Une seule dalle parallelise les <strong>points</strong> : il n’y a qu’un fichier a lire, rien a repartir entre threads de lecture. Plusieurs dalles parallelisent les <strong>fichiers</strong>, ou le gain est franc. Les deux appels <code><a href="https://rdrr.io/pkg/lasR/man/exec.html" class="external-link">lasR::exec()</a></code> du paquet ([dsr_layers_pc()] et [dsr_gabarit_libre()]) sont cables dessus, ainsi que le script <code>data-raw/make_example.R</code> – ce dernier en dur, puisqu’il tourne avant et independamment de l’installation du paquet.</p>
+<p>Aucun changement d’interface ni de resultat : a nombre de coeurs egal, les sorties sont identiques. Seul le temps de calcul bouge.</p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="1.0.0" id="dessertr-100">dessertR 1.0.0<a class="anchor" aria-label="anchor" href="#dessertr-100"></a></h2>
 <p>Premiere version complete. La chaine fonctionnelle du BRIEF est implementee de bout en bout (catalogage, canal geomorphologique + nuage, conductivite <code>sigma_geo</code> / <code>sigma_surf</code>, pathfinder anisotrope Rust, repositionnement contraint par la BD TOPO, etat par divergence, mesure de la geometrie, praticabilite grumier, topologie reseau, detection hors reference vectorisee, conductivite apprise, canal optique, export GPKG/QGIS), avec noyau Rust, jeu de validation reproductible sur donnees Lidar HD reelles et dalle d’exemple versionnee.</p>
