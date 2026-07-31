@@ -1,5 +1,50 @@
 # dessertR (cycle de developpement)
 
+## `rugosite` etait utilisee a l'envers dans les regles par defaut
+
+[dsr_specs_geomorpho()] declare desormais `rugosite` **croissante**. Le canal le
+plus discriminant du jeu etait utilise a l'envers depuis l'origine.
+
+**Le constat n'est pas neuf, la condition pour agir l'est.** La 1.0.0 avait
+mesure l'inversion, et avait choisi de ne PAS toucher au defaut : figer un signe
+qu'un troisieme jeu pourrait dementir aurait reproduit l'erreur qu'on venait de
+corriger. Trois jeux concordent maintenant -- wsfi, ltcp, et une dalle Lozere
+mesuree independamment par l'audit ForetAccess -- et la calibration conjointe
+rend `stable = TRUE`.
+
+| massif | AUC `rugosite` | sens |
+|---|---|---|
+| wsfi (1,5 km2) | 0,759 | +1 |
+| ltcp (1,5 km2) | 0,744 | +1 |
+| conjoint | **0,753** | **+1, stable** |
+
+**Ce que la correction rapporte**, AUC route / hors route de `sigma_geo` avec
+les regles par defaut :
+
+| massif | avant | apres |
+|---|---|---|
+| wsfi | 0,530 | **0,705** |
+| ltcp | **0,479** | **0,654** |
+
+**+0,175 sur chacun**, gain identique. A noter : sur ltcp le defaut precedent
+tombait **sous le hasard** -- il n'etait pas seulement inutile, il degradait.
+
+**Pourquoi l'intuition trompait.** Une route est censee etre lisse. A 50 cm de
+resolution c'est faux : une piste empierree a ornieres est plus rugueuse qu'un
+versant forestier localement plan, et dans une fenetre de quelques cellules
+c'est le profil en travers -- fosse, talus, devers -- qui domine, pas l'etat de
+la chaussee.
+
+**Les autres signes sont inchanges.** `pente` et `slrm` s'inversent d'un massif
+a l'autre (`stable = FALSE`) et n'ont rien a faire dans un defaut.
+`openness_neg` mesure `-1` sur les deux massifs, mais `+1` sur la dalle Lozere
+-- qui recouvre wsfi -- avec une AUC de 0,527 la ou le signe se decide : trop
+proche du hasard pour trancher. Il reste `croissante`.
+
+Ces regles restent un point de depart ; [dsr_calibrer_specs()] demeure le chemin
+recommande.
+
+
 ## La faiblesse de `sigma_surf` n'est pas un artefact de calcul
 
 Resultat **negatif**, et il ferme une piste que le cycle precedent laissait
