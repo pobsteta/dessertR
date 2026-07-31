@@ -61,7 +61,7 @@ moins couteuse. Reimplementation terra/sf de l'algorithme de vecnet
 <span>  trouee_max <span class="op">=</span> <span class="fl">2.5</span>,</span>
 <span>  max_pas <span class="op">=</span> <span class="fl">500</span>,</span>
 <span>  franchissabilite <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  franchissabilite_min <span class="op">=</span> <span class="fl">0.4</span></span>
+<span>  franchissabilite_min <span class="op">=</span> <span class="fl">0.45</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -133,9 +133,9 @@ Voir les details.</p></dd>
 
 <dt id="arg-franchissabilite-min">franchissabilite_min<a class="anchor" aria-label="anchor" href="#arg-franchissabilite-min"></a></dt>
 <dd><p>Seuil sous lequel une cellule est tenue pour
-refermee. Defaut 0.4. Sans effet si <code>franchissabilite</code> est <code>NULL</code>. Ce que
+refermee. Defaut 0.45. Sans effet si <code>franchissabilite</code> est <code>NULL</code>. Ce que
 ce chiffre fait reellement est explique dans les details – ce n'est pas
-tout a fait ce qu'il annonce.</p></dd>
+tout a fait ce qu'il annonce, et la valeur est mesuree, pas choisie.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -177,7 +177,7 @@ ferme, ce qui <strong>retenait</strong> l'agent. Ce garde-fou etait reel mais ac
 et il se payait d'une carte de detection degradee. Passer <code>franchissabilite</code>
 le retablit la ou il doit etre, sans rien devoir a la ponderation de la
 detection.</p>
-<p><strong>Ce que <code>franchissabilite_min = 0.4</code> fait vraiment.</strong> Pas ce que son nom
+<p><strong>Ce que <code>franchissabilite_min</code> fait vraiment.</strong> Pas ce que son nom
 laisse croire. Avec les regles par defaut de <code><a href="dsr_specs_surface.html">dsr_specs_surface()</a></code>, les
 bornes d'appartenance sont laissees a <code>NULL</code>, donc derivees des quantiles :
 <code>a</code> est la <strong>mediane</strong> du canal et <code>b</code> son 95e centile
@@ -186,22 +186,32 @@ construction, <code>mu(taux_penetration) = 0</code> – ramene au plancher <code
 – et <code>mu(densite_sousetage) = 1</code>. Leur fusion vaut alors
 <code>exp((2 * log(1) + log(0.05)) / 3) = 0.368</code>, et <code>sigma_surf</code> presente un mode
 massif a cette valeur : 50 % des cellules sur wsfi, 34 % sur ltcp.</p>
-<p>Le seuil de 0,4 se place juste au-dessus de ce mode. Il ne mesure donc pas
-une fermeture de sous-etage : il selectionne les cellules dont le <strong>taux de
-penetration depasse sa propre mediane</strong>. C'est un critere de RANG deguise en
-valeur absolue, et physiquement il dit « ne pas circuler la ou le lidar ne
-voit pas le sol ».</p>
+<p>Le seuil se place au-dessus de ce mode. Il ne mesure donc pas une fermeture
+de sous-etage : il selectionne les cellules dont le <strong>taux de penetration
+depasse sa propre mediane</strong>. C'est un critere de RANG deguise en valeur
+absolue, et physiquement il dit « ne pas circuler la ou le lidar ne voit pas
+le sol ».</p>
 <p>Cette lecture a une consequence pratique heureuse : le seuil se transporte
 d'un massif a l'autre bien mieux qu'un seuil absolu ne le devrait. Le taux de
-penetration brut vaut 0,04 sur wsfi et 0,31 sur ltcp – un facteur 7 – et le
-meme 0,4 convient aux deux, parce que la normalisation par quantiles absorbe
-l'ecart en amont. Elle a aussi une consequence genante, a garder en tete :
-fixer <code>a</code> et <code>b</code> explicitement dans <code>specs</code> deplace le mode et <strong>invalide le
-defaut de 0,4</strong>.</p>
-<p>Le balayage complet (<code>dev/07_calibrer_franchissabilite.R</code>, 8 seuils sur deux
-massifs) donne des F1 indiscernables entre 0,375 et 0,45. Ce qui compte n'est
-pas la valeur mais le COTE du mode : au-dessus, l'ecart median a la reference
-tombe a 2,1-3,1 m sur les deux massifs ; en dessous, il remonte a 4,4-11,2 m.</p>
+penetration brut vaut 0,04 sur wsfi et 0,31 sur ltcp – un facteur 7 – et la
+meme valeur convient aux deux, parce que la normalisation par quantiles
+absorbe l'ecart en amont. Elle a aussi une consequence genante : fixer <code>a</code> et
+<code>b</code> explicitement dans <code>specs</code> deplace le mode et <strong>invalide le defaut</strong>.</p>
+<p><strong>Pourquoi 0,45 et non 0,4.</strong> Le balayage
+(<code>dev/07_calibrer_franchissabilite.R</code>, 9 seuils sur deux massifs) donne des
+F1 <strong>indiscernables sur toute la plage</strong> – 0,355 a 0,367 une fois lisses, sur
+un profil chaotique : un petit deplacement du seuil change quelles amorces
+aboutissent, et la cascade se propage par le reseau accumule. Prendre
+l'argmax d'un tel profil serait du surajustement.</p>
+<p>C'est l'ECART A LA REFERENCE qui tranche :</p><table class="table table"><tr><td>seuil</td><td>ecart median wsfi</td><td>ecart median ltcp</td><td>moyenne</td></tr><tr><td>0,375</td><td>2,27 m</td><td><strong>13,37 m</strong></td><td>7,82 m</td></tr><tr><td>0,40</td><td>2,57 m</td><td><strong>12,91 m</strong></td><td>7,74 m</td></tr><tr><td><strong>0,45</strong></td><td>2,62 m</td><td><strong>4,06 m</strong></td><td><strong>3,34 m</strong></td></tr><tr><td>0,50</td><td>2,24 m</td><td>6,93 m</td><td>4,58 m</td></tr><tr><td>0,55</td><td>2,86 m</td><td>4,58 m</td><td>3,72 m</td></tr></table><p>Sur ltcp l'ecart vaut 4 a 7 m partout <strong>sauf entre 0,375 et 0,40</strong>, ou il
+explose a 13 m. L'anomalie est cette zone etroite – juste au-dessus du mode,
+la ou le plancher ecrase le contraste sur les deux tiers de la carte et laisse
+l'agent divaguer – et l'ancien defaut s'y trouvait. 0,45 en sort au premier
+cran, sans rien couter sur wsfi (2,62 contre 2,57 m).</p>
+<p>Une version anterieure de ce paragraphe concluait « ce qui compte est le cote
+du mode, au-dessus l'ecart tombe a 2-3 m sur les deux massifs ». C'etait
+mesure sur un agent qui perdait alors 19 amorces sur 26 sur ltcp (corrige
+depuis) ; la regle ne survit pas a la correction.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
