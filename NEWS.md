@@ -1,5 +1,52 @@
 # dessertR (cycle de developpement)
 
+## Les regles de conductivite se calibrent au lieu de se supposer
+
+[dsr_calibrer_specs()] mesure, canal par canal, ce qui distingue reellement une
+route de son environnement sur **vos** donnees, et en deduit des regles
+utilisables telles quelles par [dsr_conductivite()].
+
+**Ce qui l'a rendue necessaire.** Les regles par defaut reposaient sur une
+intuition physique jamais mesuree : une route est lisse, elle occupe un creux,
+elle est lineaire. Confrontee a deux blocs Lidar HD, l'intuition sur la
+rugosite est **fausse, et inversee** -- une piste empierree a ornieres est plus
+rugueuse, a 50 cm, qu'un versant forestier localement plan. Le canal le plus
+discriminant des deux jeux (AUC 0,78 et 0,68) etait donc utilise a l'envers, et
+`openness_neg` avec lui. La conductivite qui en resultait tombait au niveau du
+hasard :
+
+| massif | regles par defaut | regles calibrees |
+|---|---|---|
+| wsfi (montagne, 4 dalles) | 0,523 | **0,787** |
+| ltcp (25 dalles) | 0,531 | **0,688** |
+
+Deux hypotheses ont ete testees et ecartees avant de conclure : un artefact de
+densite de points sol (correlation rugosite / `densite_sol` : **-0,02**), et un
+effet de bord capte par le tampon de mesure (a 1 m de l'axe, sur la chaussee
+meme, l'AUC monte a **0,803**). Les routes forestieres sont bel et bien plus
+rugueuses a 50 cm.
+
+**Pourquoi une fonction plutot qu'un nouveau defaut.** Parce qu'un des canaux
+n'est pas stable. La `pente` marque les routes par le bas sur wsfi et par le
+haut sur ltcp : calibree sur un seul massif elle entre dans les regles,
+calibree sur les deux elle en est ecartee. Figer un signe qu'un troisieme
+massif pourrait dementir reproduirait l'erreur qu'on vient de corriger. La
+fonction accepte donc **une liste de massifs** et ne retient un canal que si
+son sens concorde partout -- le `diagnostic` porte une colonne `stable` qui le
+dit.
+
+Le diagnostic est rendu meme quand aucune regle n'est produite : savoir
+qu'aucun canal ne discrimine est un resultat, et c'est ce qu'il faut lire avant
+de s'etonner d'une detection mediocre.
+
+La reference sert par sa POSITION seulement -- la BD TOPO convient, sa largeur
+n'entre pas dans le calcul. Un reseau approximatif deplacerait les echantillons
+« presence » hors de l'emprise reelle et calibrerait du bruit.
+
+`dsr_specs_geomorpho()` est inchangee : le defaut reste le defaut, et il est
+maintenant possible de le mesurer.
+
+
 ## Acquisition : OpenStreetMap et ortho IGN
 
 Deux sources que le paquet ne produit pas mais dont il a besoin, entrees sans

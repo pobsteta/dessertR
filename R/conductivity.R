@@ -290,3 +290,172 @@ dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
   names(out) <- "sigma_surf"
   out
 }
+
+
+# --- Calibrage des regles d'appartenance sur donnee reelle -------------------
+
+# AUC de Mann-Whitney d'un canal, ORIENTEE. Un canal qui marque les routes par
+# le bas (creux, NDVI faible) est aussi informatif qu'un canal qui les marque
+# par le haut : on rend l'ecart au hasard et le sens separement.
+#' @noRd
+.dsr_auc_canal <- function(r, u, pres, absent, n) {
+  dedans <- terra::values(terra::mask(r, terra::vect(sf::st_buffer(u, pres))))
+  dehors <- terra::values(terra::mask(r, terra::vect(sf::st_buffer(u, absent)),
+    inverse = TRUE))
+  dedans <- dedans[is.finite(dedans)]
+  dehors <- dehors[is.finite(dehors)]
+  if (length(dedans) < 50L || length(dehors) < 50L) return(c(auc = NA, sens = NA))
+  a <- sample(dedans, min(n, length(dedans)))
+  b <- sample(dehors, min(n, length(dehors)))
+  auc <- mean(outer(a, b, ">")) + 0.5 * mean(outer(a, b, "=="))
+  c(auc = max(auc, 1 - auc), sens = if (auc >= 0.5) 1 else -1)
+}
+
+
+# Canaux d'une pile regroupes par BASE, chaque base moyennee sur ses echelles.
+# C'est exactement ce que fait .dsr_fusion_appartenance() : mesurer autrement
+# calibrerait autre chose que ce qui sera utilise.
+#' @noRd
+.dsr_bases_canaux <- function(couches, exclure = "theta") {
+  bases <- sub("_[0-9.]+$", "", names(couches))
+  setdiff(unique(bases), exclure)
+}
+
+
+#' Calibrer les regles de conductivite sur un reseau de reference
+#'
+#' Mesure, canal par canal, ce qui distingue reellement une route de son
+#' environnement sur **vos** donnees, et en deduit un jeu de regles utilisable
+#' tel quel par [dsr_conductivite()].
+#'
+#' @details
+#' **Pourquoi cette fonction existe.** Les regles par defaut
+#' ([dsr_specs_geomorpho()]) reposent sur une intuition physique : une route est
+#' lisse, elle occupe un creux, elle est lineaire. Mesuree sur deux massifs
+#' Lidar HD, l'intuition sur la rugosite est **fausse et inversee** -- une piste
+#' empierree a ornieres est plus rugueuse, a 50 cm, qu'un versant forestier
+#' localement plan. Le canal le plus discriminant des deux jeux (AUC 0,78 et
+#' 0,68) etait donc utilise a l'envers, et la conductivite qui en resultait
+#' tombait au niveau du hasard (0,51 et 0,54). Signes corriges, elle remonte a
+#' 0,77 et 0,72.
+#'
+#' **Ce que la fonction mesure.** Pour chaque canal, l'aire sous la courbe ROC
+#' entre les cellules proches du reseau de reference (`pres`) et celles qui en
+#' sont eloignees (`absent`). L'AUC est rendue **orientee** : 0,5 signifie
+#' aucun pouvoir discriminant, et `sens` dit si le canal marque la route par le
+#' haut ou par le bas. Les canaux multi-echelles sont regroupes par base et
+#' moyennes, comme le fait [dsr_conductivite()] -- mesurer autrement
+#' calibrerait autre chose que ce qui sera utilise.
+#'
+#' **Plusieurs massifs valent mieux qu'un, et pas seulement pour la precision.**
+#' En passant une liste, un canal n'est retenu que si son sens est **le meme
+#' partout**. Ce n'est pas un raffinement : sur les deux massifs de validation,
+#' la `pente` marque les routes par le bas dans l'un et par le haut dans
+#' l'autre. Calibree sur un seul, elle entrait dans les regles ; calibree sur
+#' les deux, elle en est ecartee. Un canal dont le signe depend du relief n'a
+#' rien a faire dans une regle.
+#'
+#' **Ce que la reference peut et ne peut pas etre.** Sa POSITION doit faire
+#' autorite -- la BD TOPO convient, sa precision planimetrique etant metrique.
+#' Sa largeur, non : elle n'entre pas dans le calcul. Un reseau approximatif
+#' (trace GPS, numerisation sur fond satellite) deplacerait les echantillons
+#' « presence » hors de l'emprise reelle et calibrerait du bruit.
+#'
+#' @param couches Un `SpatRaster` multi-bandes ([dsr_layers_dtm()]), ou une
+#'   **liste** de piles -- une par massif.
+#' @param reference Reseau de reference (`sf`/`sfc` de lignes), ou une liste de
+#'   meme longueur que `couches`.
+#' @param pres Distance (m) en deca de laquelle une cellule compte comme
+#'   « sur route ». Defaut 3.
+#' @param absent Distance (m) au-dela de laquelle une cellule compte comme
+#'   « hors route ». Defaut 20. La bande intermediaire est ignoree : c'est le
+#'   bord de plateforme, ni route ni environnement.
+#' @param auc_min AUC minimale pour qu'un canal entre dans les regles. Defaut
+#'   0.55. En dessous, le canal n'apporte pas de quoi payer le bruit qu'il
+#'   ajoute.
+#' @param poids_max Poids attribue au canal le plus discriminant ; les autres
+#'   sont proportionnels a leur ecart au hasard. Defaut 3.
+#' @param n Taille des echantillons compares. Defaut 2500.
+#' @param exclure Canaux ignores. Defaut `"theta"`, qui est une orientation et
+#'   non une intensite.
+#'
+#' @return Une liste : `specs`, directement utilisable comme argument `specs` de
+#'   [dsr_conductivite()], et `diagnostic`, un `data.frame` (`canal`, `auc`,
+#'   `sens`, `retenu`, `poids`) trie par pouvoir discriminant decroissant. Avec
+#'   plusieurs massifs, `auc` est la mediane et une colonne `stable` indique si
+#'   le sens concorde partout.
+#' @seealso [dsr_conductivite()], [dsr_specs_geomorpho()], [dsr_layers_dtm()].
+#' @examples
+#' \donttest{
+#' mnt <- terra::rast(nrows = 60, ncols = 60, xmin = 0, xmax = 60, ymin = 0,
+#'   ymax = 60, crs = "EPSG:2154")
+#' terra::values(mnt) <- runif(3600)
+#' couches <- dsr_layers_dtm(mnt, res = 1)
+#' axe <- sf::st_sfc(sf::st_linestring(cbind(c(5, 55), c(30, 30))), crs = 2154)
+#' cal <- dsr_calibrer_specs(couches, axe)
+#' cal$diagnostic
+#' }
+#' @export
+dsr_calibrer_specs <- function(couches, reference, pres = 3, absent = 20,
+                               auc_min = 0.55, poids_max = 3, n = 2500,
+                               exclure = "theta") {
+  if (inherits(couches, "SpatRaster")) couches <- list(couches)
+  if (inherits(reference, c("sf", "sfc"))) reference <- list(reference)
+  if (length(couches) != length(reference)) {
+    dsr_abort("{.arg couches} et {.arg reference} doivent avoir la meme longueur.")
+  }
+  if (pres >= absent) {
+    dsr_abort("{.arg pres} ({pres}) doit etre inferieur a {.arg absent} ({absent}).")
+  }
+
+  mesures <- list()
+  for (k in seq_along(couches)) {
+    pile <- couches[[k]]
+    if (!inherits(pile, "SpatRaster")) {
+      dsr_abort("{.arg couches} doit contenir des {.cls SpatRaster}.")
+    }
+    u <- sf::st_union(sf::st_geometry(reference[[k]]))
+    bases <- sub("_[0-9.]+$", "", names(pile))
+    for (base in .dsr_bases_canaux(pile, exclure)) {
+      idx <- which(bases == base)
+      # Moyenne des echelles avant mesure : c'est la grandeur que la fusion
+      # utilisera reellement.
+      r <- if (length(idx) == 1L) pile[[idx]] else terra::app(pile[[idx]], "mean")
+      a <- .dsr_auc_canal(r, u, pres, absent, n)
+      if (is.na(a["auc"])) next
+      mesures[[length(mesures) + 1L]] <- data.frame(
+        canal = base, massif = k, auc = unname(a["auc"]), sens = unname(a["sens"]))
+    }
+  }
+  if (!length(mesures)) dsr_abort("Aucun canal mesurable : verifier {.arg reference}.")
+  m <- do.call(rbind, mesures)
+
+  agg <- lapply(split(m, m$canal), function(d) data.frame(
+    canal = d$canal[1],
+    auc = stats::median(d$auc),
+    sens = if (length(unique(d$sens)) == 1L) d$sens[1] else NA_real_,
+    stable = length(unique(d$sens)) == 1L))
+  agg <- do.call(rbind, agg)
+  agg <- agg[order(-agg$auc), , drop = FALSE]
+
+  agg$retenu <- agg$stable & agg$auc >= auc_min
+  ecart <- pmax(agg$auc - 0.5, 0)
+  ref <- max(ecart[agg$retenu], 0)
+  agg$poids <- ifelse(agg$retenu & ref > 0,
+    pmax(1, round(poids_max * ecart / ref)), 0)
+
+  specs <- list()
+  for (i in which(agg$retenu)) {
+    specs[[agg$canal[i]]] <- list(
+      type = if (agg$sens[i] > 0) "croissante" else "decroissante",
+      poids = agg$poids[i])
+  }
+  if (!length(specs)) {
+    dsr_inform(c(
+      "!" = "Aucun canal n'atteint {.arg auc_min} = {auc_min}{if (length(couches) > 1) ' avec un sens stable' else ''}.",
+      "i" = "Le diagnostic reste exploitable ; abaisser le seuil ou verifier {.arg reference}."
+    ))
+  }
+  rownames(agg) <- NULL
+  list(specs = specs, diagnostic = agg)
+}

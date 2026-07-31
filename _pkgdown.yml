@@ -31,6 +31,7 @@ reference:
       - dsr_sigma_surf
       - dsr_appartenance
       - dsr_specs_geomorpho
+      - dsr_calibrer_specs
       - dsr_specs_surface
   - title: Conductivite apprise
     contents:
