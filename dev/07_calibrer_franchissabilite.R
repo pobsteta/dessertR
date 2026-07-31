@@ -99,7 +99,10 @@ preparer <- function(nom, cache, cache_autre) {
     cc[2] - cote/2, cc[2] + cote/2), terra::ext(cm))
   cemp <- sf::st_as_sfc(sf::st_bbox(cf)); sf::st_crs(cemp) <- sf::st_crs(cr)
   crd <- suppressWarnings(sf::st_cast(sf::st_intersection(cr, cemp), "LINESTRING"))
-  specs <- dsr_calibrer_specs(dsr_layers_dtm(terra::crop(cm, cf), res = 1), crd)$specs
+  # bornes = FALSE : calibration CROISEE, et les bornes absolues ne se
+  # transportent pas entre massifs (voir dev/10_ecart_massifs.R).
+  specs <- dsr_calibrer_specs(dsr_layers_dtm(terra::crop(cm, cf), res = 1), crd,
+    bornes = FALSE)$specs
   sigma <- dsr_conductivite(dsr_layers_dtm(mnt, res = 1), specs = specs)
 
   f_pc <- file.path(d_pc, sprintf("pc_%s.tif", nom))

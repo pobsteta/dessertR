@@ -1,5 +1,62 @@
 # dessertR (cycle de developpement)
 
+## L'ecart entre massifs venait surtout du protocole de mesure
+
+ltcp rendait systematiquement bien moins que wsfi (F1 0,30 contre 0,48 ; rappel
+0,21 contre 0,39), et l'explication naturelle etait un massif plus difficile --
+plaine, faible relief, empreinte geomorphologique tenue. **Les deux tiers de
+l'ecart venaient du protocole.**
+
+**Le mecanisme.** Les harnais calibrent sur un massif DISJOINT pour eviter la
+circularite, ce qui est juste. Mais depuis que [dsr_calibrer_specs()] rend des
+bornes absolues, ils transportaient aussi les **bornes**. Or une borne est dans
+l'unite du canal : celles d'une plaine appliquees a une montagne poussent tout
+au plafond, et inversement.
+
+| massif | bornes | mediane | contraste route / fond | AUC |
+|---|---|---|---|---|
+| wsfi | croisees | 0,578 | **+0,003** | 0,658 |
+| wsfi | propres | 0,101 | **+0,176** | 0,776 |
+| wsfi | sans bornes, croise | 0,252 | +0,140 | 0,708 |
+| ltcp | croisees | 0,087 | **+0,017** | 0,643 |
+| ltcp | propres | 0,112 | **+0,112** | 0,693 |
+| ltcp | sans bornes, croise | 0,192 | +0,115 | 0,682 |
+
+**L'AUC etait aveugle au defaut.** Elle bouge de quelques centiemes la ou le
+contraste est divise par **six a soixante**. C'est un critere de RANG, donc
+invariant d'echelle : elle survit intacte a l'effondrement du contraste. L'agent,
+lui, consomme des **valeurs** -- son cout admissible vaut
+`portee / conductivite_min` -- et divague des que l'echelle se deplace. Juger une
+carte a la seule AUC masque cette classe de defaut.
+
+**L'effet une fois corrige**, agent amorce par la reference, calibration croisee
+avec `bornes = FALSE` :
+
+| protocole | massif | rappel | precision | ecart median | F1 |
+|---|---|---|---|---|---|
+| bornes croisees | wsfi | 0,336 | 0,622 | 2,62 m | 0,437 |
+| bornes croisees | ltcp | 0,208 | 0,556 | 4,06 m | 0,303 |
+| **sans bornes** | wsfi | 0,381 | 0,607 | 3,20 m | **0,468** |
+| **sans bornes** | ltcp | **0,287** | **0,817** | **1,79 m** | **0,425** |
+
+L'ecart entre massifs tombe de **0,134 a 0,043**, et l'ecart median de ltcp
+descend a **1,79 m -- meilleur que wsfi**. Ce massif n'est pas intrinsequement
+difficile.
+
+**Le garde-fou.** [dsr_conductivite()] et [dsr_sigma_surf()] signalent desormais
+les canaux dont l'appartenance sature a plus de 80 % d'un seul cote, ce qui est
+la signature de bornes etrangeres a la donnee. Le controle ne porte que sur les
+bornes **explicites** : avec des bornes quantilees, la saturation est
+structurelle et non un defaut. Silence par
+`options(dessertR.verifier_bornes = FALSE)`.
+
+`dev/04` et `dev/07` passent a `bornes = FALSE`, leur calibration etant croisee.
+
+**Ce qui reste.** Un ecart residuel, bien plus petit, coherent avec le relief :
+pente mediane **2,3 deg sur ltcp contre 23,3 deg sur wsfi**. Une route de plaine
+laisse moins d'empreinte, et c'est une limite physique, pas un reglage.
+
+
 ## `franchissabilite_min` passe de 0,4 a 0,45
 
 Le defaut etait pose dans la seule zone de l'intervalle ou l'agent divague.

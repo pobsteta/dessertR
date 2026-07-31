@@ -105,9 +105,11 @@ test_that("dsr_sigma_surf : masque d'exclusion ramene a sigma_min", {
   couches <- c(sous, pen); names(couches) <- c("densite_sousetage", "taux_penetration")
   excl <- terra::rast(r); terra::values(excl) <- 0; excl[1, 1] <- 1
 
-  ss <- dsr_sigma_surf(couches,
+  # `sous` est constante : mu vaut 1 partout et le garde-fou de bornes le
+  # signale a juste titre. La degenerescence est ici voulue, on le tait.
+  ss <- suppressMessages(dsr_sigma_surf(couches,
     specs = list(densite_sousetage = list(type = "decroissante", a = 0, b = 1)),
-    masque_exclusion = excl, sigma_min = 0.05)
+    masque_exclusion = excl, sigma_min = 0.05))
   expect_equal(ss[1, 1][1, 1], 0.05, tolerance = 1e-9)
 })
 
@@ -140,4 +142,33 @@ test_that("le signe de rugosite change bien sigma_geo", {
 
   s <- terra::values(dsr_conductivite(pile), mat = FALSE)
   expect_gt(mean(s[sur_axe]), mean(s[!sur_axe]))
+})
+
+
+test_that("des bornes inadaptees a la donnee sont signalees", {
+  skip_if_not_installed("terra")
+  # Le cas reel : des specs calibrees sur un massif appliquees a un autre. Les
+  # bornes etant dans l'unite du canal, tout passe au plafond et le canal cesse
+  # de discriminer -- sans que l'AUC, invariante d'echelle, n'en montre rien.
+  r <- terra::rast(nrows = 20, ncols = 20, xmin = 0, xmax = 20, ymin = 0,
+    ymax = 20, crs = "EPSG:2154")
+  terra::values(r) <- seq(10, 20, length.out = terra::ncell(r))
+  pile <- r; names(pile) <- "rugosite"
+
+  # Bornes d'un terrain aux valeurs bien plus faibles : tout sature en haut.
+  inadapte <- list(rugosite = list(type = "croissante", a = 0, b = 1, poids = 1))
+  expect_message(dsr_conductivite(pile, specs = inadapte), "Bornes mal adaptees")
+
+  # Bornes ajustees a la donnee : aucun signalement.
+  adapte <- list(rugosite = list(type = "croissante", a = 12, b = 18, poids = 1))
+  expect_no_message(dsr_conductivite(pile, specs = adapte))
+
+  # Bornes derivees des quantiles (a/b absents) : hors du perimetre du controle,
+  # leur saturation est structurelle et non un defaut.
+  expect_no_message(dsr_conductivite(pile,
+    specs = list(rugosite = list(type = "croissante", poids = 1))))
+
+  # L'option coupe le controle.
+  withr::with_options(list(dessertR.verifier_bornes = FALSE),
+    expect_no_message(dsr_conductivite(pile, specs = inadapte)))
 })
