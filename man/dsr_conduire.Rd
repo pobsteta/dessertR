@@ -17,7 +17,7 @@ dsr_conduire(
   trouee_max = 2.5,
   max_pas = 500,
   franchissabilite = NULL,
-  franchissabilite_min = 0.4
+  franchissabilite_min = 0.45
 )
 }
 \arguments{
@@ -60,9 +60,9 @@ devenir infranchissables. \code{NULL} (defaut) pour ne poser aucune contrainte.
 Voir les details.}
 
 \item{franchissabilite_min}{Seuil sous lequel une cellule est tenue pour
-refermee. Defaut 0.4. Sans effet si \code{franchissabilite} est \code{NULL}. Ce que
+refermee. Defaut 0.45. Sans effet si \code{franchissabilite} est \code{NULL}. Ce que
 ce chiffre fait reellement est explique dans les details -- ce n'est pas
-tout a fait ce qu'il annonce.}
+tout a fait ce qu'il annonce, et la valeur est mesuree, pas choisie.}
 }
 \value{
 Une liste : \code{route} (\code{sfc} \code{LINESTRING}, l'amorce comprise),
@@ -114,7 +114,7 @@ et il se payait d'une carte de detection degradee. Passer \code{franchissabilite
 le retablit la ou il doit etre, sans rien devoir a la ponderation de la
 detection.
 
-\strong{Ce que \code{franchissabilite_min = 0.4} fait vraiment.} Pas ce que son nom
+\strong{Ce que \code{franchissabilite_min} fait vraiment.} Pas ce que son nom
 laisse croire. Avec les regles par defaut de \code{\link[=dsr_specs_surface]{dsr_specs_surface()}}, les
 bornes d'appartenance sont laissees a \code{NULL}, donc derivees des quantiles :
 \code{a} est la \strong{mediane} du canal et \code{b} son 95e centile
@@ -124,24 +124,46 @@ construction, \code{mu(taux_penetration) = 0} -- ramene au plancher \code{sigma_
 \code{exp((2 * log(1) + log(0.05)) / 3) = 0.368}, et \code{sigma_surf} presente un mode
 massif a cette valeur : 50 \% des cellules sur wsfi, 34 \% sur ltcp.
 
-Le seuil de 0,4 se place juste au-dessus de ce mode. Il ne mesure donc pas
-une fermeture de sous-etage : il selectionne les cellules dont le \strong{taux de
-penetration depasse sa propre mediane}. C'est un critere de RANG deguise en
-valeur absolue, et physiquement il dit « ne pas circuler la ou le lidar ne
-voit pas le sol ».
+Le seuil se place au-dessus de ce mode. Il ne mesure donc pas une fermeture
+de sous-etage : il selectionne les cellules dont le \strong{taux de penetration
+depasse sa propre mediane}. C'est un critere de RANG deguise en valeur
+absolue, et physiquement il dit « ne pas circuler la ou le lidar ne voit pas
+le sol ».
 
 Cette lecture a une consequence pratique heureuse : le seuil se transporte
 d'un massif a l'autre bien mieux qu'un seuil absolu ne le devrait. Le taux de
-penetration brut vaut 0,04 sur wsfi et 0,31 sur ltcp -- un facteur 7 -- et le
-meme 0,4 convient aux deux, parce que la normalisation par quantiles absorbe
-l'ecart en amont. Elle a aussi une consequence genante, a garder en tete :
-fixer \code{a} et \code{b} explicitement dans \code{specs} deplace le mode et \strong{invalide le
-defaut de 0,4}.
+penetration brut vaut 0,04 sur wsfi et 0,31 sur ltcp -- un facteur 7 -- et la
+meme valeur convient aux deux, parce que la normalisation par quantiles
+absorbe l'ecart en amont. Elle a aussi une consequence genante : fixer \code{a} et
+\code{b} explicitement dans \code{specs} deplace le mode et \strong{invalide le defaut}.
 
-Le balayage complet (\verb{dev/07_calibrer_franchissabilite.R}, 8 seuils sur deux
-massifs) donne des F1 indiscernables entre 0,375 et 0,45. Ce qui compte n'est
-pas la valeur mais le COTE du mode : au-dessus, l'ecart median a la reference
-tombe a 2,1-3,1 m sur les deux massifs ; en dessous, il remonte a 4,4-11,2 m.
+\strong{Pourquoi 0,45 et non 0,4.} Le balayage
+(\verb{dev/07_calibrer_franchissabilite.R}, 9 seuils sur deux massifs) donne des
+F1 \strong{indiscernables sur toute la plage} -- 0,355 a 0,367 une fois lisses, sur
+un profil chaotique : un petit deplacement du seuil change quelles amorces
+aboutissent, et la cascade se propage par le reseau accumule. Prendre
+l'argmax d'un tel profil serait du surajustement.
+
+C'est l'ECART A LA REFERENCE qui tranche :\tabular{llll}{
+   seuil \tab ecart median wsfi \tab ecart median ltcp \tab moyenne \cr
+   0,375 \tab 2,27 m \tab \strong{13,37 m} \tab 7,82 m \cr
+   0,40 \tab 2,57 m \tab \strong{12,91 m} \tab 7,74 m \cr
+   \strong{0,45} \tab 2,62 m \tab \strong{4,06 m} \tab \strong{3,34 m} \cr
+   0,50 \tab 2,24 m \tab 6,93 m \tab 4,58 m \cr
+   0,55 \tab 2,86 m \tab 4,58 m \tab 3,72 m \cr
+}
+
+
+Sur ltcp l'ecart vaut 4 a 7 m partout \strong{sauf entre 0,375 et 0,40}, ou il
+explose a 13 m. L'anomalie est cette zone etroite -- juste au-dessus du mode,
+la ou le plancher ecrase le contraste sur les deux tiers de la carte et laisse
+l'agent divaguer -- et l'ancien defaut s'y trouvait. 0,45 en sort au premier
+cran, sans rien couter sur wsfi (2,62 contre 2,57 m).
+
+Une version anterieure de ce paragraphe concluait « ce qui compte est le cote
+du mode, au-dessus l'ecart tombe a 2-3 m sur les deux massifs ». C'etait
+mesure sur un agent qui perdait alors 19 amorces sur 26 sur ltcp (corrige
+depuis) ; la regle ne survit pas a la correction.
 }
 \examples{
 # Carte synthetique : une route rectiligne de conductivite 1 sur fond a 0.1.
