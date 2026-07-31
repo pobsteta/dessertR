@@ -147,7 +147,7 @@
 # et emprises non franchissables rendues maximalement resistantes.
 #' @noRd
 .dsr_fenetre <- function(sigma, centre, ends, seuil, trace, reseau, tampon,
-                         barriere = NULL, barriere_min = NULL) {
+                         barriere = NULL, barriere_min = NULL, protege = NULL) {
   bb <- terra::ext(min(ends[, 1], centre[1]) - 3 * tampon,
                    max(ends[, 1], centre[1]) + 3 * tampon,
                    min(ends[, 2], centre[2]) - 3 * tampon,
@@ -193,9 +193,31 @@
 
   # Le reseau deja connu est INFRANCHISSABLE (NA) : c'est ce qui permet de
   # detecter qu'on l'a rejoint, le cout devenant inatteignable de ce cote.
+  #
+  # SAUF autour du point de DEPART. Les amorces sont posees sur le reseau de
+  # reference, et le reseau decouvert le recouvre par construction : sans cette
+  # exception, plus l'agent reussit tot, plus il rend infranchissable le depart
+  # de ses propres amorces suivantes. Mesure sur ltcp avant correction, 18 a 19
+  # amorces sur 26 mouraient en `depart_infranchissable` sans avoir avance d'un
+  # seul pas.
+  #
+  # Le trou est petit (`tampon`) et fixe sur le depart, pas sur la position
+  # courante : des que l'agent s'en eloigne, le reseau redevient infranchissable
+  # partout et la detection de jonction fonctionne normalement -- elle se joue de
+  # toute facon a `portee` metres devant, tres au-dela du trou.
+  #
+  # C'est la symetrie de ce que l'appelant fait deja pour la trace de l'agent
+  # lui-meme (voir dsr_conduire) : ne pas rendre son propre depart resistant.
   if (!is.null(reseau) && length(reseau)) {
-    m <- sf::st_buffer(sf::st_geometry(reseau), tampon)
-    f <- terra::mask(f, terra::vect(m), inverse = TRUE, updatevalue = NA)
+    m <- sf::st_union(sf::st_buffer(sf::st_geometry(reseau), tampon))
+    if (!is.null(protege)) {
+      trou <- sf::st_buffer(
+        sf::st_sfc(sf::st_point(protege), crs = sf::st_crs(reseau)), tampon)
+      m <- suppressWarnings(sf::st_difference(m, trou))
+    }
+    if (length(m) && !all(sf::st_is_empty(m))) {
+      f <- terra::mask(f, terra::vect(m), inverse = TRUE, updatevalue = NA)
+    }
   }
   # La trace deja parcourue est ramenee au plancher, ce qui interdit a l'agent
   # de repartir sur ses pas et de boucler.
@@ -367,6 +389,10 @@ dsr_conduire <- function(sigma, amorce, reseau = NULL, portee = 100, fov = 160,
   co <- sf::st_coordinates(geom)[, 1:2, drop = FALSE]
   n_co <- nrow(co)
   position <- co[n_co, ]
+  # Fige le point de depart : c'est autour de LUI, et non de la position
+  # courante, que le reseau existant cesse d'etre infranchissable (voir
+  # .dsr_fenetre). Suivre la position rendrait le reseau franchissable partout.
+  depart <- position
   # Cap pris sur la seconde moitie de l'amorce : le tout premier segment d'une
   # amorce courte est trop bruite pour donner une direction fiable.
   ref <- co[max(1L, n_co %/% 2L), ]
@@ -395,7 +421,8 @@ dsr_conduire <- function(sigma, amorce, reseau = NULL, portee = 100, fov = 160,
         sf::st_sfc(sf::st_linestring(do.call(rbind, segments[-length(segments)])), crs = crs)
       } else NULL
       fen <- .dsr_fenetre(sigma, position, ends, seuil, trace, reseau, tampon,
-        barriere = franchissabilite, barriere_min = franchissabilite_min)
+        barriere = franchissabilite, barriere_min = franchissabilite_min,
+        protege = depart)
       # Le test porte sur `sigma` et non sur la fenetre : dans la fenetre, le
       # reseau existant est masque en NA, et le confondre avec un bord d'emprise
       # ferait sortir l'agent par « hors_emprise » juste avant de le rejoindre.
