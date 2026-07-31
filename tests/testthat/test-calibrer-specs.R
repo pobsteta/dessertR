@@ -121,3 +121,47 @@ test_that("dsr_calibrer_specs refuse les entrees incoherentes", {
   # Sur du bruit, l'AUC doit rester au voisinage du hasard.
   expect_lt(max(cal$diagnostic$auc), 0.62)
 })
+
+
+test_that("les regles calibrees portent des bornes absolues", {
+  skip_if_not_installed("terra"); skip_if_not_installed("sf")
+  cal <- dsr_calibrer_specs(pile_synth(), axe_synth())
+  expect_true(length(cal$specs) > 0)
+  for (sp in cal$specs) {
+    expect_true(all(c("a", "b") %in% names(sp)))
+    expect_true(is.finite(sp$a) && is.finite(sp$b))
+    expect_lt(sp$a, sp$b)   # une rampe degeneree ne decrit rien
+  }
+  expect_true(all(c("a", "b") %in% names(cal$diagnostic)))
+
+  # bornes = FALSE rend le comportement historique : regles sans bornes.
+  sans <- dsr_calibrer_specs(pile_synth(), axe_synth(), bornes = FALSE)
+  expect_false(any(vapply(sans$specs, function(s) "a" %in% names(s), logical(1))))
+})
+
+
+test_that("les bornes rendent la conductivite independante de l'emprise", {
+  skip_if_not_installed("terra"); skip_if_not_installed("sf")
+  # C'est le defaut que ces bornes corrigent : sans elles, dsr_appartenance()
+  # derive ses bornes des quantiles de la fenetre recue, donc la meme cellule
+  # n'a pas la meme conductivite selon l'etendue qu'on soumet.
+  pile <- pile_synth()
+  cal <- dsr_calibrer_specs(pile, axe_synth())
+
+  petite <- terra::crop(pile, terra::ext(20, 100, 40, 80))
+  large <- pile
+
+  ancre_p <- dsr_conductivite(petite, specs = cal$specs)
+  ancre_l <- terra::crop(dsr_conductivite(large, specs = cal$specs),
+    terra::ext(ancre_p))
+  expect_equal(terra::values(ancre_p, mat = FALSE),
+    terra::values(ancre_l, mat = FALSE), tolerance = 1e-8)
+
+  # Sans bornes, les deux vues divergent.
+  sans <- dsr_calibrer_specs(pile, axe_synth(), bornes = FALSE)$specs
+  libre_p <- dsr_conductivite(petite, specs = sans)
+  libre_l <- terra::crop(dsr_conductivite(large, specs = sans),
+    terra::ext(libre_p))
+  expect_false(isTRUE(all.equal(terra::values(libre_p, mat = FALSE),
+    terra::values(libre_l, mat = FALSE), tolerance = 1e-8)))
+})

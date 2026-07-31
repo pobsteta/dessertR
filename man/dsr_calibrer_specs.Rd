@@ -12,7 +12,8 @@ dsr_calibrer_specs(
   auc_min = 0.55,
   poids_max = 3,
   n = 2500,
-  exclure = "theta"
+  exclure = "theta",
+  bornes = TRUE
 )
 }
 \arguments{
@@ -40,13 +41,17 @@ sont proportionnels a leur ecart au hasard. Defaut 3.}
 
 \item{exclure}{Canaux ignores. Defaut \code{"theta"}, qui est une orientation et
 non une intensite.}
+
+\item{bornes}{Produire aussi les bornes d'appartenance \code{a} et \code{b}, en unites
+du canal. Defaut \code{TRUE}. Voir « Bornes absolues » ci-dessous ; \code{FALSE}
+rend des regles sans bornes, donc \strong{relatives a l'emprise}.}
 }
 \value{
 Une liste : \code{specs}, directement utilisable comme argument \code{specs} de
 \code{\link[=dsr_conductivite]{dsr_conductivite()}}, et \code{diagnostic}, un \code{data.frame} (\code{canal}, \code{auc},
-\code{sens}, \code{retenu}, \code{poids}) trie par pouvoir discriminant decroissant. Avec
-plusieurs massifs, \code{auc} est la mediane et une colonne \code{stable} indique si
-le sens concorde partout.
+\code{sens}, \code{stable}, \code{retenu}, \code{poids}, \code{a}, \code{b}) trie par pouvoir
+discriminant decroissant. Avec plusieurs massifs, \code{auc} est la mediane et
+\code{stable} indique si le sens concorde partout.
 }
 \description{
 Mesure, canal par canal, ce qui distingue reellement une route de son
@@ -79,6 +84,34 @@ la \code{pente} marque les routes par le bas dans l'un et par le haut dans
 l'autre. Calibree sur un seul, elle entrait dans les regles ; calibree sur
 les deux, elle en est ecartee. Un canal dont le signe depend du relief n'a
 rien a faire dans une regle.
+
+\strong{Bornes absolues, et pourquoi elles comptent.} La fonction rend aussi les
+bornes \code{a} et \code{b} de chaque rampe, en unites du canal (\code{bornes = TRUE}).
+Ce n'est pas un agrement : sans elles, \code{\link[=dsr_appartenance]{dsr_appartenance()}} derive ses bornes
+des quantiles de la donnee qu'on lui passe, et \strong{la sortie depend alors de
+l'etendue analysee}. Mesure sur le bloc wsfi, une fenetre de 0,25 km2 rend
+116 m de desserte detectee analysee seule, et \strong{0 m} analysee au sein de
+4 km2 : le \code{seuil} de \code{\link[=dsr_detecter]{dsr_detecter()}} n'est pas une quantite absolue mais un
+rang dans la population fournie. Deux sites d'etendues differentes ne sont
+pas comparables, et le regime \code{corridor} change le bareme.
+
+La convention est de faire aller la rampe du typique de l'ENVIRONNEMENT
+(\code{mu = 0}) au franchement ROUTIER (\code{mu = 1}) :\tabular{lll}{
+   sens \tab \code{a} \tab \code{b} \cr
+   \code{croissante} \tab q50(absence) \tab q75(presence) \cr
+   \code{decroissante} \tab q25(presence) \tab q50(absence) \cr
+}
+
+
+Une borne, contrairement au sens et a l'AUC, est dans l'unite du canal et ne
+se transporte pas forcement d'un massif a l'autre -- le taux de penetration
+brut varie d'un facteur 7 entre les deux massifs de validation. Avec
+plusieurs massifs les bornes sont donc medianes, et \strong{calibrer sur les
+massifs qu'on va effectivement traiter reste la bonne pratique}.
+
+Cette correction ne suffit pas a elle seule a rendre une pile independante de
+l'emprise : \code{vesselness} est rescalee \strong{en amont} des fonctions
+d'appartenance et demande son propre ancrage (\code{\link[=dsr_c_vessel]{dsr_c_vessel()}}).
 
 \strong{Ce que la reference peut et ne peut pas etre.} Sa POSITION doit faire
 autorite -- la BD TOPO convient, sa precision planimetrique etant metrique.

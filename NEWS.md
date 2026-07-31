@@ -1,5 +1,70 @@
 # dessertR (cycle de developpement)
 
+## La detection ne depend plus de l'emprise qu'on lui passe
+
+Signale par un audit ForetAccess sur le commit `cb9376c` : `dsr_detecter()`
+rendait des resultats **differents pour le meme terrain** selon l'etendue du
+raster soumis. Le `seuil` n'etait pas une quantite absolue mais un **rang dans
+la population de l'emprise fournie** -- donc deux sites d'etendues differentes
+n'etaient pas comparables, et le regime `corridor`, qui restreint l'emprise,
+changeait le bareme du chantier.
+
+**Deux causes independantes, aucune suffisante seule.**
+
+1. [dsr_appartenance()] derive ses bornes des quantiles de la donnee recue
+   quand `a`/`b` ne sont pas fournis -- et ni [dsr_specs_geomorpho()] ni
+   [dsr_specs_surface()] ne les fournissent jamais.
+2. `dsr_frangi()` derive son `c` du maximum de la norme de Frobenius du Hessien
+   **de l'image**. Celui-ci agit **en amont** des fonctions d'appartenance :
+   aucune borne ne peut le rattraper. Mesure sur wsfi, `c` derive sur 3,12 km2
+   contre 0,25 km2 : **x1,65 / x2,14 / x2,27** aux echelles 1 / 2 / 4 m.
+
+**Les corrections.**
+
+- [dsr_c_vessel()] (nouveau) calcule le `c` d'une emprise de reference, une
+  valeur par echelle. [dsr_vesselness()] accepte desormais un vecteur en plus
+  du scalaire, et [dsr_layers_dtm()] le relaie via `c_vessel`. Un scalaire
+  unique ne convient pas : `c` varie de **x3,20** entre les echelles d'un meme
+  site, et l'aplatir fausserait la selection du maximum multi-echelle.
+- [dsr_calibrer_specs()] rend maintenant les bornes `a` et `b` avec les regles
+  (`bornes = TRUE`), en unites du canal. La rampe va du typique de
+  l'environnement au franchement routier : `croissante` -> `a` = q50(absence),
+  `b` = q75(presence) ; `decroissante` -> `a` = q25(presence), `b` = q50(absence).
+  Les quantiles sortent de la boucle qui calcule deja l'AUC, donc sans surcout.
+
+**La preuve** (`dev/08_ancrage_emprise.R`, wsfi, fenetre de 0,25 km2 comparee a
+elle-meme vue depuis 3,12 km2, interieur hors marge de bord) :
+
+| reglage | ecart max sur `sigma_geo` | lineaire detecte, fenetre vs bloc |
+|---|---|---|
+| aucun ancrage (etat audite) | 2,6e-01 | 1727 m vs 2328 m (**26 % d'ecart**) |
+| bornes seules | 1,9e-01 | — |
+| `c` seul | 2,3e-01 | — |
+| **bornes + `c`** | **2,1e-14** | **2552 m vs 2552 m (0 %)** |
+
+A la precision machine. Et les deux corrections sont bien necessaires : chacune
+prise seule laisse un ecart de l'ordre de 0,2 sur `sigma_geo`.
+
+**Ce que ca change en pratique.** [dsr_calibrer_specs()] devient suffisant a lui
+seul pour produire des regles absolues, ce qui etait sa vocation affichee. Une
+reserve demeure : une borne est dans l'unite du canal et ne se transporte pas
+forcement d'un massif a l'autre -- le taux de penetration brut varie d'un
+facteur 7 entre les deux massifs de validation. Avec plusieurs massifs les
+bornes sont medianes, et **calibrer sur les massifs qu'on va effectivement
+traiter reste la bonne pratique**.
+
+`bornes = FALSE` restaure l'ancien comportement, relatif a l'emprise.
+
+**Interaction avec le lot suivant, a lire.** Le seuil `franchissabilite_min` de
+[dsr_conduire()] vaut 0,4 parce qu'il se place juste au-dessus du mode que les
+bornes **quantilees** creent dans `sigma_surf` (section suivante). Calibrer les
+regles de SURFACE avec `bornes = TRUE` et les passer a [dsr_sigma_surf()]
+deplace ce mode et **invalide le defaut de 0,4**. Le cas ne se presente pas par
+defaut -- [dsr_specs_surface()] reste sans bornes, et calibrer le canal de
+surface a de toute facon ete mesure comme contre-productif -- mais qui le fait
+doit recalibrer son seuil.
+
+
 ## Le seuil de franchissabilite est un critere de rang deguise
 
 `franchissabilite_min` reste a **0,4**, mais on sait desormais pourquoi il

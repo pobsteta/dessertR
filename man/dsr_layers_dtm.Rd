@@ -10,6 +10,7 @@ dsr_layers_dtm(
   res = DSR_RES_MULTIECHELLE,
   rayons_openness = c(2, 5, 10),
   echelles_vessel = c(1, 2, 4),
+  c_vessel = NULL,
   fenetres_slrm = c(5, 15),
   fenetre_rugosite = 5
 )
@@ -27,6 +28,13 @@ Defaut \code{c(2, 5, 10)}.}
 
 \item{echelles_vessel}{Echelles de la vesselness, en metres. Defaut
 \code{c(1, 2, 4)}.}
+
+\item{c_vessel}{Sensibilite de la vesselness, \strong{une valeur par echelle}
+(aligne sur \code{echelles_vessel}) ou un scalaire. \code{NULL} (defaut) conserve le
+comportement historique : \code{c} derive de l'image, donc \strong{une sortie qui
+depend de l'etendue analysee}. Fixer ce vecteur -- via \code{\link[=dsr_c_vessel]{dsr_c_vessel()}}
+sur l'emprise de reference du chantier -- rend la pile comparable d'une
+fenetre a l'autre. Voir \code{\link[=dsr_vesselness]{dsr_vesselness()}}.}
 
 \item{fenetres_slrm}{Fenetres du SLRM, en metres. Defaut \code{c(5, 15)}.}
 

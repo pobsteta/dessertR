@@ -187,3 +187,78 @@ test_that("dsr_layers_dtm : pile attendue alignee sur la grille", {
   expect_equal(terra::res(pile), terra::res(grille))
   expect_equal(terra::origin(pile), terra::origin(grille))
 })
+
+
+# Terrain de test de l'ancrage : une vallee diagonale, plus une bosse marquee
+# hors de la fenetre centrale. C'est elle qui fait grimper le max de la norme du
+# Hessien sur la vue large, et donc qui deplace le bareme.
+mnt_ancrage <- function(n = 80) {
+  g <- terra::rast(nrows = n, ncols = n, xmin = 0, xmax = n, ymin = 0, ymax = n,
+    crs = "EPSG:2154")
+  xy <- terra::xyFromCell(g, seq_len(terra::ncell(g)))
+  d <- (xy[, 2] - xy[, 1]) / sqrt(2)
+  z <- 100 - 2 * exp(-(d^2) / (2 * 3^2))
+  bord <- xy[, 1] > 0.8 * n
+  z[bord] <- z[bord] - 15 * exp(-((xy[bord, 2] - 0.5 * n)^2) / (2 * 2^2))
+  terra::values(g) <- z
+  g
+}
+
+test_that("dsr_c_vessel rend une valeur par echelle, croissante avec l'emprise", {
+  skip_if_not_installed("terra")
+  g <- mnt_ancrage()
+  ech <- c(1, 2, 4)
+
+  cc <- dsr_c_vessel(g, echelles_m = ech)
+  expect_length(cc, 3)
+  expect_named(cc, c("c_1", "c_2", "c_4"))
+  expect_true(all(is.finite(cc) & cc > 0))
+
+  # Le defaut est relatif a l'emprise : la vue large contient la bosse, donc un
+  # maximum de norme plus eleve. C'est exactement le defaut que l'ancrage corrige.
+  petit <- dsr_c_vessel(terra::crop(g, terra::ext(0, 55, 0, 55)), echelles_m = ech)
+  expect_true(all(cc > petit))
+})
+
+test_that("un c fixe rend la vesselness independante de l'emprise", {
+  skip_if_not_installed("terra")
+  g <- mnt_ancrage()
+  ech <- c(1, 2)
+  fen <- terra::ext(10, 50, 10, 50)
+  cc <- dsr_c_vessel(g, echelles_m = ech)
+
+  # Ancre : la fenetre vue seule et vue depuis le bloc coincident.
+  seule <- dsr_vesselness(terra::crop(g, fen), echelles_m = ech, c = cc)
+  bloc <- terra::crop(dsr_vesselness(g, echelles_m = ech, c = cc), fen)
+  # Marge de bord : les fenetres focales different sur le pourtour.
+  interieur <- terra::ext(20, 40, 20, 40)
+  a <- terra::values(terra::crop(seule[["vesselness"]], interieur), mat = FALSE)
+  b <- terra::values(terra::crop(bloc[["vesselness"]], interieur), mat = FALSE)
+  expect_equal(a, b, tolerance = 1e-6)
+
+  # Sans ancrage, les deux vues divergent.
+  s2 <- terra::values(terra::crop(
+    dsr_vesselness(terra::crop(g, fen), echelles_m = ech)[["vesselness"]],
+    interieur), mat = FALSE)
+  b2 <- terra::values(terra::crop(
+    terra::crop(dsr_vesselness(g, echelles_m = ech), fen)[["vesselness"]],
+    interieur), mat = FALSE)
+  expect_false(isTRUE(all.equal(s2, b2, tolerance = 1e-6)))
+})
+
+test_that("c est valide, et dsr_layers_dtm le relaie", {
+  skip_if_not_installed("terra")
+  g <- mnt_ancrage(60)
+  expect_error(dsr_vesselness(g, echelles_m = c(1, 2, 4), c = c(1, 2)),
+    "longueur 3")
+  expect_error(dsr_vesselness(g, echelles_m = c(1, 2), c = -1), "positif")
+
+  # Un scalaire est accepte et applique a toutes les echelles.
+  expect_s4_class(dsr_vesselness(g, echelles_m = c(1, 2), c = 0.5), "SpatRaster")
+
+  # Le relais par la pile change bien la sortie.
+  auto <- dsr_layers_dtm(g, res = 1)[["vesselness"]]
+  ancre <- dsr_layers_dtm(g, res = 1, c_vessel = c(0.2, 0.2, 0.2))[["vesselness"]]
+  expect_false(isTRUE(all.equal(terra::values(auto, mat = FALSE),
+    terra::values(ancre, mat = FALSE))))
+})

@@ -304,11 +304,39 @@ dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
     inverse = TRUE))
   dedans <- dedans[is.finite(dedans)]
   dehors <- dehors[is.finite(dehors)]
-  if (length(dedans) < 50L || length(dehors) < 50L) return(c(auc = NA, sens = NA))
+  if (length(dedans) < 50L || length(dehors) < 50L) {
+    return(c(auc = NA, sens = NA, q25_pres = NA, q75_pres = NA, q50_abs = NA))
+  }
   a <- sample(dedans, min(n, length(dedans)))
   b <- sample(dehors, min(n, length(dehors)))
   auc <- mean(outer(a, b, ">")) + 0.5 * mean(outer(a, b, "=="))
-  c(auc = max(auc, 1 - auc), sens = if (auc >= 0.5) 1 else -1)
+  # Les quantiles des deux populations sortent de la MEME boucle que l'AUC :
+  # ils sont deja a portee, et ils fournissent les bornes d'appartenance
+  # absolues (voir .dsr_bornes_specs).
+  q <- stats::quantile(dedans, c(0.25, 0.75), na.rm = TRUE, names = FALSE)
+  c(auc = max(auc, 1 - auc), sens = if (auc >= 0.5) 1 else -1,
+    q25_pres = q[1], q75_pres = q[2],
+    q50_abs = stats::median(dehors, na.rm = TRUE))
+}
+
+
+# Bornes d'appartenance ABSOLUES a partir des deux populations mesurees.
+#
+# La rampe va du typique de l'ENVIRONNEMENT (mu = 0) au franchement ROUTIER
+# (mu = 1), en prenant le quantile de la population correspondante :
+#   croissante   a = q50(absence)  -> b = q75(presence)
+#   decroissante a = q25(presence) -> b = q50(absence)
+# Rappel de dsr_appartenance() : `decroissante` vaut (b - v)/(b - a), donc `a`
+# y est le cote ROUTE et `b` le cote environnement -- l'ordre n'est pas le meme
+# que pour `croissante`, et l'inverser retournerait la regle.
+#' @noRd
+.dsr_bornes_specs <- function(sens, q25_pres, q75_pres, q50_abs) {
+  ab <- if (sens > 0) c(q50_abs, q75_pres) else c(q25_pres, q50_abs)
+  # Une rampe degeneree (bornes confondues ou inversees) ne decrit rien : mieux
+  # vaut rendre NULL et laisser dsr_appartenance() retomber sur ses quantiles
+  # que fabriquer une regle qui classe tout du meme cote.
+  if (!all(is.finite(ab)) || ab[2] <= ab[1]) return(NULL)
+  ab
 }
 
 
@@ -355,6 +383,34 @@ dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
 #' les deux, elle en est ecartee. Un canal dont le signe depend du relief n'a
 #' rien a faire dans une regle.
 #'
+#' **Bornes absolues, et pourquoi elles comptent.** La fonction rend aussi les
+#' bornes `a` et `b` de chaque rampe, en unites du canal (`bornes = TRUE`).
+#' Ce n'est pas un agrement : sans elles, [dsr_appartenance()] derive ses bornes
+#' des quantiles de la donnee qu'on lui passe, et **la sortie depend alors de
+#' l'etendue analysee**. Mesure sur le bloc wsfi, une fenetre de 0,25 km2 rend
+#' 116 m de desserte detectee analysee seule, et **0 m** analysee au sein de
+#' 4 km2 : le `seuil` de [dsr_detecter()] n'est pas une quantite absolue mais un
+#' rang dans la population fournie. Deux sites d'etendues differentes ne sont
+#' pas comparables, et le regime `corridor` change le bareme.
+#'
+#' La convention est de faire aller la rampe du typique de l'ENVIRONNEMENT
+#' (`mu = 0`) au franchement ROUTIER (`mu = 1`) :
+#'
+#' | sens | `a` | `b` |
+#' | --- | --- | --- |
+#' | `croissante` | q50(absence) | q75(presence) |
+#' | `decroissante` | q25(presence) | q50(absence) |
+#'
+#' Une borne, contrairement au sens et a l'AUC, est dans l'unite du canal et ne
+#' se transporte pas forcement d'un massif a l'autre -- le taux de penetration
+#' brut varie d'un facteur 7 entre les deux massifs de validation. Avec
+#' plusieurs massifs les bornes sont donc medianes, et **calibrer sur les
+#' massifs qu'on va effectivement traiter reste la bonne pratique**.
+#'
+#' Cette correction ne suffit pas a elle seule a rendre une pile independante de
+#' l'emprise : `vesselness` est rescalee **en amont** des fonctions
+#' d'appartenance et demande son propre ancrage ([dsr_c_vessel()]).
+#'
 #' **Ce que la reference peut et ne peut pas etre.** Sa POSITION doit faire
 #' autorite -- la BD TOPO convient, sa precision planimetrique etant metrique.
 #' Sa largeur, non : elle n'entre pas dans le calcul. Un reseau approximatif
@@ -378,12 +434,15 @@ dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
 #' @param n Taille des echantillons compares. Defaut 2500.
 #' @param exclure Canaux ignores. Defaut `"theta"`, qui est une orientation et
 #'   non une intensite.
+#' @param bornes Produire aussi les bornes d'appartenance `a` et `b`, en unites
+#'   du canal. Defaut `TRUE`. Voir « Bornes absolues » ci-dessous ; `FALSE`
+#'   rend des regles sans bornes, donc **relatives a l'emprise**.
 #'
 #' @return Une liste : `specs`, directement utilisable comme argument `specs` de
 #'   [dsr_conductivite()], et `diagnostic`, un `data.frame` (`canal`, `auc`,
-#'   `sens`, `retenu`, `poids`) trie par pouvoir discriminant decroissant. Avec
-#'   plusieurs massifs, `auc` est la mediane et une colonne `stable` indique si
-#'   le sens concorde partout.
+#'   `sens`, `stable`, `retenu`, `poids`, `a`, `b`) trie par pouvoir
+#'   discriminant decroissant. Avec plusieurs massifs, `auc` est la mediane et
+#'   `stable` indique si le sens concorde partout.
 #' @seealso [dsr_conductivite()], [dsr_specs_geomorpho()], [dsr_layers_dtm()].
 #' @examples
 #' \donttest{
@@ -398,7 +457,7 @@ dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
 #' @export
 dsr_calibrer_specs <- function(couches, reference, pres = 3, absent = 20,
                                auc_min = 0.55, poids_max = 3, n = 2500,
-                               exclure = "theta") {
+                               exclure = "theta", bornes = TRUE) {
   if (inherits(couches, "SpatRaster")) couches <- list(couches)
   if (inherits(reference, c("sf", "sfc"))) reference <- list(reference)
   if (length(couches) != length(reference)) {
@@ -424,17 +483,27 @@ dsr_calibrer_specs <- function(couches, reference, pres = 3, absent = 20,
       a <- .dsr_auc_canal(r, u, pres, absent, n)
       if (is.na(a["auc"])) next
       mesures[[length(mesures) + 1L]] <- data.frame(
-        canal = base, massif = k, auc = unname(a["auc"]), sens = unname(a["sens"]))
+        canal = base, massif = k, auc = unname(a["auc"]), sens = unname(a["sens"]),
+        q25_pres = unname(a["q25_pres"]), q75_pres = unname(a["q75_pres"]),
+        q50_abs = unname(a["q50_abs"]))
     }
   }
   if (!length(mesures)) dsr_abort("Aucun canal mesurable : verifier {.arg reference}.")
   m <- do.call(rbind, mesures)
 
+  # Avec plusieurs massifs, les bornes sont MEDIANES sur les massifs. C'est un
+  # compromis assume : contrairement au sens et a l'AUC, une borne est dans
+  # l'unite du canal et ne se transporte pas forcement (le taux de penetration
+  # brut varie d'un facteur 7 entre deux massifs mesures). Calibrer sur les
+  # massifs qu'on va effectivement traiter reste la bonne pratique.
   agg <- lapply(split(m, m$canal), function(d) data.frame(
     canal = d$canal[1],
     auc = stats::median(d$auc),
     sens = if (length(unique(d$sens)) == 1L) d$sens[1] else NA_real_,
-    stable = length(unique(d$sens)) == 1L))
+    stable = length(unique(d$sens)) == 1L,
+    q25_pres = stats::median(d$q25_pres),
+    q75_pres = stats::median(d$q75_pres),
+    q50_abs = stats::median(d$q50_abs)))
   agg <- do.call(rbind, agg)
   agg <- agg[order(-agg$auc), , drop = FALSE]
 
@@ -444,11 +513,27 @@ dsr_calibrer_specs <- function(couches, reference, pres = 3, absent = 20,
   agg$poids <- ifelse(agg$retenu & ref > 0,
     pmax(1, round(poids_max * ecart / ref)), 0)
 
+  agg$a <- NA_real_
+  agg$b <- NA_real_
   specs <- list()
   for (i in which(agg$retenu)) {
-    specs[[agg$canal[i]]] <- list(
-      type = if (agg$sens[i] > 0) "croissante" else "decroissante",
+    sp <- list(type = if (agg$sens[i] > 0) "croissante" else "decroissante",
       poids = agg$poids[i])
+    if (bornes) {
+      ab <- .dsr_bornes_specs(agg$sens[i], agg$q25_pres[i], agg$q75_pres[i],
+        agg$q50_abs[i])
+      if (!is.null(ab)) {
+        sp$a <- ab[1]; sp$b <- ab[2]
+        agg$a[i] <- ab[1]; agg$b[i] <- ab[2]
+      }
+    }
+    specs[[agg$canal[i]]] <- sp
+  }
+  if (bornes && length(specs) && !any(is.finite(agg$a))) {
+    dsr_inform(c(
+      "!" = "Aucune borne absolue n'a pu etre derivee : les rampes seraient degenerees.",
+      "i" = "Les regles restent relatives a l'emprise ; verifier {.arg reference} et {.arg pres}/{.arg absent}."
+    ))
   }
   if (!length(specs)) {
     dsr_inform(c(
@@ -457,5 +542,7 @@ dsr_calibrer_specs <- function(couches, reference, pres = 3, absent = 20,
     ))
   }
   rownames(agg) <- NULL
+  agg <- agg[, setdiff(names(agg), c("q25_pres", "q75_pres", "q50_abs")),
+    drop = FALSE]
   list(specs = specs, diagnostic = agg)
 }

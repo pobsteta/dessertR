@@ -21,6 +21,7 @@ reference:
       - dsr_rugosite
       - dsr_slrm
       - dsr_vesselness
+      - dsr_c_vessel
       - dsr_canaux_externes
   - title: Canal surface et qualite (nuage)
     contents:
