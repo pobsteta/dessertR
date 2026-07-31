@@ -33,6 +33,23 @@
 #   DSR_WSFI / DSR_LTCP   caches des deux projets
 #   DSR_OUT               repertoire de sortie (defaut dev/out/franchissabilite)
 #   DSR_PC                cache des canaux nuage (defaut dev/out/surface)
+#
+# SECOND PASSAGE (1.1.0.9000)
+#
+#   Le premier passage a conclu au maintien de 0,4. Deux lots l'ont invalide
+#   depuis, et il faut le rejouer plutot que de s'y fier :
+#
+#     - dsr_calibrer_specs() rend desormais des bornes ABSOLUES, donc sigma_geo
+#       n'est plus le meme et le seuil derive de sa distribution non plus ;
+#     - dsr_conduire() ne tue plus les amorces posees sur le reseau deja
+#       decouvert. Le premier passage mesurait un agent qui perdait 19 amorces
+#       sur 26 sur ltcp -- et l'ordre de traitement decidait du resultat, ce qui
+#       rendait ce massif instable d'un passage a l'autre.
+#
+#   Autrement dit, le premier passage a compare des seuils sur un agent
+#   defaillant. Ses conclusions sur ltcp sont a jeter ; celles sur le mecanisme
+#   (le mode de sigma_surf vient du calcul) restent valides, elles ne dependent
+#   pas de l'agent.
 
 suppressMessages({library(terra); library(sf)})
 
@@ -54,7 +71,9 @@ cote <- 1000; tol <- 5
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 
 # Grille resserree autour du mode (0,368) : c'est la que le comportement bascule.
-SEUILS <- c(0.30, 0.35, 0.365, 0.375, 0.40, 0.45, 0.50, 0.60)
+# 0,55 ajoute au second passage : c'est vers la que l'optimum de ltcp semblait
+# se deplacer une fois les bornes absolues en place.
+SEUILS <- c(0.30, 0.35, 0.365, 0.375, 0.40, 0.45, 0.50, 0.55, 0.60)
 
 
 # --- Preparation ---------------------------------------------------------------

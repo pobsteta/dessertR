@@ -1,5 +1,49 @@
 # dessertR (cycle de developpement)
 
+## `franchissabilite_min` passe de 0,4 a 0,45
+
+Le defaut etait pose dans la seule zone de l'intervalle ou l'agent divague.
+
+**Pourquoi rejouer le balayage.** Le premier passage avait conclu au maintien de
+0,4. Deux lots l'ont invalide depuis : [dsr_calibrer_specs()] rend des bornes
+absolues, donc `sigma_geo` et le seuil derive de sa distribution ne sont plus
+les memes ; et surtout [dsr_conduire()] ne tue plus les amorces posees sur le
+reseau deja decouvert. **Le premier passage comparait des seuils sur un agent
+qui perdait 19 amorces sur 26 sur ltcp**, et dont le resultat dependait de
+l'ordre de traitement. Ses conclusions chiffrees etaient sans valeur.
+
+**Le F1 ne tranche pas.** Neuf seuils, deux massifs
+(`dev/07_calibrer_franchissabilite.R`) : une fois lisse, le F1 moyen tient entre
+**0,355 et 0,367** sur toute la plage. Le profil est *chaotique* -- un petit
+deplacement du seuil change quelles amorces aboutissent, et la cascade se
+propage par le reseau accumule. Prendre l'argmax d'un tel profil serait du
+surajustement, et c'est d'ailleurs ce qui faisait « preferer » 0,55 a ltcp et
+0,40 a wsfi.
+
+**C'est l'ecart a la reference qui tranche :**
+
+| seuil | ecart median wsfi | ecart median ltcp | moyenne |
+|---|---|---|---|
+| 0,375 | 2,27 m | **13,37 m** | 7,82 m |
+| **0,40 (ancien defaut)** | 2,57 m | **12,91 m** | **7,74 m** |
+| **0,45 (nouveau)** | 2,62 m | **4,06 m** | **3,34 m** |
+| 0,50 | 2,24 m | 6,93 m | 4,58 m |
+| 0,55 | 2,86 m | 4,58 m | 3,72 m |
+
+Sur ltcp l'ecart vaut 4 a 7 m partout **sauf entre 0,375 et 0,40**, ou il
+explose a 13 m -- juste au-dessus du mode, la ou le plancher ecrase le contraste
+sur les deux tiers de la carte et laisse l'agent divaguer. L'ancien defaut
+etait dans cette fenetre etroite. 0,45 en sort au premier cran, **sans rien
+couter sur wsfi** (2,62 contre 2,57 m) et en divisant l'ecart moyen par deux.
+
+**Une regle enoncee en 1.1.0 ne survit pas.** Elle disait « ce qui compte est le
+cote du mode : au-dessus, l'ecart tombe a 2-3 m sur les deux massifs ». C'etait
+mesure sur l'agent defaillant. Corrige, `sigma_surf` inchange, l'affirmation est
+fausse sur ltcp : juste au-dessus du mode est precisement le pire endroit. Le
+mecanisme du mode (il vient du calcul, pas du terrain) reste valide, lui -- il
+ne depend pas de l'agent.
+
+
 ## L'agent sabotait ses propres amorces
 
 [dsr_conduire()] rendait le reseau deja decouvert infranchissable **y compris
