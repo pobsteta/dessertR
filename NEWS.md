@@ -1,3 +1,49 @@
+# dessertR (cycle de developpement)
+
+## La faiblesse de `sigma_surf` n'est pas un artefact de calcul
+
+Resultat **negatif**, et il ferme une piste que le cycle precedent laissait
+ouverte. Aucun changement de code : seulement une hypothese testee et abandonnee.
+
+**L'hypothese.** La version 1.1.0 constatait que les bornes quantilees saturent
+la moitie de `sigma_surf` -- `mu(taux_penetration) = 0` et
+`mu(densite_sousetage) = 1` par construction -- et suggerait que son AUC
+mediocre (0,578 et 0,607) pourrait n'etre qu'un artefact de cette saturation.
+[dsr_calibrer_specs()] rendant desormais des bornes absolues, l'hypothese
+devenait testable (`dev/09_bornes_surface.R`).
+
+| massif | regles | AUC `sigma_surf` | saturation |
+|---|---|---|---|
+| wsfi | defaut | 0,583 | 50,1 % |
+| wsfi | calibre nu, croise | 0,528 | 30,4 % |
+| wsfi | calibre + bornes, croise | 0,524 | 31,7 % |
+| wsfi | calibre + bornes, *propre* | 0,577 | 58,3 % |
+| ltcp | defaut | 0,599 | 34,0 % |
+| ltcp | calibre nu, croise | 0,613 | 57,3 % |
+| ltcp | calibre + bornes, croise | 0,604 | 23,5 % |
+| ltcp | calibre + bornes, *propre* | **0,645** | 43,1 % |
+
+**La saturation n'explique rien.** Sur wsfi, la faire tomber de 50,1 % a 31,7 %
+fait *baisser* l'AUC a 0,524 ; et le meilleur reglage du massif (0,577) est
+celui ou elle *monte* a 58,3 %. Les deux grandeurs ne sont pas liees.
+
+**Et le plafond est bas.** Le protocole « propre » calibre sur le massif
+lui-meme, donc les regles ont vu les reponses : c'est un majorant optimiste,
+pas une mesure. Meme la, le gain est nul sur wsfi (-0,006) et modeste sur ltcp
+(+0,045).
+
+**Les bornes ne se transportent pas**, comme annonce en 1.1.0 : calibrees sur
+l'autre massif elles coutent -0,059 sur wsfi. Une borne est dans l'unite du
+canal, et `taux_penetration` brut differe d'un facteur 7 entre les deux
+massifs. Le protocole croise est le seul honnete, et c'est le moins bon.
+
+**Conclusion.** La faiblesse de `sigma_surf` pour LOCALISER une route est
+physique, pas computationnelle -- coherent avec ce qui etait deja etabli sur
+`densite_sousetage` : ce canal mesure un **etat**, et on lui pose la mauvaise
+question en lui demandant ou est la route. Inutile d'investir davantage dans
+son reparametrage ; le levier est ailleurs.
+
+
 # dessertR 1.1.0
 
 Version de la **mesure contre l'intuition**. Quatre reglages qui reposaient sur
