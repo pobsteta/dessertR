@@ -15,7 +15,9 @@ dsr_conduire(
   tampon = 10,
   avance = 0.8,
   trouee_max = 2.5,
-  max_pas = 500
+  max_pas = 500,
+  franchissabilite = NULL,
+  franchissabilite_min = 0.4
 )
 }
 \arguments{
@@ -50,6 +52,15 @@ embranchements situes juste avant le point vise.}
 portee. Defaut 2.5.}
 
 \item{max_pas}{Nombre maximal de pas. Defaut 500.}
+
+\item{franchissabilite}{\code{SpatRaster} \strong{aligne sur \code{sigma}} disant ou
+l'emprise est encore degagee -- typiquement \code{\link[=dsr_sigma_surf]{dsr_sigma_surf()}}. Les cellules
+sous \code{franchissabilite_min} deviennent maximalement resistantes sans
+devenir infranchissables. \code{NULL} (defaut) pour ne poser aucune contrainte.
+Voir les details.}
+
+\item{franchissabilite_min}{Seuil sous lequel une cellule est tenue pour
+refermee. Defaut 0.4. Sans effet si \code{franchissabilite} est \code{NULL}.}
 }
 \value{
 Une liste : \code{route} (\code{sfc} \code{LINESTRING}, l'amorce comprise),
@@ -83,6 +94,23 @@ pour explorer le reseau de proche en proche.
 n'est admissible, quand il sort de l'emprise, quand il a roule trop longtemps
 au-dessus du cout maximal (\code{trouee_max} fois la portee), ou apres \code{max_pas}
 pas.
+
+\strong{Suivre une carte et etre arrete par une autre.} \code{sigma} dit ou aller,
+\code{franchissabilite} dit ou l'on ne passe plus. C'est la separation posee par
+le BRIEF section 3.4 -- \code{sigma_geo} porte l'empreinte, \code{sigma_surf} porte
+l'etat present -- appliquee au conducteur : il suit l'empreinte et se fait
+freiner par l'etat, au lieu de suivre un melange des deux.
+
+Cette separation a ete introduite apres une mesure. \code{dsr_indice_detection()}
+ponderait le canal de surface a 2 ; ramene a sa valeur mesuree (0,5), la
+carte s'ameliore nettement (AUC 0,698 -> 0,738) et le vectoriseur par
+squelette avec elle, mais l'agent, lui, se degrade -- il divague, son ecart
+median a la reference passant de 3,3 a 5,2 m. L'explication tient en une
+phrase : l'ancien poids ecrasait la carte partout ou le sous-etage est
+ferme, ce qui \strong{retenait} l'agent. Ce garde-fou etait reel mais accidentel,
+et il se payait d'une carte de detection degradee. Passer \code{franchissabilite}
+le retablit la ou il doit etre, sans rien devoir a la ponderation de la
+detection.
 }
 \examples{
 # Carte synthetique : une route rectiligne de conductivite 1 sur fond a 0.1.

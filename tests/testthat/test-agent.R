@@ -288,3 +288,45 @@ test_that("l'agent ne sort pas de l'emprise qu'on lui a fixee", {
   a <- dsr_conduire(r, amorce_ouest(), portee = 40)
   expect_lte(max(sf::st_coordinates(a$route)[, 1]), 122)
 })
+
+
+test_that("franchissabilite retient l'agent sans le hacher", {
+  # Une route parfaite, mais dont l'emprise est refermee au-dela de x = 120.
+  # L'agent doit ralentir la, pas s'y arreter net : c'est ce qui distingue un
+  # plancher d'une barriere, et ce qui lui garde sa robustesse aux trouees.
+  r <- carte_route()
+  surf <- terra::rast(r)
+  terra::values(surf) <- 1
+  surf[terra::xyFromCell(surf, seq_len(terra::ncell(surf)))[, 1] > 120] <- 0.1
+
+  libre <- dsr_conduire(r, amorce_ouest(), portee = 40)
+  freine <- dsr_conduire(r, amorce_ouest(), portee = 40,
+    franchissabilite = surf, franchissabilite_min = 0.4)
+
+  # Le trajet est raccourci par la contrainte, mais l'agent a bien roule.
+  expect_gt(freine$n_troncons, 0L)
+  expect_lt(x_final(freine), x_final(libre))
+})
+
+
+test_that("franchissabilite : NULL n'a aucun effet, et un raster desaligne est refuse", {
+  r <- carte_route()
+
+  # Le defaut ne doit rien changer au comportement historique.
+  sans <- dsr_conduire(r, amorce_ouest(), portee = 40)
+  nul <- dsr_conduire(r, amorce_ouest(), portee = 40, franchissabilite = NULL)
+  expect_equal(x_final(nul), x_final(sans))
+
+  # Une grille differente est une erreur explicite, pas un silence.
+  autre <- terra::rast(nrows = 10, ncols = 10, xmin = 0, xmax = 200,
+    ymin = 0, ymax = 200, crs = "EPSG:2154")
+  terra::values(autre) <- 1
+  expect_error(
+    dsr_conduire(r, amorce_ouest(), portee = 40, franchissabilite = autre),
+    "aligne"
+  )
+  expect_error(
+    dsr_conduire(r, amorce_ouest(), portee = 40, franchissabilite = "pas un raster"),
+    "SpatRaster"
+  )
+})

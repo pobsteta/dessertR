@@ -37,7 +37,12 @@ dsr_detecter(
 les structures lineaires ; \code{NULL} pour l'ignorer.}
 
 \item{sigma_surf}{Conductivite de surface (\code{\link[=dsr_sigma_surf]{dsr_sigma_surf()}}) — le canal qui
-distingue une piste ouverte d'une trace fossile ; \code{NULL} pour s'en passer.}
+distingue une piste ouverte d'une trace fossile ; \code{NULL} pour s'en passer.
+Il sert \strong{deux fois} : comme preuve de presence dans l'indice (poids 0,5,
+voir \code{\link[=dsr_indice_detection]{dsr_indice_detection()}}) et, avec \code{methode = "agent"}, comme
+contrainte de franchissabilite transmise a \code{\link[=dsr_conduire]{dsr_conduire()}}. Ce ne sont pas
+deux emplois du meme signal mais deux questions differentes -- ou est la
+route, et ou l'on ne passe plus.}
 
 \item{seuil}{Seuil de binarisation de \code{p_desserte}. Defaut 0.6.}
 

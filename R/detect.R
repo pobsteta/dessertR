@@ -382,6 +382,11 @@ dsr_vectoriser <- function(p, seuil = 0.6,
 #'   les structures lineaires ; `NULL` pour l'ignorer.
 #' @param sigma_surf Conductivite de surface ([dsr_sigma_surf()]) — le canal qui
 #'   distingue une piste ouverte d'une trace fossile ; `NULL` pour s'en passer.
+#'   Il sert **deux fois** : comme preuve de presence dans l'indice (poids 0,5,
+#'   voir [dsr_indice_detection()]) et, avec `methode = "agent"`, comme
+#'   contrainte de franchissabilite transmise a [dsr_conduire()]. Ce ne sont pas
+#'   deux emplois du meme signal mais deux questions differentes -- ou est la
+#'   route, et ou l'on ne passe plus.
 #' @param seuil Seuil de binarisation de `p_desserte`. Defaut 0.6.
 #' @param seuil_vessel Debut de la rampe d'appartenance sur `vesselness`. Defaut
 #'   0.3.
@@ -441,10 +446,27 @@ dsr_detecter <- function(sigma_geo, reference = NULL, vesselness = NULL,
     reference = reference, buffer_ref = buffer_ref,
     emprise = if (regime == "corridor") emprise else NULL
   )
-  dsr_vectoriser(p, seuil = seuil, methode = methode, long_min = long_min,
-    ratio_min = ratio_min, pas_bin = pas_bin, elaguer = elaguer,
-    lissage = lissage, lissage_par = lissage_par, raccorder = raccorder,
-    simplifier = simplifier, reference = reference)
+  # Le canal de surface joue DEUX roles distincts, et un seul passe par `poids`.
+  # Dans l'indice il est une PREUVE de presence, ponderee a 0,5 (voir
+  # dsr_indice_detection). Pour l'agent il est une contrainte de
+  # FRANCHISSABILITE : il ne dit pas ou est la route, il dit ou l'on ne passe
+  # plus. Le lui transmettre a ce titre n'est pas un doublon, c'est la
+  # separation du BRIEF section 3.4 appliquee jusqu'au bout.
+  #
+  # Sans cela le reglage mesure du poids se paierait d'un agent qui divague :
+  # sur deux massifs, ramener le poids de 2 a 0,5 SANS transmettre la contrainte
+  # fait passer l'ecart median a la reference de 3,3 a 5,2 m et de 4,6 a 16,1 m.
+  # Avec elle, il tombe a 2,4 et 2,1 m.
+  sup <- if (methode %in% c("agent", "auto") && !is.null(sigma_surf)) {
+    list(franchissabilite = sigma_surf)
+  } else {
+    list()
+  }
+  do.call(dsr_vectoriser, c(list(p, seuil = seuil, methode = methode,
+    long_min = long_min, ratio_min = ratio_min, pas_bin = pas_bin,
+    elaguer = elaguer, lissage = lissage, lissage_par = lissage_par,
+    raccorder = raccorder, simplifier = simplifier, reference = reference),
+    sup))
 }
 
 
