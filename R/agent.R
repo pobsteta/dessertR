@@ -143,9 +143,11 @@
 
 
 # Fenetre de travail d'un pas : le raster recadre sur l'eventail, plancher de
-# conductivite applique, trace deja parcourue et reseau existant neutralises.
+# conductivite applique, trace deja parcourue et reseau existant neutralises,
+# et emprises non franchissables rendues maximalement resistantes.
 #' @noRd
-.dsr_fenetre <- function(sigma, centre, ends, seuil, trace, reseau, tampon) {
+.dsr_fenetre <- function(sigma, centre, ends, seuil, trace, reseau, tampon,
+                         barriere = NULL, barriere_min = NULL) {
   bb <- terra::ext(min(ends[, 1], centre[1]) - 3 * tampon,
                    max(ends[, 1], centre[1]) + 3 * tampon,
                    min(ends[, 2], centre[2]) - 3 * tampon,
@@ -165,6 +167,29 @@
   # plancher -- ce que fait vecnet, ou une conductivite nulle donne malgre tout
   # un cout infini -- laisserait l'agent sortir de l'emprise qu'on lui a fixee.
   f[!is.na(f) & f < seuil] <- seuil
+
+  # Emprise non franchissable (sous-etage referme) : ramenee au plancher, donc
+  # maximalement resistante SANS devenir infranchissable.
+  #
+  # Le choix du plancher plutot que du NA n'est pas cosmetique. L'agent tire sa
+  # valeur de sa capacite a franchir une trouee quand la route reprend derriere
+  # (voir trouee_max) ; un NA lui interdirait de traverser vingt metres de
+  # ronces pour retrouver une piste degagee, et hacherait le reseau en morceaux
+  # a chaque fourre. Le plancher penalise sans interdire, et laisse le
+  # mecanisme de trouee arbitrer sur la LONGUEUR du passage difficile.
+  #
+  # C'est aussi, exactement, ce que faisait l'ancien poids surf = 2 de
+  # dsr_indice_detection() : il ne posait pas de barriere, il tirait les valeurs
+  # vers le bas la ou le sous-etage est ferme. L'effet etait utile mais
+  # accidentel -- une ponderation de DETECTION jouait une regle de
+  # FRANCHISSABILITE. On le rend explicite ici, ou il a sa place.
+  if (!is.null(barriere)) {
+    b <- terra::crop(barriere, terra::ext(f))
+    if (terra::ncell(b) == terra::ncell(f)) {
+      bv <- terra::values(b, mat = FALSE)
+      f[!is.na(bv) & bv < barriere_min] <- seuil
+    }
+  }
 
   # Le reseau deja connu est INFRANCHISSABLE (NA) : c'est ce qui permet de
   # detecter qu'on l'a rejoint, le cout devenant inatteignable de ce cote.
@@ -214,6 +239,23 @@
 #' au-dessus du cout maximal (`trouee_max` fois la portee), ou apres `max_pas`
 #' pas.
 #'
+#' **Suivre une carte et etre arrete par une autre.** `sigma` dit ou aller,
+#' `franchissabilite` dit ou l'on ne passe plus. C'est la separation posee par
+#' le BRIEF section 3.4 -- `sigma_geo` porte l'empreinte, `sigma_surf` porte
+#' l'etat present -- appliquee au conducteur : il suit l'empreinte et se fait
+#' freiner par l'etat, au lieu de suivre un melange des deux.
+#'
+#' Cette separation a ete introduite apres une mesure. `dsr_indice_detection()`
+#' ponderait le canal de surface a 2 ; ramene a sa valeur mesuree (0,5), la
+#' carte s'ameliore nettement (AUC 0,698 -> 0,738) et le vectoriseur par
+#' squelette avec elle, mais l'agent, lui, se degrade -- il divague, son ecart
+#' median a la reference passant de 3,3 a 5,2 m. L'explication tient en une
+#' phrase : l'ancien poids ecrasait la carte partout ou le sous-etage est
+#' ferme, ce qui **retenait** l'agent. Ce garde-fou etait reel mais accidentel,
+#' et il se payait d'une carte de detection degradee. Passer `franchissabilite`
+#' le retablit la ou il doit etre, sans rien devoir a la ponderation de la
+#' detection.
+#'
 #' @param sigma Conductivite (`SpatRaster` mono-couche), typiquement la sortie de
 #'   [dsr_conductivite()] ou une carte de probabilite. `NA` admis.
 #' @param amorce Amorce orientee : un `LINESTRING` `sf`/`sfc`. Son dernier point
@@ -225,6 +267,13 @@
 #' @param conductivite_min Conductivite en deca de laquelle une direction n'est
 #'   plus consideree comme roulable. Fixe le cout maximal admissible
 #'   (`portee / conductivite_min`). Defaut 0.6.
+#' @param franchissabilite `SpatRaster` **aligne sur `sigma`** disant ou
+#'   l'emprise est encore degagee -- typiquement [dsr_sigma_surf()]. Les cellules
+#'   sous `franchissabilite_min` deviennent maximalement resistantes sans
+#'   devenir infranchissables. `NULL` (defaut) pour ne poser aucune contrainte.
+#'   Voir les details.
+#' @param franchissabilite_min Seuil sous lequel une cellule est tenue pour
+#'   refermee. Defaut 0.4. Sans effet si `franchissabilite` est `NULL`.
 #' @param seuil Plancher de conductivite applique a la fenetre de travail.
 #'   Defaut 0.1.
 #' @param tampon Demi-largeur (m) de neutralisation du reseau et de la trace
@@ -257,11 +306,26 @@
 #' @export
 dsr_conduire <- function(sigma, amorce, reseau = NULL, portee = 100, fov = 160,
                          conductivite_min = 0.6, seuil = 0.1, tampon = 10,
-                         avance = 0.8, trouee_max = 2.5, max_pas = 500) {
+                         avance = 0.8, trouee_max = 2.5, max_pas = 500,
+                         franchissabilite = NULL, franchissabilite_min = 0.4) {
   if (!inherits(sigma, "SpatRaster")) {
     dsr_abort("{.arg sigma} doit etre un {.cls SpatRaster}.")
   }
   if (terra::nlyr(sigma) > 1L) sigma <- sigma[[1]]
+  if (!is.null(franchissabilite)) {
+    if (!inherits(franchissabilite, "SpatRaster")) {
+      dsr_abort("{.arg franchissabilite} doit etre un {.cls SpatRaster} (p. ex. {.fun dsr_sigma_surf}).")
+    }
+    if (terra::nlyr(franchissabilite) > 1L) franchissabilite <- franchissabilite[[1]]
+    # Le recadrage par pas suppose une geometrie identique : le verifier une
+    # fois ici vaut mieux que de laisser chaque fenetre echouer en silence.
+    if (!terra::compareGeom(sigma, franchissabilite, stopOnError = FALSE)) {
+      dsr_abort(c(
+        "{.arg franchissabilite} doit etre aligne sur {.arg sigma}.",
+        "i" = "Les deux rasters doivent partager grille, emprise et CRS ; voir {.fun dsr_grille_reference}."
+      ))
+    }
+  }
   geom <- sf::st_geometry(amorce)
   if (!inherits(geom[[1]], "LINESTRING")) {
     dsr_abort("{.arg amorce} doit etre un {.cls LINESTRING} : sa direction donne le cap initial.")
@@ -299,7 +363,8 @@ dsr_conduire <- function(sigma, amorce, reseau = NULL, portee = 100, fov = 160,
       trace <- if (length(segments) > 1L) {
         sf::st_sfc(sf::st_linestring(do.call(rbind, segments[-length(segments)])), crs = crs)
       } else NULL
-      fen <- .dsr_fenetre(sigma, position, ends, seuil, trace, reseau, tampon)
+      fen <- .dsr_fenetre(sigma, position, ends, seuil, trace, reseau, tampon,
+        barriere = franchissabilite, barriere_min = franchissabilite_min)
       # Le test porte sur `sigma` et non sur la fenetre : dans la fenetre, le
       # reseau existant est masque en NA, et le confondre avec un bord d'emprise
       # ferait sortir l'agent par « hors_emprise » juste avant de le rejoindre.

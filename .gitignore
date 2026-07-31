@@ -18,3 +18,4 @@ src/Makevars.win
 
 # Exception : la dalle d exemple versionnee
 !inst/extdata/exemple_nuage.laz
+dev/out/

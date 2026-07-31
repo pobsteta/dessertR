@@ -1,5 +1,102 @@
 # dessertR (cycle de developpement)
 
+## L'agent suit une carte et se fait arreter par une autre
+
+[dsr_conduire()] accepte `franchissabilite` (+ `franchissabilite_min`, defaut
+0,4) : un raster, typiquement [dsr_sigma_surf()], qui ne dit pas ou est la
+route mais **ou l'on ne passe plus**. [dsr_detecter()] le transmet
+automatiquement quand `sigma_surf` est fourni et que la methode est l'agent.
+
+**Ce qui l'a rendu necessaire.** Ramener le poids du canal de surface de 2 a
+0,5 ameliore la carte (AUC 0,698 -> 0,738) et le vectoriseur par squelette avec
+elle, mais degradait l'agent. La cause, mesuree : l'ancien poids ecrasait la
+carte partout ou le sous-etage est ferme, ce qui **retenait** l'agent. Un
+garde-fou reel, mais accidentel -- une ponderation de DETECTION jouait une
+regle de FRANCHISSABILITE, et se payait d'une carte degradee.
+
+Rendue explicite, la contrainte fait mieux que restaurer l'ancien
+comportement. Sur deux massifs, agent amorce par la reference, meme `sigma_geo`
+et meme `sigma_surf` :
+
+| | rappel | precision | ecart median | F1 |
+|---|---|---|---|---|
+| **wsfi** — poids 2, couple | 0,342 | 0,577 | 3,34 m | 0,429 |
+| poids 0,5, sans contrainte | 0,273 | 0,492 | 5,17 m | 0,351 |
+| poids 0,5 + franchissabilite | 0,317 | **0,740** | **2,40 m** | **0,444** |
+| **ltcp** — poids 2, couple | 0,321 | 0,509 | 4,64 m | **0,394** |
+| poids 0,5, sans contrainte | 0,232 | 0,381 | 16,13 m | 0,289 |
+| poids 0,5 + franchissabilite | 0,224 | **0,800** | **2,06 m** | 0,350 |
+
+La derive positionnelle est corrigee sur les deux massifs, et spectaculairement
+sur ltcp (16,1 m -> 2,1 m). La precision monte de 28 et 57 points relatifs.
+
+**Ce qui n'est pas resolu, et qu'il faut lire avant de s'y fier.** Sur ltcp le
+F1 reste sous le montage couple d'origine (0,350 contre 0,394) : la contrainte
+y est trop serree et coupe le rappel, la production tombant de 2,91 a 1,28 km.
+`franchissabilite_min = 0,4` est le meilleur reglage sur wsfi et un reglage
+median sur ltcp ; il n'est pas etabli sur un troisieme massif. Le seuil se
+trouve par ailleurs juste au-dessus du mode de `sigma_surf` (0,368 sur les deux
+massifs), donc dans une zone ou un petit deplacement de la distribution change
+beaucoup de choses. A calibrer plutot qu'a subir.
+
+Le plancher est applique **sans** rendre les cellules infranchissables : un
+`NA` interdirait a l'agent de traverser vingt metres de ronces pour retrouver
+une piste degagee, et le hacherait a chaque fourre. C'est le mecanisme de
+trouee (`trouee_max`) qui arbitre sur la longueur du passage difficile.
+
+
+## Le canal de surface pesait quatre fois trop lourd dans la detection
+
+[dsr_indice_detection()] et [dsr_detecter()] passent de `surf = 2` a
+`surf = 0.5`. L'ancien defaut n'etait pas approximatif : mesure sur deux
+massifs, il etait **la pire valeur de tout l'intervalle teste, moins bonne que
+retirer le canal purement et simplement**.
+
+AUC route / hors route de l'indice, 15 tirages par point, ecart-type 0,006
+(`dev/06_calibrer_surface.R`) :
+
+| poids `surf` | wsfi | ltcp |
+|---|---|---|
+| 0 (canal retire) | 0,715 | 0,667 |
+| 0,25 | 0,734 | 0,682 |
+| **0,5** | **0,739** | **0,684** |
+| 1 | 0,727 | 0,679 |
+| 2 (ancien defaut) | 0,697 | 0,666 |
+
+Les deux massifs placent leur maximum au meme endroit. Bien dose, le canal
+apporte un gain net -- +0,024 (4 ecarts-types) sur wsfi, +0,017 (2,8) sur ltcp
+--, ce qui ecarte la conclusion paresseuse qui aurait ete de le supprimer.
+
+**Ce que l'intuition avait mal lu.** Le raisonnement d'origine (BRIEF section
+3.9) tenait qu'une piste se lit d'abord dans la discontinuite du sous-etage,
+d'ou le poids double. Or `densite_sousetage` ne discrimine pas la presence
+d'une route : AUC **0,535** et **0,521**, le hasard. Ce n'est pas une
+defaillance du canal, c'est un malentendu sur la question qu'on lui pose. Il
+mesure un **etat** -- emprise degagee ou recolonisee -- et une route
+recolonisee reste une route. Un canal qui detecterait parfaitement la
+recolonisation aurait une AUC de 0,5 sur la question « y a-t-il une route
+ici ? ». Il garde donc toute sa valeur dans [dsr_etat()], ou c'est sa
+divergence avec `sigma_geo` qui parle ; il n'en a guere pour localiser.
+
+Le canal de surface reellement discriminant est `h_couvert` (AUC 0,660 sur
+ltcp), qui marque les routes par une vegetation haute plus basse : il lit
+l'ouverture de la canopee. C'est utile a faible poids, et c'est exactement
+pourquoi il ne faut pas le laisser dominer -- une coupe rase ou une ligne
+electrique l'allument autant qu'une route, soit le faux positif « trouee sans
+route » que la table de divergence du BRIEF section 3.4 cherche a ecarter.
+
+**Calibrer `sigma_surf` a ete essaye, et rejete.** Le reflexe, apres
+[dsr_calibrer_specs()], etait d'appliquer la meme recette au canal nuage. La
+mesure dit le contraire : les regles calibrees font tomber l'indice a 0,626 sur
+wsfi et 0,658 sur ltcp, sous le jeu par defaut. La calibration donne le poids
+fort a `h_couvert` et fabrique un detecteur de clairieres. Les signes de
+[dsr_specs_surface()] sont d'ailleurs confirmes corrects par la mesure --
+`densite_sousetage` decroissante, `taux_penetration` croissante. Contrairement
+au canal geomorphologique, ou le signe de la rugosite etait inverse, **le
+defaut de surface n'etait pas faux ; seule sa ponderation dans la fusion
+l'etait.**
+
+
 ## Les regles de conductivite se calibrent au lieu de se supposer
 
 [dsr_calibrer_specs()] mesure, canal par canal, ce qui distingue reellement une

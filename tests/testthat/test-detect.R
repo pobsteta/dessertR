@@ -63,7 +63,10 @@ test_that("dsr_indice_detection : le canal de surface fait basculer la decision"
   ss <- terra::rast(sg); terra::values(ss) <- 0.1 # mais emprise refermee
 
   p <- dsr_indice_detection(sg, sigma_surf = ss)
-  # poids surf = 2 : la trace fossile est ramenee sous le seuil de detection.
+  # A poids surf = 0,5 (defaut mesure), la moyenne geometrique ponderee rend
+  # exp((log(0.9) + 0.5 * log(0.1)) / 1.5) = 0,433 : la trace fossile reste
+  # ramenee sous le seuil de detection, sans que le canal ecrase le terrain.
+  expect_equal(max(terra::values(p, mat = FALSE)), 0.433, tolerance = 1e-3)
   expect_lt(max(terra::values(p, mat = FALSE)), 0.6)
   expect_equal(nrow(dsr_vectoriser(p, seuil = 0.6, methode = "squelette")), 0)
 })
@@ -286,4 +289,33 @@ test_that("dsr_vectoriser : une boucle fermee sort en une arete unique", {
   expect_gt(boucle$longueur[1], 80)
   co <- sf::st_coordinates(boucle)[, 1:2]
   expect_lt(sqrt(sum((co[1, ] - co[nrow(co), ])^2)), 2) # la boucle se referme
+})
+
+
+test_that("dsr_detecter transmet sigma_surf a l'agent comme franchissabilite", {
+  skip_if_not_installed("terra")
+  # Le canal de surface joue deux roles : preuve dans l'indice, contrainte pour
+  # l'agent. Sans la transmission, le poids mesure de 0,5 laisserait l'agent
+  # divaguer -- c'est le defaut que ce test verrouille.
+  sg <- terra::rast(nrows = 100, ncols = 100, xmin = 0, xmax = 200, ymin = 0,
+    ymax = 200, crs = "EPSG:2154")
+  terra::values(sg) <- 0.2
+  xy <- terra::xyFromCell(sg, seq_len(terra::ncell(sg)))
+  sg[abs(xy[, 2] - 100) < 4] <- 0.95            # une route est-ouest
+  ss <- terra::rast(sg); terra::values(ss) <- 0.9
+  ss[xy[, 1] > 120] <- 0.05                      # emprise refermee a l'est
+  ref <- sf::st_sfc(sf::st_linestring(cbind(c(10, 30), c(100, 100))),
+    crs = "EPSG:2154")
+
+  contraint <- dsr_detecter(sg, reference = ref, sigma_surf = ss,
+    methode = "agent", seuil = 0.3, long_min = 10, buffer_ref = 0,
+    regime = "complet")
+  libre <- dsr_detecter(sg, reference = ref, sigma_surf = NULL,
+    methode = "agent", seuil = 0.3, long_min = 10, buffer_ref = 0,
+    regime = "complet")
+
+  xmax <- function(d) if (nrow(d) == 0) NA_real_ else max(sf::st_coordinates(d)[, 1])
+  # La contrainte retient l'agent a l'ouest de la zone refermee.
+  expect_false(is.na(xmax(contraint)))
+  expect_lt(xmax(contraint), xmax(libre))
 })

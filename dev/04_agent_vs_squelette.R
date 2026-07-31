@@ -34,6 +34,18 @@
 #   Un vectoriseur qui produit peu et juste a une precision haute et un rappel
 #   bas ; l'inverse signale du hors-piste. Les deux se lisent ensemble.
 #
+# CALIBRATION SUR UN MASSIF, EVALUATION SUR L'AUTRE
+#
+#   sigma_geo par defaut ne discrimine rien (AUC 0,51 sur wsfi, 0,54 sur ltcp) :
+#   comparer des vectoriseurs dessus ne mesure que la carte. On calibre donc les
+#   regles avec dsr_calibrer_specs().
+#
+#   Mais calibrer sur la BD TOPO d'un massif puis evaluer les vectoriseurs
+#   contre cette MEME BD TOPO serait circulaire : les regles auraient vu les
+#   reponses. La calibration se fait donc sur un massif DISJOINT
+#   (`DSR_CALIB`, defaut ltcp) et l'evaluation sur wsfi. Les regles n'ont
+#   jamais vu la reference qui sert a les juger.
+#
 # Usage :  Rscript dev/04_agent_vs_squelette.R
 #
 #   DSR_WSFI    cache du projet (defaut : le projet wsfi de nemeton)
@@ -95,11 +107,37 @@ cat(sprintf("Reference BD TOPO dans la fenetre : %d troncons, %.2f km\n",
 if (km_ref < 0.5) stop("Trop peu de reference dans la fenetre pour juger quoi que ce soit.")
 
 
-# --- Conductivite geomorphologique -------------------------------------------
-cat("Canaux geomorphologiques + sigma_geo...\n")
+# --- Conductivite geomorphologique, regles calibrees HORS ECHANTILLON --------
+cat("Canaux geomorphologiques...\n")
 t0 <- Sys.time()
 couches <- dsr_layers_dtm(mnt, res = 1)
-sigma <- dsr_conductivite(couches)
+
+calib <- Sys.getenv("DSR_CALIB",
+  "/home/pascal/.local/share/nemeton/projects/20260701_204501_ltcp/cache")
+specs <- NULL
+if (nzchar(calib) && dir.exists(calib)) {
+  cat("Calibrage des regles sur un massif DISJOINT...\n")
+  cm <- terra::rast(file.path(calib, "layers", "lidar_mnt_mosaic.tif"))
+  cr <- sf::st_zm(sf::st_geometry(
+    sf::st_read(file.path(calib, "layers", "roads.gpkg"), quiet = TRUE)), drop = TRUE)
+  cc <- sf::st_coordinates(sf::st_centroid(sf::st_union(cr)))[1, 1:2]
+  cf <- terra::intersect(terra::ext(cc[1] - cote / 2, cc[1] + cote / 2,
+    cc[2] - cote / 2, cc[2] + cote / 2), terra::ext(cm))
+  cemp <- sf::st_as_sfc(sf::st_bbox(cf)); sf::st_crs(cemp) <- sf::st_crs(cr)
+  crd <- suppressWarnings(sf::st_cast(sf::st_intersection(cr, cemp), "LINESTRING"))
+  cal <- dsr_calibrer_specs(dsr_layers_dtm(terra::crop(cm, cf), res = 1), crd)
+  specs <- cal$specs
+  cat("  regles retenues :\n")
+  print(cal$diagnostic[cal$diagnostic$retenu, c("canal", "auc", "sens", "poids")],
+    row.names = FALSE, digits = 3)
+}
+
+sigma <- if (length(specs)) {
+  dsr_conductivite(couches, specs = specs)
+} else {
+  cat("  (pas de massif de calibration : regles par defaut)\n")
+  dsr_conductivite(couches)
+}
 cat(sprintf("  %.0f s | sigma_geo : mediane %.2f, P90 %.2f\n",
   as.numeric(difftime(Sys.time(), t0, units = "secs")),
   stats::median(terra::values(sigma), na.rm = TRUE),

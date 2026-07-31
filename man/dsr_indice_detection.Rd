@@ -8,7 +8,7 @@ dsr_indice_detection(
   sigma_geo,
   sigma_surf = NULL,
   vesselness = NULL,
-  poids = c(geo = 1, surf = 2, vessel = 1),
+  poids = c(geo = 1, surf = 0.5, vessel = 1),
   seuil_vessel = 0.3,
   reference = NULL,
   buffer_ref = 15,
@@ -26,8 +26,8 @@ se passer du canal nuage (detection nettement moins sure).}
 l'ignorer.}
 
 \item{poids}{Vecteur nomme des poids \code{geo}, \code{surf} et \code{vessel}. Defaut
-\code{c(geo = 1, surf = 2, vessel = 1)}. Un poids nul ou un canal absent retire
-simplement le terme.}
+\code{c(geo = 1, surf = 0.5, vessel = 1)} (voir Details : ce poids est mesure,
+pas suppose). Un poids nul ou un canal absent retire simplement le terme.}
 
 \item{seuil_vessel}{Debut de la rampe d'appartenance sur \code{vesselness}. Defaut
 0.3.}
@@ -52,11 +52,43 @@ dans \verb{[0, 1]}, \strong{hors du corridor du reseau de reference} (BRIEF sect
 }
 \details{
 La fusion est une \strong{moyenne geometrique ponderee}, comme
-\code{\link[=dsr_conductivite]{dsr_conductivite()}}. Le poids par defaut privilegie le canal de surface :
-pistes de debardage et cloisonnements se lisent d'abord dans la
-\strong{discontinuite du sous-etage} — une trouee lineaire persistante — et non
-dans le terrain, ou leur empreinte est faible ou noyee dans les traces
-fossiles (BRIEF section 3.9 et risque n.1).
+\code{\link[=dsr_conductivite]{dsr_conductivite()}}. Le canal de surface entre avec un poids de \strong{0,5},
+soit la moitie du canal geomorphologique. Ce chiffre est mesure, et il
+contredit l'intuition qui presidait au reglage precedent (\code{surf = 2}).
+
+\strong{Ce que dit la mesure.} L'AUC route / hors route de l'indice, sur deux
+massifs Lidar HD et 15 tirages par point (\verb{dev/06_calibrer_surface.R}) :\tabular{lll}{
+   poids \code{surf} \tab wsfi \tab ltcp \cr
+   0 (canal retire) \tab 0,715 \tab 0,667 \cr
+   0,25 \tab 0,734 \tab 0,682 \cr
+   \strong{0,5} \tab \strong{0,739} \tab \strong{0,684} \cr
+   1 \tab 0,727 \tab 0,679 \cr
+   2 (ancien defaut) \tab 0,697 \tab 0,666 \cr
+}
+
+
+L'ecart-type du tirage est de 0,006. Les deux massifs placent leur maximum
+au meme endroit, et l'ancien defaut etait \strong{la pire valeur testee -- moins
+bonne que retirer le canal purement et simplement}. A 0,5 le canal apporte
+en revanche un gain reel : +0,024 (4 ecarts-types) et +0,017 (2,8).
+
+\strong{Pourquoi l'intuition etait fausse.} Le raisonnement d'origine (BRIEF
+section 3.9) etait qu'une piste se lit d'abord dans la discontinuite du
+sous-etage. Mesure canal par canal, \code{densite_sousetage} ne discrimine pas la
+presence d'une route : AUC 0,535 et 0,521, soit le hasard. Ce n'est pas une
+defaillance du canal mais un malentendu sur la question qu'on lui pose --
+il mesure un \strong{etat} (emprise degagee ou recolonisee), et une route
+recolonisee reste une route. Il garde donc toute sa valeur dans
+\code{\link[=dsr_etat]{dsr_etat()}}, ou c'est sa divergence avec \code{sigma_geo} qui parle, et n'en a
+guere pour localiser.
+
+Le canal de surface le plus discriminant se trouve etre \code{h_couvert}
+(AUC 0,660 sur ltcp), qui marque les routes par une vegetation haute plus
+basse : il detecte l'ouverture de la canopee. Utile a faible poids, mais
+c'est aussi ce qui interdit de le laisser dominer -- une trouee sans route
+(coupe rase, ligne electrique) l'allume tout autant, et c'est precisement le
+faux positif que la table de divergence du BRIEF section 3.4 cherche a
+ecarter.
 
 \code{vesselness} n'entre pas en dur mais via une rampe croissante a partir de
 \code{seuil_vessel} (\code{\link[=dsr_appartenance]{dsr_appartenance()}}), pour ne pas annuler brutalement une
