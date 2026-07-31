@@ -29,11 +29,43 @@
 #'
 #' @details
 #' La fusion est une **moyenne geometrique ponderee**, comme
-#' [dsr_conductivite()]. Le poids par defaut privilegie le canal de surface :
-#' pistes de debardage et cloisonnements se lisent d'abord dans la
-#' **discontinuite du sous-etage** — une trouee lineaire persistante — et non
-#' dans le terrain, ou leur empreinte est faible ou noyee dans les traces
-#' fossiles (BRIEF section 3.9 et risque n.1).
+#' [dsr_conductivite()]. Le canal de surface entre avec un poids de **0,5**,
+#' soit la moitie du canal geomorphologique. Ce chiffre est mesure, et il
+#' contredit l'intuition qui presidait au reglage precedent (`surf = 2`).
+#'
+#' **Ce que dit la mesure.** L'AUC route / hors route de l'indice, sur deux
+#' massifs Lidar HD et 15 tirages par point (`dev/06_calibrer_surface.R`) :
+#'
+#' | poids `surf` | wsfi | ltcp |
+#' | --- | --- | --- |
+#' | 0 (canal retire) | 0,715 | 0,667 |
+#' | 0,25 | 0,734 | 0,682 |
+#' | **0,5** | **0,739** | **0,684** |
+#' | 1 | 0,727 | 0,679 |
+#' | 2 (ancien defaut) | 0,697 | 0,666 |
+#'
+#' L'ecart-type du tirage est de 0,006. Les deux massifs placent leur maximum
+#' au meme endroit, et l'ancien defaut etait **la pire valeur testee -- moins
+#' bonne que retirer le canal purement et simplement**. A 0,5 le canal apporte
+#' en revanche un gain reel : +0,024 (4 ecarts-types) et +0,017 (2,8).
+#'
+#' **Pourquoi l'intuition etait fausse.** Le raisonnement d'origine (BRIEF
+#' section 3.9) etait qu'une piste se lit d'abord dans la discontinuite du
+#' sous-etage. Mesure canal par canal, `densite_sousetage` ne discrimine pas la
+#' presence d'une route : AUC 0,535 et 0,521, soit le hasard. Ce n'est pas une
+#' defaillance du canal mais un malentendu sur la question qu'on lui pose --
+#' il mesure un **etat** (emprise degagee ou recolonisee), et une route
+#' recolonisee reste une route. Il garde donc toute sa valeur dans
+#' [dsr_etat()], ou c'est sa divergence avec `sigma_geo` qui parle, et n'en a
+#' guere pour localiser.
+#'
+#' Le canal de surface le plus discriminant se trouve etre `h_couvert`
+#' (AUC 0,660 sur ltcp), qui marque les routes par une vegetation haute plus
+#' basse : il detecte l'ouverture de la canopee. Utile a faible poids, mais
+#' c'est aussi ce qui interdit de le laisser dominer -- une trouee sans route
+#' (coupe rase, ligne electrique) l'allume tout autant, et c'est precisement le
+#' faux positif que la table de divergence du BRIEF section 3.4 cherche a
+#' ecarter.
 #'
 #' `vesselness` n'entre pas en dur mais via une rampe croissante a partir de
 #' `seuil_vessel` ([dsr_appartenance()]), pour ne pas annuler brutalement une
@@ -46,8 +78,8 @@
 #' @param vesselness Raster de linearite ([dsr_layers_dtm()]) ; `NULL` pour
 #'   l'ignorer.
 #' @param poids Vecteur nomme des poids `geo`, `surf` et `vessel`. Defaut
-#'   `c(geo = 1, surf = 2, vessel = 1)`. Un poids nul ou un canal absent retire
-#'   simplement le terme.
+#'   `c(geo = 1, surf = 0.5, vessel = 1)` (voir Details : ce poids est mesure,
+#'   pas suppose). Un poids nul ou un canal absent retire simplement le terme.
 #' @param seuil_vessel Debut de la rampe d'appartenance sur `vesselness`. Defaut
 #'   0.3.
 #' @param reference `sf`/`sfc` du reseau de reference (BD TOPO) a exclure ;
@@ -71,7 +103,7 @@
 #' }
 #' @export
 dsr_indice_detection <- function(sigma_geo, sigma_surf = NULL, vesselness = NULL,
-                                 poids = c(geo = 1, surf = 2, vessel = 1),
+                                 poids = c(geo = 1, surf = 0.5, vessel = 1),
                                  seuil_vessel = 0.3, reference = NULL,
                                  buffer_ref = 15, emprise = NULL) {
   if (!inherits(sigma_geo, "SpatRaster")) {
@@ -388,7 +420,7 @@ dsr_detecter <- function(sigma_geo, reference = NULL, vesselness = NULL,
                          buffer_ref = 15, long_min = 30, ratio_min = 3,
                          pas_bin = 5,
                          methode = c("auto", "agent", "squelette", "vecnet", "acp"),
-                         poids = c(geo = 1, surf = 2, vessel = 1),
+                         poids = c(geo = 1, surf = 0.5, vessel = 1),
                          regime = c("complet", "corridor"), emprise = NULL,
                          elaguer = 5,
                          lissage = c("savitzky-golay", "bezier", "aucun"),

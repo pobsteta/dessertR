@@ -63,7 +63,10 @@ test_that("dsr_indice_detection : le canal de surface fait basculer la decision"
   ss <- terra::rast(sg); terra::values(ss) <- 0.1 # mais emprise refermee
 
   p <- dsr_indice_detection(sg, sigma_surf = ss)
-  # poids surf = 2 : la trace fossile est ramenee sous le seuil de detection.
+  # A poids surf = 0,5 (defaut mesure), la moyenne geometrique ponderee rend
+  # exp((log(0.9) + 0.5 * log(0.1)) / 1.5) = 0,433 : la trace fossile reste
+  # ramenee sous le seuil de detection, sans que le canal ecrase le terrain.
+  expect_equal(max(terra::values(p, mat = FALSE)), 0.433, tolerance = 1e-3)
   expect_lt(max(terra::values(p, mat = FALSE)), 0.6)
   expect_equal(nrow(dsr_vectoriser(p, seuil = 0.6, methode = "squelette")), 0)
 })

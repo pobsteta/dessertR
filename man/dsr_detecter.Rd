@@ -16,7 +16,7 @@ dsr_detecter(
   ratio_min = 3,
   pas_bin = 5,
   methode = c("auto", "agent", "squelette", "vecnet", "acp"),
-  poids = c(geo = 1, surf = 2, vessel = 1),
+  poids = c(geo = 1, surf = 0.5, vessel = 1),
   regime = c("complet", "corridor"),
   emprise = NULL,
   elaguer = 5,

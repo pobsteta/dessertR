@@ -1,5 +1,57 @@
 # dessertR (cycle de developpement)
 
+## Le canal de surface pesait quatre fois trop lourd dans la detection
+
+[dsr_indice_detection()] et [dsr_detecter()] passent de `surf = 2` a
+`surf = 0.5`. L'ancien defaut n'etait pas approximatif : mesure sur deux
+massifs, il etait **la pire valeur de tout l'intervalle teste, moins bonne que
+retirer le canal purement et simplement**.
+
+AUC route / hors route de l'indice, 15 tirages par point, ecart-type 0,006
+(`dev/06_calibrer_surface.R`) :
+
+| poids `surf` | wsfi | ltcp |
+|---|---|---|
+| 0 (canal retire) | 0,715 | 0,667 |
+| 0,25 | 0,734 | 0,682 |
+| **0,5** | **0,739** | **0,684** |
+| 1 | 0,727 | 0,679 |
+| 2 (ancien defaut) | 0,697 | 0,666 |
+
+Les deux massifs placent leur maximum au meme endroit. Bien dose, le canal
+apporte un gain net -- +0,024 (4 ecarts-types) sur wsfi, +0,017 (2,8) sur ltcp
+--, ce qui ecarte la conclusion paresseuse qui aurait ete de le supprimer.
+
+**Ce que l'intuition avait mal lu.** Le raisonnement d'origine (BRIEF section
+3.9) tenait qu'une piste se lit d'abord dans la discontinuite du sous-etage,
+d'ou le poids double. Or `densite_sousetage` ne discrimine pas la presence
+d'une route : AUC **0,535** et **0,521**, le hasard. Ce n'est pas une
+defaillance du canal, c'est un malentendu sur la question qu'on lui pose. Il
+mesure un **etat** -- emprise degagee ou recolonisee -- et une route
+recolonisee reste une route. Un canal qui detecterait parfaitement la
+recolonisation aurait une AUC de 0,5 sur la question « y a-t-il une route
+ici ? ». Il garde donc toute sa valeur dans [dsr_etat()], ou c'est sa
+divergence avec `sigma_geo` qui parle ; il n'en a guere pour localiser.
+
+Le canal de surface reellement discriminant est `h_couvert` (AUC 0,660 sur
+ltcp), qui marque les routes par une vegetation haute plus basse : il lit
+l'ouverture de la canopee. C'est utile a faible poids, et c'est exactement
+pourquoi il ne faut pas le laisser dominer -- une coupe rase ou une ligne
+electrique l'allument autant qu'une route, soit le faux positif « trouee sans
+route » que la table de divergence du BRIEF section 3.4 cherche a ecarter.
+
+**Calibrer `sigma_surf` a ete essaye, et rejete.** Le reflexe, apres
+[dsr_calibrer_specs()], etait d'appliquer la meme recette au canal nuage. La
+mesure dit le contraire : les regles calibrees font tomber l'indice a 0,626 sur
+wsfi et 0,658 sur ltcp, sous le jeu par defaut. La calibration donne le poids
+fort a `h_couvert` et fabrique un detecteur de clairieres. Les signes de
+[dsr_specs_surface()] sont d'ailleurs confirmes corrects par la mesure --
+`densite_sousetage` decroissante, `taux_penetration` croissante. Contrairement
+au canal geomorphologique, ou le signe de la rugosite etait inverse, **le
+defaut de surface n'etait pas faux ; seule sa ponderation dans la fusion
+l'etait.**
+
+
 ## Les regles de conductivite se calibrent au lieu de se supposer
 
 [dsr_calibrer_specs()] mesure, canal par canal, ce qui distingue reellement une
