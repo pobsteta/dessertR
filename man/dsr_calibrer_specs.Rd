@@ -47,11 +47,20 @@ du canal. Defaut \code{TRUE}. Voir « Bornes absolues » ci-dessous ; \code{FALS
 rend des regles sans bornes, donc \strong{relatives a l'emprise}.}
 }
 \value{
-Une liste : \code{specs}, directement utilisable comme argument \code{specs} de
-\code{\link[=dsr_conductivite]{dsr_conductivite()}}, et \code{diagnostic}, un \code{data.frame} (\code{canal}, \code{auc},
-\code{sens}, \code{stable}, \code{retenu}, \code{poids}, \code{a}, \code{b}) trie par pouvoir
-discriminant decroissant. Avec plusieurs massifs, \code{auc} est la mediane et
-\code{stable} indique si le sens concorde partout.
+Une liste de quatre elements :
+\itemize{
+\item \code{specs}, directement utilisable comme argument \code{specs} de
+\code{\link[=dsr_conductivite]{dsr_conductivite()}} ;
+\item \code{diagnostic}, un \code{data.frame} (\code{canal}, \code{auc}, \code{sens}, \code{stable},
+\code{retenu}, \code{poids}, \code{a}, \code{b}) trie par pouvoir discriminant decroissant.
+Avec plusieurs massifs, \code{auc} est la mediane et \code{stable} indique si le
+sens concorde partout ;
+\item \code{par_massif}, la mesure brute avant agregation (\code{canal}, \code{massif}, \code{auc},
+\code{sens}) -- c'est la qu'on lit \emph{comment} un canal s'inverse, la ou
+\code{diagnostic} se contente de dire qu'il le fait ;
+\item \code{terrain}, les descripteurs de relief de chaque massif (\code{pente_med},
+\code{pente_p90}, \code{rugosite_med}, \code{relief_iqr}). Voir « Terrain » ci-dessous.
+}
 }
 \description{
 Mesure, canal par canal, ce qui distingue reellement une route de son
@@ -112,6 +121,53 @@ massifs qu'on va effectivement traiter reste la bonne pratique}.
 Cette correction ne suffit pas a elle seule a rendre une pile independante de
 l'emprise : \code{vesselness} est rescalee \strong{en amont} des fonctions
 d'appartenance et demande son propre ancrage (\code{\link[=dsr_c_vessel]{dsr_c_vessel()}}).
+
+\strong{Terrain : instrumenter avant de stratifier.} Certains canaux discriminent
+bien sur chaque massif mais dans des sens \strong{opposes}. Sur les deux massifs
+de validation, \code{pente} marque les routes par le bas en montagne (une route
+suit le moindre pendage) et par le haut en plaine (plateforme bombee,
+fosses), avec la meme AUC de 0,61 des deux cotes ; \code{slrm} fait de meme. Le
+test \code{stable} les ecarte -- prudence justifiee tant qu'on ne sait pas a quoi
+rattacher l'inversion, mais qui perd de l'information reelle.
+
+L'hypothese naturelle est que ces signes sont stables \strong{a l'interieur d'une
+classe de relief}. Elle n'est pas tranchable avec deux massifs : il en
+faudrait au moins deux par classe, sans quoi on calibrerait une
+classification sur un seul echantillon -- exactement l'erreur que cette
+fonction existe pour eviter.
+
+D'ou \code{terrain} et \code{par_massif}, qui \strong{instrumentent sans stratifier} :
+chaque calibration rend son relief a cote de ses signes, et la question
+devient decidable quand les massifs s'accumuleront. Les descripteurs sont
+plusieurs a dessein -- rien ne dit d'avance si c'est la pente, la rugosite ou
+l'amplitude du relief local qui predit les inversions, et c'est aux donnees
+de le dire.
+
+\strong{Une regularite a falsifier.} Sur les deux massifs disponibles, les canaux
+qui s'inversent sont exactement ceux qui situent la route dans la forme
+GENERALE du paysage, et ceux qui restent stables decrivent la route
+ELLE-MEME :\tabular{lll}{
+   canal \tab plaine (pente med. 2,2 deg) \tab montagne (22,3 deg) \cr
+   \code{pente} \tab +1 \tab \strong{-1} \cr
+   \code{slrm} \tab +1 \tab \strong{-1} \cr
+   \code{rugosite} (texture) \tab +1 \tab +1 \cr
+   \code{openness_neg} / \code{openness_pos} / \code{svf} (forme du voisinage) \tab -1 \tab -1 \cr
+   \code{vesselness} (linearite) \tab +1 \tab +1 \cr
+}
+
+
+L'explication tiendrait en une phrase : en montagne une route suit le moindre
+pendage, elle est donc \strong{moins} pentue que son environnement ; en plaine il
+n'y a pas de pendage a suivre, et ce qui la marque est sa forme construite --
+bombement, fosses -- donc \strong{plus} pentue qu'un terrain plat. Les autres
+canaux decrivent la route et non sa place dans le paysage, ce qui expliquerait
+leur stabilite.
+
+Ce n'est \strong{pas une loi} : deux massifs ne l'etablissent pas. C'est une
+prediction, et elle est falsifiable -- un troisieme massif dont \code{pente}
+s'inverserait sans changement de classe de relief la refuterait. Elle vaut
+surtout parce qu'elle reduit le probleme : si elle tient, seuls \code{pente} et
+\code{slrm} demandent un conditionnement au terrain.
 
 \strong{Ce que la reference peut et ne peut pas etre.} Sa POSITION doit faire
 autorite -- la BD TOPO convient, sa precision planimetrique etant metrique.

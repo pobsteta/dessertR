@@ -1,5 +1,49 @@
 # dessertR (cycle de developpement)
 
+## La calibration rend desormais le terrain a cote des signes
+
+[dsr_calibrer_specs()] rend deux elements de plus : `par_massif`, la mesure
+brute avant agregation, et `terrain`, des descripteurs de relief mesures sur la
+pile fournie (`pente_med`, `pente_p90`, `rugosite_med`, `relief_iqr`). Aucun
+defaut ne change, aucun calcul n'est ajoute -- les descripteurs sortent des
+canaux deja presents.
+
+**Pourquoi.** Le test `stable` ecarte les canaux dont le sens differe d'un
+massif a l'autre. C'est prudent, mais ca jette de l'information reelle :
+`pente` discrimine a 0,61 sur **les deux** massifs de validation, simplement
+dans des sens opposes. L'hypothese naturelle -- ces signes sont stables **a
+l'interieur d'une classe de relief** -- n'est pas tranchable avec deux massifs :
+il en faudrait au moins deux par classe, sans quoi on calibrerait une
+classification sur un seul echantillon, exactement l'erreur que cette fonction
+existe pour eviter. On instrumente donc, sans stratifier.
+
+**Une regularite apparait, et elle est falsifiable.** Les canaux qui s'inversent
+sont exactement ceux qui situent la route dans la forme GENERALE du paysage ;
+ceux qui restent stables decrivent la route ELLE-MEME :
+
+| canal | ltcp (pente med. 2,2 deg) | wsfi (22,3 deg) |
+|---|---|---|
+| `pente` | +1 (0,610) | **-1** (0,607) |
+| `slrm` | +1 (0,571) | **-1** (0,547) |
+| `rugosite` — texture | +1 (0,744) | +1 (0,759) |
+| `openness_neg` / `openness_pos` / `svf` — forme du voisinage | -1 | -1 |
+| `vesselness` — linearite | +1 (0,578) | +1 (0,612) |
+
+En montagne, une route suit le moindre pendage : elle est **moins** pentue que
+son environnement. En plaine, il n'y a pas de pendage a suivre, et ce qui la
+marque est sa forme construite -- bombement, fosses -- donc **plus** pentue
+qu'un terrain plat. Les autres canaux decrivent la route et non sa place dans le
+paysage.
+
+Deux massifs n'etablissent pas une loi. Mais la prediction est nette et
+refutable, et elle reduit beaucoup le probleme : si elle tient, **seuls `pente`
+et `slrm` demandent un conditionnement au terrain** -- pas les cinq autres.
+
+Les quatre descripteurs sont rendus a dessein : rien ne dit d'avance lequel
+predit les inversions, et sur deux massifs ils se separent tous d'un facteur 3
+a 10. C'est aux donnees de trancher, quand il y en aura.
+
+
 ## Le vectoriseur par agent devient deterministe
 
 Le reseau decouvert ne se met plus a jour qu'**entre** les tours, jamais au sein
