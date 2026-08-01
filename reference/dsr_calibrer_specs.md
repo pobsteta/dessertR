@@ -72,12 +72,24 @@ dsr_calibrer_specs(
 
 ## Value
 
-Une liste : `specs`, directement utilisable comme argument `specs` de
-[`dsr_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_conductivite.md),
-et `diagnostic`, un `data.frame` (`canal`, `auc`, `sens`, `stable`,
-`retenu`, `poids`, `a`, `b`) trie par pouvoir discriminant decroissant.
-Avec plusieurs massifs, `auc` est la mediane et `stable` indique si le
-sens concorde partout.
+Une liste de quatre elements :
+
+- `specs`, directement utilisable comme argument `specs` de
+  [`dsr_conductivite()`](https://pobsteta.github.io/dessertR/reference/dsr_conductivite.md)
+  ;
+
+- `diagnostic`, un `data.frame` (`canal`, `auc`, `sens`, `stable`,
+  `retenu`, `poids`, `a`, `b`) trie par pouvoir discriminant
+  decroissant. Avec plusieurs massifs, `auc` est la mediane et `stable`
+  indique si le sens concorde partout ;
+
+- `par_massif`, la mesure brute avant agregation (`canal`, `massif`,
+  `auc`, `sens`) – c'est la qu'on lit *comment* un canal s'inverse, la
+  ou `diagnostic` se contente de dire qu'il le fait ;
+
+- `terrain`, les descripteurs de relief de chaque massif (`pente_med`,
+  `pente_p90`, `rugosite_med`, `relief_iqr`). Voir « Terrain »
+  ci-dessous.
 
 ## Details
 
@@ -142,6 +154,55 @@ Cette correction ne suffit pas a elle seule a rendre une pile
 independante de l'emprise : `vesselness` est rescalee **en amont** des
 fonctions d'appartenance et demande son propre ancrage
 ([`dsr_c_vessel()`](https://pobsteta.github.io/dessertR/reference/dsr_c_vessel.md)).
+
+**Terrain : instrumenter avant de stratifier.** Certains canaux
+discriminent bien sur chaque massif mais dans des sens **opposes**. Sur
+les deux massifs de validation, `pente` marque les routes par le bas en
+montagne (une route suit le moindre pendage) et par le haut en plaine
+(plateforme bombee, fosses), avec la meme AUC de 0,61 des deux cotes ;
+`slrm` fait de meme. Le test `stable` les ecarte – prudence justifiee
+tant qu'on ne sait pas a quoi rattacher l'inversion, mais qui perd de
+l'information reelle.
+
+L'hypothese naturelle est que ces signes sont stables **a l'interieur
+d'une classe de relief**. Elle n'est pas tranchable avec deux massifs :
+il en faudrait au moins deux par classe, sans quoi on calibrerait une
+classification sur un seul echantillon – exactement l'erreur que cette
+fonction existe pour eviter.
+
+D'ou `terrain` et `par_massif`, qui **instrumentent sans stratifier** :
+chaque calibration rend son relief a cote de ses signes, et la question
+devient decidable quand les massifs s'accumuleront. Les descripteurs
+sont plusieurs a dessein – rien ne dit d'avance si c'est la pente, la
+rugosite ou l'amplitude du relief local qui predit les inversions, et
+c'est aux donnees de le dire.
+
+**Une regularite a falsifier.** Sur les deux massifs disponibles, les
+canaux qui s'inversent sont exactement ceux qui situent la route dans la
+forme GENERALE du paysage, et ceux qui restent stables decrivent la
+route ELLE-MEME :
+
+|  |  |  |
+|----|----|----|
+| canal | plaine (pente med. 2,2 deg) | montagne (22,3 deg) |
+| `pente` | +1 | **-1** |
+| `slrm` | +1 | **-1** |
+| `rugosite` (texture) | +1 | +1 |
+| `openness_neg` / `openness_pos` / `svf` (forme du voisinage) | -1 | -1 |
+| `vesselness` (linearite) | +1 | +1 |
+
+L'explication tiendrait en une phrase : en montagne une route suit le
+moindre pendage, elle est donc **moins** pentue que son environnement ;
+en plaine il n'y a pas de pendage a suivre, et ce qui la marque est sa
+forme construite – bombement, fosses – donc **plus** pentue qu'un
+terrain plat. Les autres canaux decrivent la route et non sa place dans
+le paysage, ce qui expliquerait leur stabilite.
+
+Ce n'est **pas une loi** : deux massifs ne l'etablissent pas. C'est une
+prediction, et elle est falsifiable – un troisieme massif dont `pente`
+s'inverserait sans changement de classe de relief la refuterait. Elle
+vaut surtout parce qu'elle reduit le probleme : si elle tient, seuls
+`pente` et `slrm` demandent un conditionnement au terrain.
 
 **Ce que la reference peut et ne peut pas etre.** Sa POSITION doit faire
 autorite – la BD TOPO convient, sa precision planimetrique etant

@@ -111,12 +111,18 @@ rend des regles sans bornes, donc <strong>relatives a l'emprise</strong>.</p></d
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Une liste : <code>specs</code>, directement utilisable comme argument <code>specs</code> de
-<code><a href="dsr_conductivite.html">dsr_conductivite()</a></code>, et <code>diagnostic</code>, un <code>data.frame</code> (<code>canal</code>, <code>auc</code>,
-<code>sens</code>, <code>stable</code>, <code>retenu</code>, <code>poids</code>, <code>a</code>, <code>b</code>) trie par pouvoir
-discriminant decroissant. Avec plusieurs massifs, <code>auc</code> est la mediane et
-<code>stable</code> indique si le sens concorde partout.</p>
-    </div>
+    <p>Une liste de quatre elements :</p><ul><li><p><code>specs</code>, directement utilisable comme argument <code>specs</code> de
+<code><a href="dsr_conductivite.html">dsr_conductivite()</a></code> ;</p></li>
+<li><p><code>diagnostic</code>, un <code>data.frame</code> (<code>canal</code>, <code>auc</code>, <code>sens</code>, <code>stable</code>,
+<code>retenu</code>, <code>poids</code>, <code>a</code>, <code>b</code>) trie par pouvoir discriminant decroissant.
+Avec plusieurs massifs, <code>auc</code> est la mediane et <code>stable</code> indique si le
+sens concorde partout ;</p></li>
+<li><p><code>par_massif</code>, la mesure brute avant agregation (<code>canal</code>, <code>massif</code>, <code>auc</code>,
+<code>sens</code>) – c'est la qu'on lit <em>comment</em> un canal s'inverse, la ou
+<code>diagnostic</code> se contente de dire qu'il le fait ;</p></li>
+<li><p><code>terrain</code>, les descripteurs de relief de chaque massif (<code>pente_med</code>,
+<code>pente_p90</code>, <code>rugosite_med</code>, <code>relief_iqr</code>). Voir « Terrain » ci-dessous.</p></li>
+</ul></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p><strong>Pourquoi cette fonction existe.</strong> Les regles par defaut
@@ -160,6 +166,38 @@ massifs qu'on va effectivement traiter reste la bonne pratique</strong>.</p>
 <p>Cette correction ne suffit pas a elle seule a rendre une pile independante de
 l'emprise : <code>vesselness</code> est rescalee <strong>en amont</strong> des fonctions
 d'appartenance et demande son propre ancrage (<code><a href="dsr_c_vessel.html">dsr_c_vessel()</a></code>).</p>
+<p><strong>Terrain : instrumenter avant de stratifier.</strong> Certains canaux discriminent
+bien sur chaque massif mais dans des sens <strong>opposes</strong>. Sur les deux massifs
+de validation, <code>pente</code> marque les routes par le bas en montagne (une route
+suit le moindre pendage) et par le haut en plaine (plateforme bombee,
+fosses), avec la meme AUC de 0,61 des deux cotes ; <code>slrm</code> fait de meme. Le
+test <code>stable</code> les ecarte – prudence justifiee tant qu'on ne sait pas a quoi
+rattacher l'inversion, mais qui perd de l'information reelle.</p>
+<p>L'hypothese naturelle est que ces signes sont stables <strong>a l'interieur d'une
+classe de relief</strong>. Elle n'est pas tranchable avec deux massifs : il en
+faudrait au moins deux par classe, sans quoi on calibrerait une
+classification sur un seul echantillon – exactement l'erreur que cette
+fonction existe pour eviter.</p>
+<p>D'ou <code>terrain</code> et <code>par_massif</code>, qui <strong>instrumentent sans stratifier</strong> :
+chaque calibration rend son relief a cote de ses signes, et la question
+devient decidable quand les massifs s'accumuleront. Les descripteurs sont
+plusieurs a dessein – rien ne dit d'avance si c'est la pente, la rugosite ou
+l'amplitude du relief local qui predit les inversions, et c'est aux donnees
+de le dire.</p>
+<p><strong>Une regularite a falsifier.</strong> Sur les deux massifs disponibles, les canaux
+qui s'inversent sont exactement ceux qui situent la route dans la forme
+GENERALE du paysage, et ceux qui restent stables decrivent la route
+ELLE-MEME :</p><table class="table table"><tr><td>canal</td><td>plaine (pente med. 2,2 deg)</td><td>montagne (22,3 deg)</td></tr><tr><td><code>pente</code></td><td>+1</td><td><strong>-1</strong></td></tr><tr><td><code>slrm</code></td><td>+1</td><td><strong>-1</strong></td></tr><tr><td><code>rugosite</code> (texture)</td><td>+1</td><td>+1</td></tr><tr><td><code>openness_neg</code> / <code>openness_pos</code> / <code>svf</code> (forme du voisinage)</td><td>-1</td><td>-1</td></tr><tr><td><code>vesselness</code> (linearite)</td><td>+1</td><td>+1</td></tr></table><p>L'explication tiendrait en une phrase : en montagne une route suit le moindre
+pendage, elle est donc <strong>moins</strong> pentue que son environnement ; en plaine il
+n'y a pas de pendage a suivre, et ce qui la marque est sa forme construite –
+bombement, fosses – donc <strong>plus</strong> pentue qu'un terrain plat. Les autres
+canaux decrivent la route et non sa place dans le paysage, ce qui expliquerait
+leur stabilite.</p>
+<p>Ce n'est <strong>pas une loi</strong> : deux massifs ne l'etablissent pas. C'est une
+prediction, et elle est falsifiable – un troisieme massif dont <code>pente</code>
+s'inverserait sans changement de classe de relief la refuterait. Elle vaut
+surtout parce qu'elle reduit le probleme : si elle tient, seuls <code>pente</code> et
+<code>slrm</code> demandent un conditionnement au terrain.</p>
 <p><strong>Ce que la reference peut et ne peut pas etre.</strong> Sa POSITION doit faire
 autorite – la BD TOPO convient, sa precision planimetrique etant metrique.
 Sa largeur, non : elle n'entre pas dans le calcul. Un reseau approximatif
