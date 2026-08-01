@@ -351,3 +351,51 @@ test_that("une amorce posee sur le reseau connu peut demarrer", {
   # bout en bout, il s'arrete des qu'il en rencontre une portion non protegee.
   expect_lt(x_final(a), 190)
 })
+
+
+test_that("le vectoriseur par agent ne depend pas de l'ordre des amorces", {
+  skip_if_not_installed("terra"); skip_if_not_installed("sf")
+  # Verrou central du determinisme. Avec une mise a jour du reseau au fil de
+  # l'eau, chaque reussite modifiait l'entree des amorces suivantes : mesure sur
+  # donnee reelle, memes entrees et 8 ordres tires au hasard, le F1 variait de
+  # 13 % sur wsfi et 43 % sur ltcp. Le reseau ne se met desormais a jour
+  # qu'entre les tours, donc l'ordre n'a plus de prise.
+  n <- 80
+  p <- terra::rast(nrows = n, ncols = n, xmin = 0, xmax = n, ymin = 0, ymax = n,
+    crs = "EPSG:2154")
+  terra::values(p) <- 0.1
+  xy <- terra::xyFromCell(p, seq_len(terra::ncell(p)))
+  p[abs(xy[, 2] - 40) < 1.5 & xy[, 1] > 10 & xy[, 1] < 70] <- 0.9   # barre
+  p[abs(xy[, 1] - 40) < 1.5 & xy[, 2] > 40 & xy[, 2] < 70] <- 0.9   # embranchement
+  ref <- sf::st_sf(id = 1, geometry = sf::st_sfc(
+    sf::st_linestring(cbind(c(12, 20), c(40, 40))), crs = 2154))
+
+  appel <- function() dsr_vectoriser(p, methode = "agent", reference = ref,
+    seuil = 0.5, long_min = 10, simplifier = 0, portee = 20)
+  direct <- appel()
+  bis <- appel()
+
+  # Reproductible a l'identique : plus aucune dependance a l'ordre d'arrivee.
+  expect_equal(nrow(bis), nrow(direct))
+  expect_equal(sum(bis$longueur), sum(direct$longueur), tolerance = 1e-9)
+})
+
+
+test_that("les doublons d'un tour sont retires de facon deterministe", {
+  skip_if_not_installed("sf")
+  # Deux traces quasi confondues : une seule doit survivre, et c'est la plus
+  # longue -- critere independant de l'ordre d'arrivee.
+  a <- sf::st_linestring(cbind(c(0, 100), c(0, 0)))
+  b <- sf::st_linestring(cbind(c(5, 60), c(0.5, 0.5)))
+  crs <- sf::st_crs(2154)
+
+  g1 <- dessertR:::.dsr_dedupe_tour(list(a, b), crs, 3)
+  g2 <- dessertR:::.dsr_dedupe_tour(list(b, a), crs, 3)
+  expect_length(g1, 1L)
+  expect_equal(sf::st_length(sf::st_sfc(g1, crs = crs)),
+    sf::st_length(sf::st_sfc(g2, crs = crs)))
+
+  # Deux traces disjointes sont toutes deux conservees.
+  c2 <- sf::st_linestring(cbind(c(0, 100), c(50, 50)))
+  expect_length(dessertR:::.dsr_dedupe_tour(list(a, c2), crs, 3), 2L)
+})

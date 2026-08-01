@@ -1,5 +1,55 @@
 # dessertR (cycle de developpement)
 
+## Le vectoriseur par agent devient deterministe
+
+Le reseau decouvert ne se met plus a jour qu'**entre** les tours, jamais au sein
+d'un tour. Tous les agents d'un meme tour voient donc le meme etat, et le
+resultat ne depend plus de l'ordre des amorces.
+
+**Le defaut, mesure.** Avec une mise a jour au fil de l'eau, chaque reussite
+modifiait l'entree des amorces suivantes. Memes entrees, seul l'ordre des
+amorces change, 8 tirages :
+
+| | wsfi | ltcp |
+|---|---|---|
+| F1 | 0,454 - 0,517 (**±13 %**) | **0,299 - 0,470 (±43 %)** |
+| precision | 0,607 - 0,782 (±26 %) | **0,398 - 0,797 (±68 %)** |
+| km produits | ±26 % | **±55 %** |
+
+L'ordre des amorces n'a aucune signification physique. **Un balayage de
+parametre sur ltcp mesurait donc l'ordre de traitement, pas le parametre** : le
+balayage de `franchissabilite_min` y couvrait 0,248 a 0,319, entierement a
+l'interieur de ce bruit. Apres correction, l'ecart-type sur les 8 ordres est
+**exactement nul** sur les deux massifs et sur toutes les metriques.
+
+**Ce que ca change sur la qualite.** Les agents d'un meme tour ne s'arretent
+plus les uns les autres, donc ils vont plus loin :
+
+| | wsfi avant | wsfi apres | ltcp avant | ltcp apres |
+|---|---|---|---|---|
+| rappel | 0,381 | **0,442** | 0,287 | **0,481** |
+| precision | 0,607 | **0,640** | **0,817** | 0,489 |
+| ecart median | 3,20 m | **2,82 m** | **1,79 m** | 5,41 m |
+| F1 | 0,468 | **0,523** | 0,425 | **0,485** |
+
+Sur wsfi, mieux sur **tout**. Sur ltcp, c'est un arbitrage assume : rappel
++68 %, mais precision -40 % et ecart median de 1,79 a 5,41 m.
+
+**Reserve sur cette mesure, a charge.** Le banc retire deliberement la reference
+comme barriere -- il demande a l'agent de la retrouver, il ne peut donc pas la
+lui donner. Le chemin nominal, lui, passe la reference comme reseau
+infranchissable des le premier tour : la surproduction mesuree ici est en partie
+un artefact du protocole, d'une ampleur que nous ne pouvons pas chiffrer faute
+de verite terrain hors reference.
+
+Le determinisme, lui, est acquis sans reserve -- et c'est un **prerequis** :
+sans lui, aucun reglage n'est mesurable, ce que ce cycle a appris a ses depens.
+
+Les doublons d'un meme tour sont retires par [dsr_dedupe_paralleles()], qui trie
+par longueur decroissante et reste donc lui aussi independant de l'ordre.
+Largeur reglable par `dedupe_largeur` (defaut 3 m).
+
+
 ## L'ecart entre massifs venait surtout du protocole de mesure
 
 ltcp rendait systematiquement bien moins que wsfi (F1 0,30 contre 0,48 ; rappel
