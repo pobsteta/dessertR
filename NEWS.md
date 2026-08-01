@@ -1,3 +1,6 @@
+# dessertR (cycle de developpement)
+
+
 # dessertR 1.2.0
 
 Version de **l'instrument avant la mesure**. La 1.1.0 corrigeait des reglages
