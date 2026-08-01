@@ -1,5 +1,386 @@
 # Changelog
 
+## dessertR 1.2.0
+
+Version de **l’instrument avant la mesure**. La 1.1.0 corrigeait des
+reglages supposes ; celle-ci s’en prend a ce qui rendait ces reglages
+inmesurables.
+
+Le fil conducteur est une decouverte desagreable : plusieurs conclusions
+de la 1.1.0 reposaient sur des mesures que l’outil ne pouvait pas
+porter.
+
+- **Le vectoriseur par agent n’etait pas deterministe.** A entrees
+  identiques, seul l’ordre des amorces changeant, le F1 variait de 13 %
+  sur un massif et **43 % sur l’autre**. Un balayage de parametre y
+  mesurait l’ordre de traitement, pas le parametre. L’ecart-type est
+  desormais **exactement nul**.
+- **L’agent sabotait ses propres amorces** : jusqu’a 19 sur 26 mouraient
+  avant d’avoir avance d’un pas, parce que le reseau deja decouvert
+  etait rendu infranchissable jusque sous leur point de depart.
+- **L’AUC etait aveugle a un defaut d’echelle.** Des bornes transportees
+  d’un massif a l’autre effondraient le contraste route / fond d’un
+  facteur soixante sans que l’AUC, invariante d’echelle, n’en montre
+  rien. C’est ce defaut qui se presentait comme un « ecart entre massifs
+  » attribue au terrain.
+
+Deux defauts de valeur ont par ailleurs ete corriges a la mesure :
+`rugosite` etait declaree **a l’envers** (+0,175 d’AUC sur les deux
+massifs, le defaut precedent passant sous le hasard sur l’un d’eux), et
+`franchissabilite_min` etait pose dans la seule fenetre ou l’agent
+divague.
+
+Enfin, \[dsr_calibrer_specs()\] rend desormais le **relief** a cote des
+signes, sans stratifier : les canaux qui s’inversent entre plaine et
+montagne sont exactement ceux qui situent la route dans la forme
+generale du paysage, et c’est une prediction que le troisieme massif
+pourra refuter.
+
+Trois defauts de comportement changent (`rugosite`,
+`franchissabilite_min`, determinisme de l’agent), aucune API n’est
+cassee. Le detail suit, avec les chiffres.
+
+### La calibration rend desormais le terrain a cote des signes
+
+\[dsr_calibrer_specs()\] rend deux elements de plus : `par_massif`, la
+mesure brute avant agregation, et `terrain`, des descripteurs de relief
+mesures sur la pile fournie (`pente_med`, `pente_p90`, `rugosite_med`,
+`relief_iqr`). Aucun defaut ne change, aucun calcul n’est ajoute – les
+descripteurs sortent des canaux deja presents.
+
+**Pourquoi.** Le test `stable` ecarte les canaux dont le sens differe
+d’un massif a l’autre. C’est prudent, mais ca jette de l’information
+reelle : `pente` discrimine a 0,61 sur **les deux** massifs de
+validation, simplement dans des sens opposes. L’hypothese naturelle –
+ces signes sont stables **a l’interieur d’une classe de relief** – n’est
+pas tranchable avec deux massifs : il en faudrait au moins deux par
+classe, sans quoi on calibrerait une classification sur un seul
+echantillon, exactement l’erreur que cette fonction existe pour eviter.
+On instrumente donc, sans stratifier.
+
+**Une regularite apparait, et elle est falsifiable.** Les canaux qui
+s’inversent sont exactement ceux qui situent la route dans la forme
+GENERALE du paysage ; ceux qui restent stables decrivent la route
+ELLE-MEME :
+
+| canal | ltcp (pente med. 2,2 deg) | wsfi (22,3 deg) |
+|----|----|----|
+| `pente` | +1 (0,610) | **-1** (0,607) |
+| `slrm` | +1 (0,571) | **-1** (0,547) |
+| `rugosite` — texture | +1 (0,744) | +1 (0,759) |
+| `openness_neg` / `openness_pos` / `svf` — forme du voisinage | -1 | -1 |
+| `vesselness` — linearite | +1 (0,578) | +1 (0,612) |
+
+En montagne, une route suit le moindre pendage : elle est **moins**
+pentue que son environnement. En plaine, il n’y a pas de pendage a
+suivre, et ce qui la marque est sa forme construite – bombement, fosses
+– donc **plus** pentue qu’un terrain plat. Les autres canaux decrivent
+la route et non sa place dans le paysage.
+
+Deux massifs n’etablissent pas une loi. Mais la prediction est nette et
+refutable, et elle reduit beaucoup le probleme : si elle tient, **seuls
+`pente` et `slrm` demandent un conditionnement au terrain** – pas les
+cinq autres.
+
+Les quatre descripteurs sont rendus a dessein : rien ne dit d’avance
+lequel predit les inversions, et sur deux massifs ils se separent tous
+d’un facteur 3 a 10. C’est aux donnees de trancher, quand il y en aura.
+
+### Le vectoriseur par agent devient deterministe
+
+Le reseau decouvert ne se met plus a jour qu’**entre** les tours, jamais
+au sein d’un tour. Tous les agents d’un meme tour voient donc le meme
+etat, et le resultat ne depend plus de l’ordre des amorces.
+
+**Le defaut, mesure.** Avec une mise a jour au fil de l’eau, chaque
+reussite modifiait l’entree des amorces suivantes. Memes entrees, seul
+l’ordre des amorces change, 8 tirages :
+
+|             | wsfi                      | ltcp                      |
+|-------------|---------------------------|---------------------------|
+| F1          | 0,454 - 0,517 (**±13 %**) | **0,299 - 0,470 (±43 %)** |
+| precision   | 0,607 - 0,782 (±26 %)     | **0,398 - 0,797 (±68 %)** |
+| km produits | ±26 %                     | **±55 %**                 |
+
+L’ordre des amorces n’a aucune signification physique. **Un balayage de
+parametre sur ltcp mesurait donc l’ordre de traitement, pas le
+parametre** : le balayage de `franchissabilite_min` y couvrait 0,248 a
+0,319, entierement a l’interieur de ce bruit. Apres correction,
+l’ecart-type sur les 8 ordres est **exactement nul** sur les deux
+massifs et sur toutes les metriques.
+
+**Ce que ca change sur la qualite.** Les agents d’un meme tour ne
+s’arretent plus les uns les autres, donc ils vont plus loin :
+
+|              | wsfi avant | wsfi apres | ltcp avant | ltcp apres |
+|--------------|------------|------------|------------|------------|
+| rappel       | 0,381      | **0,442**  | 0,287      | **0,481**  |
+| precision    | 0,607      | **0,640**  | **0,817**  | 0,489      |
+| ecart median | 3,20 m     | **2,82 m** | **1,79 m** | 5,41 m     |
+| F1           | 0,468      | **0,523**  | 0,425      | **0,485**  |
+
+Sur wsfi, mieux sur **tout**. Sur ltcp, c’est un arbitrage assume :
+rappel +68 %, mais precision -40 % et ecart median de 1,79 a 5,41 m.
+
+**Reserve sur cette mesure, a charge.** Le banc retire deliberement la
+reference comme barriere – il demande a l’agent de la retrouver, il ne
+peut donc pas la lui donner. Le chemin nominal, lui, passe la reference
+comme reseau infranchissable des le premier tour : la surproduction
+mesuree ici est en partie un artefact du protocole, d’une ampleur que
+nous ne pouvons pas chiffrer faute de verite terrain hors reference.
+
+Le determinisme, lui, est acquis sans reserve – et c’est un
+**prerequis** : sans lui, aucun reglage n’est mesurable, ce que ce cycle
+a appris a ses depens.
+
+Les doublons d’un meme tour sont retires par
+\[dsr_dedupe_paralleles()\], qui trie par longueur decroissante et reste
+donc lui aussi independant de l’ordre. Largeur reglable par
+`dedupe_largeur` (defaut 3 m).
+
+### L’ecart entre massifs venait surtout du protocole de mesure
+
+ltcp rendait systematiquement bien moins que wsfi (F1 0,30 contre 0,48 ;
+rappel 0,21 contre 0,39), et l’explication naturelle etait un massif
+plus difficile – plaine, faible relief, empreinte geomorphologique
+tenue. **Les deux tiers de l’ecart venaient du protocole.**
+
+**Le mecanisme.** Les harnais calibrent sur un massif DISJOINT pour
+eviter la circularite, ce qui est juste. Mais depuis que
+\[dsr_calibrer_specs()\] rend des bornes absolues, ils transportaient
+aussi les **bornes**. Or une borne est dans l’unite du canal : celles
+d’une plaine appliquees a une montagne poussent tout au plafond, et
+inversement.
+
+| massif | bornes              | mediane | contraste route / fond | AUC   |
+|--------|---------------------|---------|------------------------|-------|
+| wsfi   | croisees            | 0,578   | **+0,003**             | 0,658 |
+| wsfi   | propres             | 0,101   | **+0,176**             | 0,776 |
+| wsfi   | sans bornes, croise | 0,252   | +0,140                 | 0,708 |
+| ltcp   | croisees            | 0,087   | **+0,017**             | 0,643 |
+| ltcp   | propres             | 0,112   | **+0,112**             | 0,693 |
+| ltcp   | sans bornes, croise | 0,192   | +0,115                 | 0,682 |
+
+**L’AUC etait aveugle au defaut.** Elle bouge de quelques centiemes la
+ou le contraste est divise par **six a soixante**. C’est un critere de
+RANG, donc invariant d’echelle : elle survit intacte a l’effondrement du
+contraste. L’agent, lui, consomme des **valeurs** – son cout admissible
+vaut `portee / conductivite_min` – et divague des que l’echelle se
+deplace. Juger une carte a la seule AUC masque cette classe de defaut.
+
+**L’effet une fois corrige**, agent amorce par la reference, calibration
+croisee avec `bornes = FALSE` :
+
+| protocole       | massif | rappel    | precision | ecart median | F1        |
+|-----------------|--------|-----------|-----------|--------------|-----------|
+| bornes croisees | wsfi   | 0,336     | 0,622     | 2,62 m       | 0,437     |
+| bornes croisees | ltcp   | 0,208     | 0,556     | 4,06 m       | 0,303     |
+| **sans bornes** | wsfi   | 0,381     | 0,607     | 3,20 m       | **0,468** |
+| **sans bornes** | ltcp   | **0,287** | **0,817** | **1,79 m**   | **0,425** |
+
+L’ecart entre massifs tombe de **0,134 a 0,043**, et l’ecart median de
+ltcp descend a **1,79 m – meilleur que wsfi**. Ce massif n’est pas
+intrinsequement difficile.
+
+**Le garde-fou.** \[dsr_conductivite()\] et \[dsr_sigma_surf()\]
+signalent desormais les canaux dont l’appartenance sature a plus de 80 %
+d’un seul cote, ce qui est la signature de bornes etrangeres a la
+donnee. Le controle ne porte que sur les bornes **explicites** : avec
+des bornes quantilees, la saturation est structurelle et non un defaut.
+Silence par `options(dessertR.verifier_bornes = FALSE)`.
+
+`dev/04` et `dev/07` passent a `bornes = FALSE`, leur calibration etant
+croisee.
+
+**Ce qui reste.** Un ecart residuel, bien plus petit, coherent avec le
+relief : pente mediane **2,3 deg sur ltcp contre 23,3 deg sur wsfi**.
+Une route de plaine laisse moins d’empreinte, et c’est une limite
+physique, pas un reglage.
+
+### `franchissabilite_min` passe de 0,4 a 0,45
+
+Le defaut etait pose dans la seule zone de l’intervalle ou l’agent
+divague.
+
+**Pourquoi rejouer le balayage.** Le premier passage avait conclu au
+maintien de 0,4. Deux lots l’ont invalide depuis :
+\[dsr_calibrer_specs()\] rend des bornes absolues, donc `sigma_geo` et
+le seuil derive de sa distribution ne sont plus les memes ; et surtout
+\[dsr_conduire()\] ne tue plus les amorces posees sur le reseau deja
+decouvert. **Le premier passage comparait des seuils sur un agent qui
+perdait 19 amorces sur 26 sur ltcp**, et dont le resultat dependait de
+l’ordre de traitement. Ses conclusions chiffrees etaient sans valeur.
+
+**Le F1 ne tranche pas.** Neuf seuils, deux massifs
+(`dev/07_calibrer_franchissabilite.R`) : une fois lisse, le F1 moyen
+tient entre **0,355 et 0,367** sur toute la plage. Le profil est
+*chaotique* – un petit deplacement du seuil change quelles amorces
+aboutissent, et la cascade se propage par le reseau accumule. Prendre
+l’argmax d’un tel profil serait du surajustement, et c’est d’ailleurs ce
+qui faisait « preferer » 0,55 a ltcp et 0,40 a wsfi.
+
+**C’est l’ecart a la reference qui tranche :**
+
+| seuil                    | ecart median wsfi | ecart median ltcp | moyenne    |
+|--------------------------|-------------------|-------------------|------------|
+| 0,375                    | 2,27 m            | **13,37 m**       | 7,82 m     |
+| **0,40 (ancien defaut)** | 2,57 m            | **12,91 m**       | **7,74 m** |
+| **0,45 (nouveau)**       | 2,62 m            | **4,06 m**        | **3,34 m** |
+| 0,50                     | 2,24 m            | 6,93 m            | 4,58 m     |
+| 0,55                     | 2,86 m            | 4,58 m            | 3,72 m     |
+
+Sur ltcp l’ecart vaut 4 a 7 m partout **sauf entre 0,375 et 0,40**, ou
+il explose a 13 m – juste au-dessus du mode, la ou le plancher ecrase le
+contraste sur les deux tiers de la carte et laisse l’agent divaguer.
+L’ancien defaut etait dans cette fenetre etroite. 0,45 en sort au
+premier cran, **sans rien couter sur wsfi** (2,62 contre 2,57 m) et en
+divisant l’ecart moyen par deux.
+
+**Une regle enoncee en 1.1.0 ne survit pas.** Elle disait « ce qui
+compte est le cote du mode : au-dessus, l’ecart tombe a 2-3 m sur les
+deux massifs ». C’etait mesure sur l’agent defaillant. Corrige,
+`sigma_surf` inchange, l’affirmation est fausse sur ltcp : juste
+au-dessus du mode est precisement le pire endroit. Le mecanisme du mode
+(il vient du calcul, pas du terrain) reste valide, lui – il ne depend
+pas de l’agent.
+
+### L’agent sabotait ses propres amorces
+
+\[dsr_conduire()\] rendait le reseau deja decouvert infranchissable **y
+compris sous le point de depart de l’amorce suivante**. Comme les
+amorces viennent du reseau de reference et que le reseau decouvert le
+recouvre par construction, **plus l’agent reussissait tot, plus il tuait
+ses amorces suivantes**.
+
+**Le diagnostic.** Le motif d’arret le disait, encore fallait-il le
+regarder : sur ltcp, **19 amorces sur 26** mouraient en
+`depart_infranchissable` sans avoir avance d’un seul pas, et **32 sur
+54** sur wsfi. Le chiffre etait *identique avec et sans contrainte de
+franchissabilite* – ce qui disqualifie l’explication retenue jusqu’ici,
+qui attribuait le deficit de rappel a une contrainte trop serree.
+
+**La correction.** Un trou de la taille du `tampon` dans le masque du
+reseau, autour du point de **depart fige** – pas de la position
+courante, sinon le reseau deviendrait franchissable partout et la
+detection de jonction tomberait. La jonction se joue de toute facon a
+`portee` metres devant, tres au-dela du trou. C’est la symetrie de ce
+que le code faisait deja pour la trace de l’agent lui-meme.
+
+**Mesure A/B**, code identique au correctif pres, agent amorce par la
+reference :
+
+|               | amorces mortes | routes | km   | rappel    | precision | F1        |
+|---------------|----------------|--------|------|-----------|-----------|-----------|
+| wsfi sans     | 32 / 54        | 17     | 4,21 | 0,335     | 0,661     | 0,445     |
+| wsfi **avec** | **0**          | 26     | 5,45 | **0,390** | 0,637     | **0,484** |
+| ltcp sans     | 19 / 26        | 6      | 2,51 | 0,175     | 0,306     | 0,223     |
+| ltcp **avec** | **0**          | 18     | 3,55 | **0,213** | 0,322     | **0,257** |
+
+Rappel **+16 % sur wsfi et +22 % sur ltcp**, F1 +9 % et +15 %, precision
+quasi inchangee.
+
+**Le cout, et ce qui n’est pas resolu.** L’ecart median a la reference
+se degrade sur ltcp (9,36 -\> 12,91 m) : les amorces reanimees
+produisent aussi du lineaire plus eloigne. Et le deficit de rappel de
+ltcp est **reduit, pas supprime** – il reste tres en dessous de wsfi.
+
+Ce defaut expliquait par ailleurs l’instabilite des mesures sur ltcp
+d’un passage a l’autre : le resultat dependait de l’ordre de traitement
+des amorces, puisque chaque reussite condamnait les suivantes.
+
+### `rugosite` etait utilisee a l’envers dans les regles par defaut
+
+\[dsr_specs_geomorpho()\] declare desormais `rugosite` **croissante**.
+Le canal le plus discriminant du jeu etait utilise a l’envers depuis
+l’origine.
+
+**Le constat n’est pas neuf, la condition pour agir l’est.** La 1.0.0
+avait mesure l’inversion, et avait choisi de ne PAS toucher au defaut :
+figer un signe qu’un troisieme jeu pourrait dementir aurait reproduit
+l’erreur qu’on venait de corriger. Trois jeux concordent maintenant –
+wsfi, ltcp, et une dalle Lozere mesuree independamment par l’audit
+ForetAccess – et la calibration conjointe rend `stable = TRUE`.
+
+| massif         | AUC `rugosite` | sens           |
+|----------------|----------------|----------------|
+| wsfi (1,5 km2) | 0,759          | +1             |
+| ltcp (1,5 km2) | 0,744          | +1             |
+| conjoint       | **0,753**      | **+1, stable** |
+
+**Ce que la correction rapporte**, AUC route / hors route de `sigma_geo`
+avec les regles par defaut :
+
+| massif | avant     | apres     |
+|--------|-----------|-----------|
+| wsfi   | 0,530     | **0,705** |
+| ltcp   | **0,479** | **0,654** |
+
+**+0,175 sur chacun**, gain identique. A noter : sur ltcp le defaut
+precedent tombait **sous le hasard** – il n’etait pas seulement inutile,
+il degradait.
+
+**Pourquoi l’intuition trompait.** Une route est censee etre lisse. A 50
+cm de resolution c’est faux : une piste empierree a ornieres est plus
+rugueuse qu’un versant forestier localement plan, et dans une fenetre de
+quelques cellules c’est le profil en travers – fosse, talus, devers –
+qui domine, pas l’etat de la chaussee.
+
+**Les autres signes sont inchanges.** `pente` et `slrm` s’inversent d’un
+massif a l’autre (`stable = FALSE`) et n’ont rien a faire dans un
+defaut. `openness_neg` mesure `-1` sur les deux massifs, mais `+1` sur
+la dalle Lozere – qui recouvre wsfi – avec une AUC de 0,527 la ou le
+signe se decide : trop proche du hasard pour trancher. Il reste
+`croissante`.
+
+Ces regles restent un point de depart ; \[dsr_calibrer_specs()\] demeure
+le chemin recommande.
+
+### La faiblesse de `sigma_surf` n’est pas un artefact de calcul
+
+Resultat **negatif**, et il ferme une piste que le cycle precedent
+laissait ouverte. Aucun changement de code : seulement une hypothese
+testee et abandonnee.
+
+**L’hypothese.** La version 1.1.0 constatait que les bornes quantilees
+saturent la moitie de `sigma_surf` – `mu(taux_penetration) = 0` et
+`mu(densite_sousetage) = 1` par construction – et suggerait que son AUC
+mediocre (0,578 et 0,607) pourrait n’etre qu’un artefact de cette
+saturation. \[dsr_calibrer_specs()\] rendant desormais des bornes
+absolues, l’hypothese devenait testable (`dev/09_bornes_surface.R`).
+
+| massif | regles                     | AUC `sigma_surf` | saturation |
+|--------|----------------------------|------------------|------------|
+| wsfi   | defaut                     | 0,583            | 50,1 %     |
+| wsfi   | calibre nu, croise         | 0,528            | 30,4 %     |
+| wsfi   | calibre + bornes, croise   | 0,524            | 31,7 %     |
+| wsfi   | calibre + bornes, *propre* | 0,577            | 58,3 %     |
+| ltcp   | defaut                     | 0,599            | 34,0 %     |
+| ltcp   | calibre nu, croise         | 0,613            | 57,3 %     |
+| ltcp   | calibre + bornes, croise   | 0,604            | 23,5 %     |
+| ltcp   | calibre + bornes, *propre* | **0,645**        | 43,1 %     |
+
+**La saturation n’explique rien.** Sur wsfi, la faire tomber de 50,1 % a
+31,7 % fait *baisser* l’AUC a 0,524 ; et le meilleur reglage du massif
+(0,577) est celui ou elle *monte* a 58,3 %. Les deux grandeurs ne sont
+pas liees.
+
+**Et le plafond est bas.** Le protocole « propre » calibre sur le massif
+lui-meme, donc les regles ont vu les reponses : c’est un majorant
+optimiste, pas une mesure. Meme la, le gain est nul sur wsfi (-0,006) et
+modeste sur ltcp (+0,045).
+
+**Les bornes ne se transportent pas**, comme annonce en 1.1.0 :
+calibrees sur l’autre massif elles coutent -0,059 sur wsfi. Une borne
+est dans l’unite du canal, et `taux_penetration` brut differe d’un
+facteur 7 entre les deux massifs. Le protocole croise est le seul
+honnete, et c’est le moins bon.
+
+**Conclusion.** La faiblesse de `sigma_surf` pour LOCALISER une route
+est physique, pas computationnelle – coherent avec ce qui etait deja
+etabli sur `densite_sousetage` : ce canal mesure un **etat**, et on lui
+pose la mauvaise question en lui demandant ou est la route. Inutile
+d’investir davantage dans son reparametrage ; le levier est ailleurs.
+
 ## dessertR 1.1.0
 
 Version de la **mesure contre l’intuition**. Quatre reglages qui
