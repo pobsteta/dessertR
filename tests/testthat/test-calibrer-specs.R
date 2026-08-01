@@ -165,3 +165,24 @@ test_that("les bornes rendent la conductivite independante de l'emprise", {
   expect_false(isTRUE(all.equal(terra::values(libre_p, mat = FALSE),
     terra::values(libre_l, mat = FALSE), tolerance = 1e-8)))
 })
+
+
+test_that("la calibration rend le terrain et la mesure par massif", {
+  skip_if_not_installed("terra"); skip_if_not_installed("sf")
+  cal <- dsr_calibrer_specs(list(pile_synth(), pile_synth(graine = 2)),
+    list(axe_synth(), axe_synth()))
+
+  # Un descripteur par massif, meme quand la pile ne porte pas tous les canaux
+  # attendus : les absents valent NA plutot que de faire echouer la mesure.
+  expect_equal(nrow(cal$terrain), 2L)
+  expect_true(all(c("pente_med", "pente_p90", "rugosite_med", "relief_iqr")
+    %in% names(cal$terrain)))
+  expect_true(is.finite(cal$terrain$rugosite_med[1]))
+  expect_true(all(is.na(cal$terrain$pente_med)))  # `pente` absent de la pile
+
+  # par_massif porte la mesure AVANT agregation : c'est la qu'on lit comment un
+  # canal s'inverse, la ou diagnostic dit seulement qu'il le fait.
+  expect_true(all(c("canal", "massif", "auc", "sens") %in% names(cal$par_massif)))
+  expect_setequal(unique(cal$par_massif$massif), c(1, 2))
+  expect_true(all(cal$par_massif$canal %in% cal$diagnostic$canal))
+})
