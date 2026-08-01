@@ -1,4 +1,36 @@
-# dessertR (cycle de developpement)
+# dessertR 1.2.0
+
+Version de **l'instrument avant la mesure**. La 1.1.0 corrigeait des reglages
+supposes ; celle-ci s'en prend a ce qui rendait ces reglages inmesurables.
+
+Le fil conducteur est une decouverte desagreable : plusieurs conclusions de la
+1.1.0 reposaient sur des mesures que l'outil ne pouvait pas porter.
+
+* **Le vectoriseur par agent n'etait pas deterministe.** A entrees identiques,
+  seul l'ordre des amorces changeant, le F1 variait de 13 % sur un massif et
+  **43 % sur l'autre**. Un balayage de parametre y mesurait l'ordre de
+  traitement, pas le parametre. L'ecart-type est desormais **exactement nul**.
+* **L'agent sabotait ses propres amorces** : jusqu'a 19 sur 26 mouraient avant
+  d'avoir avance d'un pas, parce que le reseau deja decouvert etait rendu
+  infranchissable jusque sous leur point de depart.
+* **L'AUC etait aveugle a un defaut d'echelle.** Des bornes transportees d'un
+  massif a l'autre effondraient le contraste route / fond d'un facteur soixante
+  sans que l'AUC, invariante d'echelle, n'en montre rien. C'est ce defaut qui se
+  presentait comme un « ecart entre massifs » attribue au terrain.
+
+Deux defauts de valeur ont par ailleurs ete corriges a la mesure : `rugosite`
+etait declaree **a l'envers** (+0,175 d'AUC sur les deux massifs, le defaut
+precedent passant sous le hasard sur l'un d'eux), et `franchissabilite_min`
+etait pose dans la seule fenetre ou l'agent divague.
+
+Enfin, [dsr_calibrer_specs()] rend desormais le **relief** a cote des signes,
+sans stratifier : les canaux qui s'inversent entre plaine et montagne sont
+exactement ceux qui situent la route dans la forme generale du paysage, et c'est
+une prediction que le troisieme massif pourra refuter.
+
+Trois defauts de comportement changent (`rugosite`, `franchissabilite_min`,
+determinisme de l'agent), aucune API n'est cassee. Le detail suit, avec les
+chiffres.
 
 ## La calibration rend desormais le terrain a cote des signes
 
