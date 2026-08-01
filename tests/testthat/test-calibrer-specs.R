@@ -186,3 +186,35 @@ test_that("la calibration rend le terrain et la mesure par massif", {
   expect_setequal(unique(cal$par_massif$massif), c(1, 2))
   expect_true(all(cal$par_massif$canal %in% cal$diagnostic$canal))
 })
+
+
+test_that("la calibration est reproductible, et rend le generateur intact", {
+  skip_if_not_installed("terra"); skip_if_not_installed("sf")
+  pile <- pile_synth(); axe <- axe_synth()
+
+  # Deux appels identiques -> memes regles. Sans graine, l'AUC etant estimee sur
+  # un echantillon, un canal pose au bord de auc_min entrait ou sortait du jeu
+  # selon le tirage.
+  a <- dsr_calibrer_specs(pile, axe)
+  b <- dsr_calibrer_specs(pile, axe)
+  expect_equal(a$specs, b$specs)
+  expect_equal(a$diagnostic, b$diagnostic)
+
+  # Deux graines differentes peuvent differer : la graine fige le tirage, elle
+  # ne supprime pas l'incertitude d'echantillonnage.
+  c1 <- dsr_calibrer_specs(pile, axe, graine = 7)
+  expect_equal(names(c1$specs), names(a$specs))
+
+  # L'etat du generateur de l'appelant doit ressortir INTACT : poser une graine
+  # dans une fonction de paquet sans la rendre casserait la reproductibilite du
+  # code appelant.
+  set.seed(123)
+  avant <- get(".Random.seed", envir = globalenv())
+  invisible(dsr_calibrer_specs(pile, axe))
+  expect_identical(get(".Random.seed", envir = globalenv()), avant)
+
+  # graine = NULL laisse jouer l'aleatoire ambiant : le generateur avance.
+  set.seed(123)
+  invisible(dsr_calibrer_specs(pile, axe, graine = NULL))
+  expect_false(identical(get(".Random.seed", envir = globalenv()), avant))
+})

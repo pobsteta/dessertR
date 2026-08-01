@@ -1,5 +1,29 @@
 # dessertR (cycle de developpement)
 
+## La calibration devient reproductible
+
+[dsr_calibrer_specs()] accepte `graine` (defaut 1) : deux appels sur la meme
+donnee rendent desormais **les memes regles**.
+
+L'AUC y est estimee sur un echantillon de `n` cellules, et l'ecart-type du
+tirage vaut environ **0,006** -- assez pour faire entrer ou sortir du jeu un
+canal pose au bord de `auc_min`. Une fonction de calibration dont la sortie
+bouge a entree constante ne vaut pas grand-chose, et c'etait la derniere source
+d'aleatoire du paquet.
+
+`graine = NULL` restaure le comportement precedent, utile pour **mesurer** la
+variabilite d'echantillonnage plutot que de l'ignorer. Dans tous les cas l'etat
+du generateur de l'appelant est sauvegarde et restaure : poser une graine dans
+une fonction de paquet sans la rendre casserait la reproductibilite du code
+appelant, ce qui serait pire que le probleme resolu.
+
+**Le harnais de tests est graine aussi** (`tests/testthat/setup.R`). Sans cela,
+la **couverture** elle-meme n'etait pas deterministe : selon le tirage, une
+branche etait exercee ou non, et codecov rapportait jusqu'a **-0,74 %** sur des
+commits ne touchant aucune ligne de R. La suite rend maintenant exactement 667
+assertions a chaque passage, la ou elle oscillait entre 646 et 647.
+
+
 ## Le banc du canal optique passe par `dsr_ortho_ign()`
 
 `dev/05_canaux.R` portait sa propre copie de la requete WMS Geoplateforme.

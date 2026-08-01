@@ -496,6 +496,17 @@ dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
 #' les deux, elle en est ecartee. Un canal dont le signe depend du relief n'a
 #' rien a faire dans une regle.
 #'
+#' **Reproductibilite.** L'AUC est estimee sur un echantillon de `n` cellules.
+#' Sans graine, deux appels sur la meme donnee ne rendent pas les memes regles :
+#' l'ecart-type du tirage est d'environ **0,006** sur l'AUC, ce qui suffit a
+#' faire entrer ou sortir du jeu un canal pose au bord de `auc_min`. Le defaut
+#' `graine = 1` fige ce tirage.
+#'
+#' Il le fige, il ne le supprime pas : l'incertitude d'echantillonnage reste, et
+#' deux graines differentes peuvent rendre deux jeux de regles legerement
+#' differents. Pour la mesurer plutot que de l'ignorer, appeler avec plusieurs
+#' graines explicites et comparer les diagnostics.
+#'
 #' **Bornes absolues, et pourquoi elles comptent.** La fonction rend aussi les
 #' bornes `a` et `b` de chaque rampe, en unites du canal (`bornes = TRUE`).
 #' Ce n'est pas un agrement : sans elles, [dsr_appartenance()] derive ses bornes
@@ -597,6 +608,11 @@ dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
 #' @param bornes Produire aussi les bornes d'appartenance `a` et `b`, en unites
 #'   du canal. Defaut `TRUE`. Voir « Bornes absolues » ci-dessous ; `FALSE`
 #'   rend des regles sans bornes, donc **relatives a l'emprise**.
+#' @param graine Graine du tirage servant a estimer l'AUC. Defaut 1, ce qui rend
+#'   la calibration **reproductible** : deux appels sur la meme donnee rendent
+#'   les memes regles. `NULL` pour laisser jouer l'aleatoire ambiant -- utile
+#'   pour justement mesurer la variabilite d'echantillonnage. L'etat du
+#'   generateur est sauvegarde et restaure dans tous les cas.
 #'
 #' @return Une liste de quatre elements :
 #'   * `specs`, directement utilisable comme argument `specs` de
@@ -624,7 +640,24 @@ dsr_sigma_surf <- function(couches, specs = dsr_specs_surface(),
 #' @export
 dsr_calibrer_specs <- function(couches, reference, pres = 3, absent = 20,
                                auc_min = 0.55, poids_max = 3, n = 2500,
-                               exclure = "theta", bornes = TRUE) {
+                               exclure = "theta", bornes = TRUE, graine = 1) {
+  # L'AUC est estimee sur un ECHANTILLON de `n` cellules : sans graine, deux
+  # appels sur la meme donnee ne rendent pas les memes regles. Une fonction de
+  # calibration qui n'est pas reproductible ne vaut pas grand-chose -- et un
+  # canal juste au bord de `auc_min` entre ou sort du jeu selon le tirage.
+  #
+  # L'etat du generateur est SAUVEGARDE et restaure : poser une graine dans une
+  # fonction de paquet sans la rendre casserait la reproductibilite du code
+  # appelant, qui est un probleme plus grave que celui qu'on resout.
+  if (!is.null(graine)) {
+    if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+      ancien <- get(".Random.seed", envir = globalenv())
+      on.exit(assign(".Random.seed", ancien, envir = globalenv()), add = TRUE)
+    } else {
+      on.exit(suppressWarnings(rm(".Random.seed", envir = globalenv())), add = TRUE)
+    }
+    set.seed(graine)
+  }
   if (inherits(couches, "SpatRaster")) couches <- list(couches)
   if (inherits(reference, c("sf", "sfc"))) reference <- list(reference)
   if (length(couches) != length(reference)) {
