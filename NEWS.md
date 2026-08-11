@@ -10,12 +10,13 @@ layons materialises au sol (`cutline=section`) ; celles d'un parcellaire
 CADASTRAL ne sont que des limites de propriete (`cutline=border`). Meme
 geometrie, tag different.
 
-La documentation avertit d'un piege voisin : **des contours d'unites de gestion
-ne sont pas des limites cadastrales.** Une unite taillee dans une portion de
-parcelle a des cotes de decoupe interne, qui ne correspondent a rien sur le
-terrain ; les fournir ferait classer en layon des lineaires qui suivent une
-limite purement administrative. Ce sont les limites des parcelles elles-memes
-qu'il faut passer.
+La documentation dit ce que l'entree usuelle implique : l'amont fournit des
+contours d'**unites de gestion** (UGF), qui sont des limites de gestion --
+`"section"` leur convient. Consequence a connaitre plutot qu'a corriger : une
+unite taillee dans une portion de parcelle a des cotes de decoupe interne, que
+rien ne materialise au sol, et un lineaire qui les suit ressort en
+`layon_parcellaire` sans en etre un. `CLASSE_MOTIF` porte alors `parcelle`, ce
+qui permet de les retrouver.
 
 ## La cubature dit sur quel terrain elle croit travailler
 

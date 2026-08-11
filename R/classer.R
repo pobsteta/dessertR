@@ -268,11 +268,13 @@ dsr_peignes <- function(traces, tol_angle = 15, espacement_min = 4,
 #'   omis alors qu'un `parcellaire` est fourni, `"section"` est suppose **et la
 #'   fonction le dit**.
 #'
-#'   Attention a ce qu'on passe : des contours d'unites de gestion ne sont pas
-#'   des limites cadastrales. Une unite taillee dans une PORTION de parcelle a
-#'   des cotes de decoupe interne, qui ne correspondent a rien sur le terrain --
-#'   les fournir ferait classer en layon des lineaires qui suivent une limite
-#'   purement administrative. Passer les limites des parcelles elles-memes.
+#'   En pratique, l'amont fournit des contours d'**unites de gestion** (UGF),
+#'   chacune portant sa reference cadastrale. Ce sont des limites de gestion, et
+#'   `"section"` leur convient. Consequence a connaitre : une unite taillee dans
+#'   une PORTION de parcelle a des cotes de decoupe interne, que rien ne
+#'   materialise au sol -- un lineaire qui les suit ressort en
+#'   `layon_parcellaire` sans en etre un. `CLASSE_MOTIF` porte alors `parcelle`,
+#'   ce qui permet de les retrouver et de trancher au cas par cas.
 #' @param panneaux `sf` `POINT`/`LINESTRING` attestant une restriction d'acces,
 #'   portant `champ_acces` et, si possible, `champ_source` ; `NULL` (defaut)
 #'   pour n'emettre aucun tag d'acces.
