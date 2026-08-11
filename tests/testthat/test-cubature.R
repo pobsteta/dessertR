@@ -180,7 +180,9 @@ test_that("dsr_cubature agrege volumes et longueurs sur un versant regulier", {
   terra::values(mnt) <- terra::xFromCell(mnt, seq_len(terra::ncell(mnt))) * 0.3
   tr <- sf::st_sfc(sf::st_linestring(cbind(c(50, 50), c(10, 90))), crs = "EPSG:2154")
 
-  cub <- dsr_cubature(tr, mnt, largeur = 4, s_amont = 1, s_aval = 0.6, pas = 10)
+  # Plan incline sans emprise : la construction est le regime honnete ici.
+  cub <- dsr_cubature(tr, mnt, largeur = 4, regime = "construction",
+                      s_amont = 1, s_aval = 0.6, pas = 10)
 
   expect_s3_class(cub$points, "sf")
   expect_equal(nrow(cub$points), 9L)
@@ -210,11 +212,74 @@ test_that("le volume a evacuer n'apparait qu'au-dela du seuil de reemploi", {
   terra::values(mnt) <- terra::xFromCell(mnt, seq_len(terra::ncell(mnt))) * 0.8
   tr <- sf::st_sfc(sf::st_linestring(cbind(c(50, 50), c(10, 90))), crs = "EPSG:2154")
 
-  cub <- dsr_cubature(tr, mnt, largeur = 4, s_amont = 1.5, s_aval = 0.6,
-                      p_rocher = 20, pas = 10)
+  cub <- dsr_cubature(tr, mnt, largeur = 4, regime = "construction",
+                      s_amont = 1.5, s_aval = 0.6, p_rocher = 20, pas = 10)
   expect_true(all(cub$points$ripage == 1))
   expect_equal(cub$resume$volume_evacuer, cub$resume$volume_deblai)
   # 20 % de rocher dans le deblai.
   expect_equal(cub$resume$volume_roche, 0.2 * cub$resume$volume_deblai,
                tolerance = 1e-9)
+})
+
+# --- Regime : ce que porte le MNT -------------------------------------------
+# La spec (dev/SPEC_CUBATURE.md §5) demandait un argument obligatoire sans
+# defaut : chiffrer une construction sur un MNT qui porte deja la route est une
+# erreur couteuse et silencieuse. Le rendre reellement obligatoire aurait casse
+# les appels existants -- il est omissible, jamais silencieux, et verifie.
+
+versant <- function(plateforme = FALSE, pente = 0.3, demi = 2) {
+  r <- terra::rast(nrows = 200, ncols = 200, xmin = 0, xmax = 100,
+                   ymin = 0, ymax = 100, crs = "EPSG:2154")
+  x <- terra::xFromCell(r, seq_len(terra::ncell(r)))
+  z <- x * pente
+  if (plateforme) z <- ifelse(abs(x - 50) <= demi, 50 * pente, z)
+  terra::values(r) <- z
+  r
+}
+axe <- function() sf::st_sfc(sf::st_linestring(cbind(c(50, 50), c(10, 90))),
+                             crs = "EPSG:2154")
+
+test_that("le regime omis est suppose, dit, et rendu dans le resume", {
+  expect_message(
+    cub <- dsr_cubature(axe(), versant(), largeur = 4, pas = 10),
+    "elargissement")
+  expect_equal(cub$resume$regime, "elargissement")
+})
+
+test_that("le regime declare est rendu tel quel et ne parle pas pour rien", {
+  cub <- dsr_cubature(axe(), versant(), largeur = 4, regime = "construction",
+                      pas = 10)
+  expect_equal(cub$resume$regime, "construction")
+  # Terrain vierge declare construction : aucune alerte a lever.
+  expect_no_message(
+    dsr_cubature(axe(), versant(), largeur = 4, regime = "construction",
+                 pas = 10))
+  expect_error(
+    dsr_cubature(axe(), versant(), largeur = 4, regime = "neuf", pas = 10),
+    "should be one of")
+})
+
+test_that("une construction declaree sur un MNT qui porte la route est signalee", {
+  expect_message(
+    dsr_cubature(axe(), versant(plateforme = TRUE), largeur = 4,
+                 regime = "construction", pas = 10),
+    "portent deja une plateforme")
+  # Le meme terrain en elargissement : c'est le cas nominal, aucune alerte.
+  expect_no_message(
+    dsr_cubature(axe(), versant(plateforme = TRUE), largeur = 4,
+                 regime = "elargissement", pas = 10))
+})
+
+test_that(".dsr_part_plateforme separe le versant vierge du versant terrasse", {
+  pr_de <- function(r) dsr_profils(axe(), r, pas = 10, demi_largeur = 20,
+                                   pas_travers = 0.05)
+  vierge <- pr_de(versant())
+  terrasse <- pr_de(versant(plateforme = TRUE))
+  expect_equal(.dsr_part_plateforme(vierge$offsets, vierge$z, 4), 0)
+  expect_equal(.dsr_part_plateforme(terrasse$offsets, terrasse$z, 4), 1)
+
+  # Terrain trop plat : le critere n'a pas de signal et s'abstient plutot que
+  # de rendre un faux negatif rassurant.
+  plat <- pr_de(versant(pente = 0.01))
+  expect_true(is.na(.dsr_part_plateforme(plat$offsets, plat$z, 4)))
 })

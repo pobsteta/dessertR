@@ -1,5 +1,24 @@
 # dessertR (cycle de developpement)
 
+## La cubature dit sur quel terrain elle croit travailler
+
+[dsr_cubature()] prend un argument `regime` : `"elargissement"` (le MNT porte
+deja la plateforme -- cas du Lidar HD) ou `"construction"` (terrain vierge).
+Chiffrer une construction sur un MNT qui contient deja la route donne un
+resultat faux et vraisemblable, ce qui est le pire des cas.
+
+Il est **sans valeur par defaut**. `dev/SPEC_CUBATURE.md` le voulait obligatoire ;
+le rendre tel aurait casse tous les appels existants, d'ou un compromis assume :
+omissible, mais **jamais silencieux** -- l'omission suppose `"elargissement"` et
+le dit, et le regime retenu part dans `resume$regime`.
+
+**La declaration est verifiee contre le terrain.** En regime `"construction"`,
+chaque profil compare la pente en travers de la bande centrale a celle des
+bandes qui la flanquent : sur un versant vierge les deux se valent, sur un
+versant terrasse le replat trahit l'emprise. Au-dela de la moitie des profils,
+la fonction signale que le MNT contient probablement la route -- sans bloquer,
+la decision restant a l'appelant. Le controle **s'abstient** sous 10 % de pente
+en travers, ou un replat ne se distingue de rien.
 
 # dessertR 1.3.0
 
