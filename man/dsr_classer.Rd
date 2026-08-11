@@ -60,9 +60,17 @@ Defaut 15.}
 couvrir pour que la surface soit dite minerale. Defaut 0.5.}
 
 \item{sous_type_parcelle}{Sous-type OSM des limites fournies :
-\code{"section"} (defaut, parcellaire de gestion forestiere -- ses limites sont
-les layons materialises au sol) ou \code{"border"} (limites de propriete, un
-parcellaire cadastral). Le choix n'est pas devinable depuis la geometrie.}
+\code{"section"} (parcellaire de gestion forestiere -- ses limites sont les
+layons materialises au sol) ou \code{"border"} (limites de propriete, un
+parcellaire cadastral). Le choix n'est pas devinable depuis la geometrie :
+omis alors qu'un \code{parcellaire} est fourni, \code{"section"} est suppose \strong{et la
+fonction le dit}.
+
+Attention a ce qu'on passe : des contours d'unites de gestion ne sont pas
+des limites cadastrales. Une unite taillee dans une PORTION de parcelle a
+des cotes de decoupe interne, qui ne correspondent a rien sur le terrain --
+les fournir ferait classer en layon des lineaires qui suivent une limite
+purement administrative. Passer les limites des parcelles elles-memes.}
 
 \item{...}{Passe a \code{\link[=dsr_peignes]{dsr_peignes()}} quand \code{aretes} ne porte pas \code{PEIGNE}.}
 }

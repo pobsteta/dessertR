@@ -1,5 +1,22 @@
 # dessertR (cycle de developpement)
 
+## Le sous-type de parcellaire ne se devine pas non plus
+
+[dsr_classer()] annonce desormais sa supposition quand un `parcellaire` est
+fourni sans `sous_type_parcelle` -- meme regle que le `regime` de
+[dsr_cubature()] : une valeur qui ne se lit pas dans la geometrie ne se suppose
+pas en silence. Les limites d'un parcellaire de GESTION forestiere sont les
+layons materialises au sol (`cutline=section`) ; celles d'un parcellaire
+CADASTRAL ne sont que des limites de propriete (`cutline=border`). Meme
+geometrie, tag different.
+
+La documentation avertit d'un piege voisin : **des contours d'unites de gestion
+ne sont pas des limites cadastrales.** Une unite taillee dans une portion de
+parcelle a des cotes de decoupe interne, qui ne correspondent a rien sur le
+terrain ; les fournir ferait classer en layon des lineaires qui suivent une
+limite purement administrative. Ce sont les limites des parcelles elles-memes
+qu'il faut passer.
+
 ## La cubature dit sur quel terrain elle croit travailler
 
 [dsr_cubature()] prend un argument `regime` : `"elargissement"` (le MNT porte
