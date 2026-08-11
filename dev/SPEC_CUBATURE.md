@@ -46,8 +46,8 @@ en §5.
 **Obligatoires**
 
 - `trace` : `sf` `LINESTRING`. Sortie de `dsr_repositionner()`, de
-  `dsr_vectoriser()`, ou d'un futur `dsr_tracer()` (voir
-  [SPEC_TRACER.md](SPEC_TRACER.md)).
+  `dsr_vectoriser()`. Le tracé de desserte neuve, lui, n'est pas de ce paquet :
+  voir [SPEC_TRACER.md](SPEC_TRACER.md), qui renvoie à foretaccess.
 - `mnt` : `SpatRaster`. CubaRoad tourne sur du RGE Alti 5 m ; le MNT Lidar HD
   50 cm de dessertR est deux ordres de grandeur plus fin, ce qui change la
   nature du résultat (§5).
@@ -237,7 +237,7 @@ dans `dsr_measure()`) sera probablement nécessaire.
 | Régime `"elargissement"` + banc de résolution | 1,5 sem |
 
 **≈ 6,5 semaines**, dont un tiers déjà couvert par `measure.R`. Nettement moins
-lourd que [SPEC_TRACER.md](SPEC_TRACER.md) (≈ 8 sem), pour une valeur métier
+lourd que la spec de tracé abandonnée (≈ 8 sem, désormais chez foretaccess), pour une valeur métier
 plus directe dans le contexte français — le BRIEF §1 a déjà arbitré que
 mesurer l'existant prime sur concevoir du neuf. **Si un seul des deux lots doit
 être ouvert, c'est celui-ci.**
@@ -248,7 +248,7 @@ mesurer l'existant prime sur concevoir du neuf. **Si un seul des deux lots doit
 
 Le dépôt CubaRoad porte un `LICENSE` **GPL-3.0** (en-têtes de source en « v2 or
 later »), dessertR est en **GPL (>= 3)** — compatible.
-Comme pour SPEC_TRACER, la réimplémentation depuis cette spec est le
+Comme pour la spec de tracé, la réimplémentation depuis cette spec est le
 régime recommandé ; le schéma de sortie, lui, peut être repris à l'identique
 (c'est un format, pas du code). Citer Dupire / SylvaLab / ONF Pôle RDI Chambéry
 dans `CITATION.cff` et le `NEWS.md` du lot.
