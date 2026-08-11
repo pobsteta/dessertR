@@ -12,6 +12,9 @@ dsr_classer(
   reference = NULL,
   parcellaire = NULL,
   panneaux = NULL,
+  tpi = NULL,
+  seuil_crete = 0.5,
+  part_crete = 0.6,
   tol_parcelle = 5,
   part_parcelle = 0.6,
   tol_panneau = 15,
@@ -46,6 +49,16 @@ l'amont, qui seul sait ce qu'elle porte -- d'ou \code{sous_type_parcelle}.}
 \item{panneaux}{\code{sf} \code{POINT}/\code{LINESTRING} attestant une restriction d'acces,
 portant \code{champ_acces} et, si possible, \code{champ_source} ; \code{NULL} (defaut)
 pour n'emettre aucun tag d'acces.}
+
+\item{tpi}{\code{SpatRaster} de position topographique -- l'altitude moins la
+moyenne de son voisinage. \code{\link[=dsr_slrm]{dsr_slrm()}} le rend deja : \code{dsr_slrm(mnt, fenetres_m = 50)} est le TPI a 50 m. \code{NULL} pour ne pas juger la position,
+et donc ne jamais poser \code{pare_feu}. \strong{Le rayon commande tout} : a 10 m on
+mesure la banquette de la route elle-meme, a 200 m le massif ; 50 m est un
+point de depart, pas une valeur calibree.}
+
+\item{seuil_crete, part_crete}{Un troncon est en crete si la mediane du \code{tpi}
+le long de son axe atteint \code{seuil_crete} (metres) \strong{et} si \code{part_crete} de
+ses points y sont positifs. Defauts 0.5 m et 0.6.}
 
 \item{tol_parcelle, part_parcelle}{Distance (m) et part de longueur au-dela de
 laquelle une trace est reputee suivre le parcellaire. Defauts 5 et 0.6.}
@@ -106,12 +119,20 @@ par Otsu sur la donnee (\code{\link[=dsr_largeur_ndvi]{dsr_largeur_ndvi()}}).
 \item dent d'un peigne, non minerale, sans fosse -> \code{cloisonnement_exploitation} ;
 \item coincide avec une limite du parcellaire et non minerale ->
 \code{layon_parcellaire} ;
+\item en crete et non minerale -> \code{pare_feu} (prime sur le peigne) ;
 \item porte par la reference ou creuse de fosses, minerale ->
 \code{route_forestiere} ;
 \item idem, non minerale -> \code{piste_forestiere} ;
 \item idem, nature de surface inconnue -> \code{desserte} ;
 \item sinon \code{indetermine}.
 }
+
+\strong{Le pare-feu exige DEUX canaux.} Un tronçon en crete non minerale sort en
+\code{pare_feu} ; en crete et minerale, il reste une desserte. La conjonction n'est
+pas une precaution mais le critere lui-meme : beaucoup de routes forestieres
+suivent des cretes -- c'est une pratique de trace, le terrain y est plat en
+travers et le drainage naturel -- et le seul relief les classerait toutes en
+pare-feu. Sans \code{ndvi}, la classe n'est jamais posee.
 
 \code{desserte} n'est pas une classe de repli commode : c'est le refus de trancher
 entre route et piste sans le canal optique. Sans NDVI, aucun \verb{surface=} ni

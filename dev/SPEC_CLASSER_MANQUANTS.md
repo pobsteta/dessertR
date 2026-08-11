@@ -1,6 +1,9 @@
 # Spécification — les deux classes que `dsr_classer()` ne pose pas
 
-Statut : **spécification, v0.1** — non implémentée, non arbitrée.
+Statut : **pare-feu implémenté** (2026-08-11) ; place de dépôt non arbitrée.
+Correction apportée en codant : le `dsr_tpi()` proposé ci-dessous **n'a pas été écrit**, parce que
+`dsr_slrm()` le calculait déjà — `MNT − moyenne_focale(MNT)` *est* un TPI. `dsr_classer()` prend
+donc un argument `tpi`, alimenté par `dsr_slrm(mnt, fenetres_m = 50)`.
 Fait suite à [`R/classer.R`](../R/classer.R), qui laisse délibérément deux classes hors de la
 cascade automatique et le dit en tête de fichier.
 
@@ -39,21 +42,24 @@ voisinage latéral ? C'est le TPI (*Topographic Position Index*), différence en
 point et la moyenne dans un anneau de rayon `r`. Sur une crête, TPI > 0 franchement ; sur une
 route en versant, TPI ≈ 0 ; en fond de vallon, TPI < 0.
 
-Le paquet a déjà tout ce qu'il faut : `dsr_micro_relief()` calcule des différentiels d'altitude
-par fenêtre, et `dsr_profils()` échantillonne le long d'un tracé.
+Le paquet avait déjà **exactement** ce qu'il faut, et pas seulement « de quoi le faire » :
+`dsr_slrm()` est le résidu signé du MNT après retrait d'une surface lissée, soit `MNT −
+moyenne_focale(MNT)` — la définition même du TPI. Écrire un `dsr_tpi()` aurait été dupliquer une
+fonction sous un autre nom.
 
 ```r
-dsr_tpi(mnt, rayon_m = 50, rayon_min_m = NULL)   # SpatRaster, unités du MNT
+tpi <- dsr_slrm(mnt, fenetres_m = 50)   # le TPI a 50 m, une couche `slrm_50`
 ```
 
 Le rayon est le paramètre qui commande tout : à 10 m on mesure la banquette de la route
 elle-même, à 200 m on mesure le massif. **50 m est un point de départ, pas une valeur calibrée** —
 un banc sur un pare-feu connu est un préalable à toute publication du critère.
 
-Puis, dans `dsr_classer()`, un critère `crete` : la médiane du TPI le long de l'axe dépasse un
-seuil, et la part de stations à TPI positif est élevée. Il entre dans la cascade **avant** le
-peigne (un pare-feu n'est pas un cloisonnement) et **après** la référence (s'il est porté par la
-BD TOPO, c'est une desserte qui suit une crête, cas fréquent en montagne).
+Puis, dans `dsr_classer()`, un critère `crete` : la médiane du TPI le long de l'axe atteint
+`seuil_crete` (0,5 m) **et** `part_crete` (0,6) de ses points y sont positifs. Il entre dans la
+cascade **avant** le peigne (un pare-feu n'est pas un cloisonnement) et **après** la référence
+(s'il est porté par la BD TOPO, c'est une desserte qui suit une crête, cas fréquent en montagne).
+**Fait.**
 
 ### Le piège
 
@@ -89,16 +95,17 @@ puisque les largeurs par station sont déjà là.
 
 ## 3. Estimation
 
-| Étape | Charge |
-|---|---|
-| `dsr_tpi()` + tests sur relief de synthèse (crête, versant, vallon) | 2 j |
-| Critère `crete` dans la cascade + conjonction avec `minerale` | 1 j |
-| Banc sur un pare-feu réel — préalable à toute publication du seuil | 2 j |
-| Place de dépôt en polygone | 1 j |
-| Arbitrage du tag OSM (veille wiki, éventuellement fil OSM-fr) | — |
+| Étape | Charge | État |
+|---|---|---|
+| ~~`dsr_tpi()`~~ — `dsr_slrm()` le faisait déjà | — | sans objet |
+| Critère `crete` dans la cascade + conjonction avec `minerale` | 1 j | **fait** |
+| Banc sur un pare-feu réel — préalable à toute publication du seuil | 2 j | **reste** |
+| Place de dépôt en polygone | 1 j | reste |
+| Arbitrage du tag OSM (veille wiki, éventuellement fil OSM-fr) | — | reste |
 
-**≈ 6 jours** pour le pare-feu, dont deux qui ne sont pas du code mais de la validation.
-La place de dépôt tient en un jour si l'on renonce au tag, ce qui est la recommandation.
+Les seuils (0,5 m de TPI médian, 60 % de points positifs, fenêtre de 50 m) sont **vérifiés sur
+relief de synthèse — crête franche contre versant régulier — et sur rien d'autre**. Aucun pare-feu
+réel n'a été mesuré. Tant que le banc n'a pas tourné, la classe est inspectable, pas opposable.
 
 ## 4. Ce qui ne doit pas arriver
 

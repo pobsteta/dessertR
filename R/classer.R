@@ -25,9 +25,8 @@
 # elle en trace la provenance dans `source:access`.
 #
 # CE QUI N'EST PAS CLASSE AUTOMATIQUEMENT.
-#   - Le pare-feu. Il demande un critere de position (ligne de crete) que le
-#     paquet ne calcule pas. Le laisser sortir en `indetermine` est preferable a
-#     un pare-feu declare sur un seuil de largeur invente.
+#   - La place de depot. Voir plus bas ; le pare-feu, lui, est desormais classe
+#     des lors qu'on fournit `tpi` ET `ndvi` -- jamais sur le seul relief.
 #   - La place de depot. Ce n'est pas un lineaire ([dsr_places()] rend des
 #     points), et le fil OSM ne donne aucun tag consensuel pour elle.
 
@@ -224,12 +223,20 @@ dsr_peignes <- function(traces, tol_angle = 15, espacement_min = 4,
 #'   \item dent d'un peigne, non minerale, sans fosse -> `cloisonnement_exploitation` ;
 #'   \item coincide avec une limite du parcellaire et non minerale ->
 #'     `layon_parcellaire` ;
+#'   \item en crete et non minerale -> `pare_feu` (prime sur le peigne) ;
 #'   \item porte par la reference ou creuse de fosses, minerale ->
 #'     `route_forestiere` ;
 #'   \item idem, non minerale -> `piste_forestiere` ;
 #'   \item idem, nature de surface inconnue -> `desserte` ;
 #'   \item sinon `indetermine`.
 #' }
+#'
+#' **Le pare-feu exige DEUX canaux.** Un tronçon en crete non minerale sort en
+#' `pare_feu` ; en crete et minerale, il reste une desserte. La conjonction n'est
+#' pas une precaution mais le critere lui-meme : beaucoup de routes forestieres
+#' suivent des cretes -- c'est une pratique de trace, le terrain y est plat en
+#' travers et le drainage naturel -- et le seul relief les classerait toutes en
+#' pare-feu. Sans `ndvi`, la classe n'est jamais posee.
 #'
 #' `desserte` n'est pas une classe de repli commode : c'est le refus de trancher
 #' entre route et piste sans le canal optique. Sans NDVI, aucun `surface=` ni
@@ -258,6 +265,15 @@ dsr_peignes <- function(traces, tol_angle = 15, espacement_min = 4,
 #' @param reference `sf`/`sfc` du reseau de reference (BD TOPO, couche
 #'   interne) : ce qu'il porte est une desserte. `NULL` pour ne pas s'y
 #'   rapporter -- tous les lineaires sont alors juges sur leur seule structure.
+#' @param tpi `SpatRaster` de position topographique -- l'altitude moins la
+#'   moyenne de son voisinage. [dsr_slrm()] le rend deja : `dsr_slrm(mnt,
+#'   fenetres_m = 50)` est le TPI a 50 m. `NULL` pour ne pas juger la position,
+#'   et donc ne jamais poser `pare_feu`. **Le rayon commande tout** : a 10 m on
+#'   mesure la banquette de la route elle-meme, a 200 m le massif ; 50 m est un
+#'   point de depart, pas une valeur calibree.
+#' @param seuil_crete,part_crete Un troncon est en crete si la mediane du `tpi`
+#'   le long de son axe atteint `seuil_crete` (metres) **et** si `part_crete` de
+#'   ses points y sont positifs. Defauts 0.5 m et 0.6.
 #' @param parcellaire `sf`/`sfc` des limites de parcelles ; `NULL` pour ne pas
 #'   tester la coincidence. Le paquet n'acquiert pas cette couche : elle vient de
 #'   l'amont, qui seul sait ce qu'elle porte -- d'ou `sous_type_parcelle`.
@@ -302,7 +318,8 @@ dsr_peignes <- function(traces, tol_angle = 15, espacement_min = 4,
 #' @export
 dsr_classer <- function(aretes, stations = NULL, id = "troncon",
                         ndvi = NULL, reference = NULL, parcellaire = NULL,
-                        panneaux = NULL,
+                        panneaux = NULL, tpi = NULL,
+                        seuil_crete = 0.5, part_crete = 0.6,
                         tol_parcelle = 5, part_parcelle = 0.6,
                         tol_panneau = 15, champ_acces = "access",
                         champ_source = "source", part_minerale = 0.5,
@@ -344,7 +361,13 @@ dsr_classer <- function(aretes, stations = NULL, id = "troncon",
       if (is.na(larg[i]) || larg[i] <= 0) next
       l <- tryCatch(dsr_largeur_ndvi(g[i], ndvi), error = function(e) NULL)
       if (is.null(l)) next
-      part_min[i] <- stats::median(l$LARGEUR_NDVI, na.rm = TRUE) / larg[i]
+      # Une plage minerale ABSENTE n'est pas une inconnue. dsr_largeur_ndvi()
+      # rend NA quand aucune plage ne se ferme autour de l'axe -- mais elle a
+      # deja echoue si le raster ne couvrait pas le trace ou si le seuil d'Otsu
+      # n'etait pas calculable. Un retour sans plage veut donc dire « le canal a
+      # regarde, et il n'y a rien de mineral » : c'est 0, pas NA.
+      med <- stats::median(l$LARGEUR_NDVI, na.rm = TRUE)
+      part_min[i] <- if (!is.finite(med)) 0 else med / larg[i]
     }
   }
   minerale <- ifelse(is.na(part_min), NA, part_min >= part_minerale)
@@ -355,6 +378,26 @@ dsr_classer <- function(aretes, stations = NULL, id = "troncon",
     vapply(seq_len(n), function(i)
       .dsr_part_le_long(g[i], ref, tol_parcelle) >= part_parcelle, logical(1))
   }
+  # Crete : position topographique le long de l'axe. Un pare-feu suit une ligne
+  # de crete -- c'est sa raison d'etre, couper la propagation.
+  crete <- rep(NA, n)
+  if (!is.null(tpi)) {
+    if (!inherits(tpi, "SpatRaster")) {
+      dsr_abort("{.arg tpi} doit etre un {.cls SpatRaster} ({.fun dsr_slrm} a large fenetre).")
+    }
+    if (terra::nlyr(tpi) > 1L) tpi <- tpi[[1]]
+    crete <- vapply(seq_len(n), function(i) {
+      lg <- as.numeric(sf::st_length(g[i]))
+      if (!is.finite(lg) || lg <= 0) return(NA)
+      pts <- sf::st_cast(sf::st_line_sample(g[i],
+        sample = seq(0, 1, length.out = max(2L, ceiling(lg / 5)))), "POINT")
+      v <- terra::extract(tpi, sf::st_coordinates(pts))[, 1]
+      if (all(!is.finite(v))) return(NA)
+      stats::median(v, na.rm = TRUE) >= seuil_crete &&
+        mean(v > 0, na.rm = TRUE) >= part_crete
+    }, logical(1))
+  }
+
   parcelle <- suit(parcellaire)
   if (!is.null(parcellaire) && !sous_type_dit) {
     dsr_inform(c(
@@ -376,6 +419,11 @@ dsr_classer <- function(aretes, stations = NULL, id = "troncon",
   # Structures d'abord...
   classe[peigne & !vrai(minerale) & !vrai(fosses)] <- "cloisonnement_exploitation"
   classe[vrai(parcelle) & !vrai(minerale)] <- "layon_parcellaire"
+  # Un pare-feu n'est pas un cloisonnement : il prime sur le peigne. Mais il
+  # exige que la surface soit CONNUE et non minerale -- beaucoup de routes
+  # forestieres suivent des cretes, c'est meme une pratique de trace, et le seul
+  # critere topographique les classerait toutes en pare-feu.
+  classe[vrai(crete) & faux(minerale)] <- "pare_feu"
   # ...puis l'ouvrage, qui prime : un troncon porte par la reference ou creuse
   # de fosses est une desserte, meme s'il s'aligne sur un peigne.
   ouvrage <- vrai(refer) | vrai(fosses)
@@ -385,7 +433,7 @@ dsr_classer <- function(aretes, stations = NULL, id = "troncon",
 
   # --- Motifs et confiance ----------------------------------------------------
   crits <- list(reference = refer, peigne = peigne, minerale = minerale,
-    fosses = fosses, connecte = connecte, parcelle = parcelle)
+    fosses = fosses, connecte = connecte, parcelle = parcelle, crete = crete)
   motif <- vapply(seq_len(n), function(i) {
     v <- vapply(crits, function(x) x[i], logical(1))
     nom <- names(crits)
@@ -406,6 +454,7 @@ dsr_classer <- function(aretes, stations = NULL, id = "troncon",
       desserte = "highway=track",
       cloisonnement_exploitation = "man_made=cutline;cutline=loggingmachine",
       layon_parcellaire = paste0("man_made=cutline;cutline=", sous_type_parcelle),
+      pare_feu = "man_made=cutline;cutline=firebreak",
       NA_character_)
   }, character(1))
 
