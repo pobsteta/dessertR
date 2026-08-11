@@ -40,16 +40,23 @@ au niveau du terrain.
 | Reste à faire | Charge | Note |
 |---|---|---|
 | Lacets (`get_profil_L` / `L2`) | 1 sem | §3 ; les profils de lacet ne sont pas traités séparément |
-| Argument `regime` explicite | 0,5 j | voir ci-dessous — c'est un garde-fou, pas une fonctionnalité |
 | Banc de résolution du régime élargissement | 1,5 sem | §5 ; MNT 50 cm contre RGE Alti 5 m |
 
-**Le piège du §5 n'est pas ferme.** Cette spec demandait que le régime soit
-« un argument obligatoire sans défaut », le résumé rappelant lequel a tourné.
-`dsr_cubature()` n'a pas d'argument `regime` : le choix se fait implicitement,
-par le MNT fourni, et la documentation renvoie à « fournir un MNT dont l'emprise
-existante a été comblée » pour chiffrer du neuf. Traité par de la documentation
-là où la spec demandait un garde-fou. L'ajouter casserait les appels existants —
-arbitrage à poser avant la prochaine version mineure.
+**Le piège du §5 est fermé** (2026-08-11). `dsr_cubature()` prend un argument
+`regime`, **sans valeur par défaut**. La spec le voulait obligatoire ; le rendre
+tel aurait cassé tous les appels existants, d'où un compromis assumé : il est
+omissible, mais **jamais silencieux** — l'omission déclare `"elargissement"` et
+le dit, et le régime retenu part dans `resume$regime`.
+
+Surtout, la déclaration est **vérifiée contre le terrain**, ce que la spec
+n'avait pas prévu. En régime `"construction"`, chaque profil est testé : la
+pente en travers de la bande centrale est-elle nettement plus faible que celle
+des bandes qui la flanquent ? Sur un versant vierge les deux se valent ; sur un
+versant terrassé, le replat de la route trahit l'emprise. Au-delà de la moitié
+des profils, la fonction signale que le MNT contient probablement la route. Elle
+ne bloque pas — la décision reste à l'appelant. **Limite explicite** : le test
+s'abstient sous 10 % de pente en travers, où un replat ne se distingue de rien,
+et rend alors `NA` plutôt qu'un faux négatif rassurant.
 
 ---
 

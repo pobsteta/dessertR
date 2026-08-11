@@ -268,13 +268,22 @@ DSR_FENETRE_DEVERS <- 6
 #' (`ripage = 0`) deblai et remblai s'equilibrent ; sur pente raide
 #' (`ripage = 1`) le remblai ne tient pas et la totalite passe en deblai.
 #'
-#' **Le terrain est pris tel quel.** Sur un MNT Lidar HD, une route existante est
-#' deja creusee : la cubature obtenue est alors celle de l'**ecart au gabarit**
-#' (elargissement), pas celle d'une construction sur terrain vierge. C'est le
-#' regime utile en France -- [dsr_trafficability()] dit que le grumier ne passe
-#' pas, la cubature dit combien pour qu'il passe -- mais la confusion est
-#' couteuse : pour chiffrer une construction sur terrain vierge, fournir un MNT
-#' dont l'emprise existante a ete comblee.
+#' **Le terrain est pris tel quel**, et c'est `regime` qui dit ce qu'il porte.
+#' Sur un MNT Lidar HD, une route existante est deja creusee : la cubature
+#' obtenue est celle de l'**ecart au gabarit** (`"elargissement"`), pas celle
+#' d'une construction sur terrain vierge. C'est le regime utile en France --
+#' [dsr_trafficability()] dit que le grumier ne passe pas, la cubature dit
+#' combien pour qu'il passe. Pour chiffrer une construction, fournir un MNT dont
+#' l'emprise a ete comblee **et** le declarer par `regime = "construction"`.
+#'
+#' **La declaration est verifiee.** En regime `"construction"`, chaque profil est
+#' teste : la pente en travers de la bande centrale est-elle nettement plus
+#' faible que celle des bandes qui la flanquent ? Sur un versant vierge les deux
+#' se valent ; sur un versant deja terrasse, le replat de la route trahit
+#' l'emprise. Si plus de la moitie des profils portent cette signature, la
+#' fonction le signale -- elle ne bloque pas, la decision reste a l'appelant.
+#' Le controle **s'abstient** sous 10 % de pente en travers : sur du plat, un
+#' replat ne se distingue de rien.
 #'
 #' Le **volume a evacuer** n'est pas le volume de deblai : sur un profil
 #' equilibre, le deblai est reemploye en remblai sur place. Seuls les profils ou
@@ -286,6 +295,13 @@ DSR_FENETRE_DEVERS <- 6
 #' @param mnt Le MNT (`SpatRaster`).
 #' @param largeur Largeur de plateforme visee, en metres. Un scalaire, ou un
 #'   vecteur d'une valeur par station.
+#' @param regime Ce que porte le `mnt` : `"elargissement"` (la plateforme y est
+#'   deja creusee -- cas d'un MNT Lidar HD) ou `"construction"` (terrain vierge,
+#'   emprise absente). **Sans defaut** : omis, `"elargissement"` est suppose et
+#'   la fonction le dit. Le regime ne change pas le calcul -- le terrain est
+#'   toujours pris tel quel -- il declare ce qu'on lui donne, et en
+#'   `"construction"` il verifie cette declaration contre le terrain (voir
+#'   Details).
 #' @param s_amont,s_aval Pente des talus amont et aval, en pente (`1` = 100 %).
 #'   Defauts 1 et 0.6.
 #' @param p_rocher Pourcentage de rocher dans le deblai, pour le volume de roche.
@@ -317,13 +333,25 @@ DSR_FENETRE_DEVERS <- 6
 #' terra::values(mnt) <- terra::xFromCell(mnt, seq_len(terra::ncell(mnt))) * 0.3
 #' tr <- sf::st_sfc(sf::st_linestring(cbind(c(50, 50), c(10, 90))),
 #'   crs = "EPSG:2154")
-#' cub <- dsr_cubature(tr, mnt, largeur = 4, pas = 10)
+#' # Plan incline sans emprise : c'est bien une construction, on le declare.
+#' cub <- dsr_cubature(tr, mnt, largeur = 4, regime = "construction", pas = 10)
 #' cub$resume
 #' @export
-dsr_cubature <- function(trace, mnt, largeur, s_amont = 1, s_aval = 0.6,
+dsr_cubature <- function(trace, mnt, largeur, regime, s_amont = 1, s_aval = 0.6,
                          p_rocher = 0, pas = 10, demi_largeur = 20,
                          pas_travers = 0.05, ripage_min = 0.35,
                          ripage_max = 0.60, tol_z = 0.05, tol_xy = NULL) {
+  # `regime` DECLARE ce que porte le MNT ; il ne change pas le calcul, qui prend
+  # le terrain tel quel. Il est sans defaut : la spec le demandait obligatoire
+  # parce que la confusion des deux regimes est facile et couteuse. Le rendre
+  # reellement obligatoire aurait casse les appels existants -- on le laisse
+  # donc omissible, mais jamais silencieux, et on le verifie contre le terrain.
+  regime_dit <- !missing(regime)
+  regime <- if (regime_dit) {
+    match.arg(regime, c("elargissement", "construction"))
+  } else {
+    "elargissement"
+  }
   if (!is.numeric(largeur) || any(!is.finite(largeur)) || any(largeur <= 0)) {
     dsr_abort("{.arg largeur} doit etre un ou des nombres strictement positifs.")
   }
@@ -334,11 +362,28 @@ dsr_cubature <- function(trace, mnt, largeur, s_amont = 1, s_aval = 0.6,
     dsr_inform(c("!" = "{.arg pas_travers} = {pas_travers} m : les sections seront biaisees.",
                  "i" = "Une valeur <= 0.05 m est recommandee."))
   }
+  if (!regime_dit) {
+    dsr_inform(c(
+      "!" = "{.arg regime} non precise : {.val elargissement} est suppose.",
+      "i" = "Sur un MNT Lidar HD la plateforme est deja creusee, la cubature est celle de l'ECART AU GABARIT.",
+      "i" = "Pour chiffrer une construction sur terrain vierge : {.code regime = \"construction\"}, avec un MNT sans l'emprise."
+    ))
+  }
 
   pr <- dsr_profils(trace, mnt, pas = pas, demi_largeur = demi_largeur,
                     pas_travers = pas_travers)
   offsets <- pr$offsets
   ns <- nrow(pr$z)
+  if (identical(regime, "construction")) {
+    part <- .dsr_part_plateforme(offsets, pr$z, largeur[1])
+    if (!is.na(part) && part > 0.5) {
+      dsr_inform(c(
+        "!" = "{.val construction} demande, mais {round(100 * part)} % des profils portent deja une plateforme.",
+        "i" = "Le replat au droit de l'axe est bien plus horizontal que le versant qui l'entoure : le MNT contient la route.",
+        "i" = "La cubature rendue serait celle d'un terrain deja terrasse -- combler l'emprise, ou passer en {.val elargissement}."
+      ))
+    }
+  }
   largeur <- rep_len(largeur, ns)
   s_amont <- rep_len(s_amont, ns)
   s_aval <- rep_len(s_aval, ns)
@@ -406,6 +451,7 @@ dsr_cubature <- function(trace, mnt, largeur, s_amont = 1, s_aval = 0.6,
   pts <- sf::st_sf(tab, geometry = sf::st_geometry(pr$stations)[garde])
 
   resume <- data.frame(
+    regime = regime,
     n_points = nrow(tab),
     longueur = sum(tab$long_applicable),
     volume_deblai = sum(tab$volume_deblai),
@@ -421,4 +467,38 @@ dsr_cubature <- function(trace, mnt, largeur, s_amont = 1, s_aval = 0.6,
   }
 
   list(points = pts, resume = resume)
+}
+
+
+# Le MNT porte-t-il deja la plateforme ?
+# --------------------------------------
+# Sur un versant vierge, la pente en travers est la meme au droit de l'axe et
+# de part et d'autre. Sur un versant terrasse, le replat de la route est
+# nettement plus horizontal que ses abords. On compare donc, par profil, la
+# pente de corde sur la bande centrale (largeur de plateforme) a celle des deux
+# bandes qui la flanquent.
+#
+# Le test S'ABSTIENT quand le versant est trop peu pentu (`pente_min`) : sur du
+# plat, un replat ne se distingue de rien et le critere n'a pas de signal. Il
+# rend alors NA plutot qu'un faux negatif rassurant.
+#' @noRd
+.dsr_part_plateforme <- function(offsets, z, largeur, pente_min = 0.10,
+                                 ratio = 0.5) {
+  demi <- largeur / 2
+  val <- function(v, x) {
+    i <- which.min(abs(offsets - x))
+    if (abs(offsets[i] - x) > max(diff(offsets)) ) NA_real_ else v[i]
+  }
+  vus <- vapply(seq_len(nrow(z)), function(i) {
+    v <- z[i, ]
+    zc <- c(val(v, -demi), val(v, demi))
+    zf <- c(val(v, -largeur), val(v, largeur))
+    if (any(!is.finite(c(zc, zf)))) return(NA)
+    interne <- abs(zc[2] - zc[1]) / largeur
+    externe <- mean(c(abs(zf[1] - zc[1]), abs(zf[2] - zc[2]))) / demi
+    if (!is.finite(externe) || externe < pente_min) return(NA)
+    interne < ratio * externe
+  }, logical(1))
+  if (all(is.na(vus))) return(NA_real_)
+  mean(vus, na.rm = TRUE)
 }
