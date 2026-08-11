@@ -1,5 +1,31 @@
 # dessertR (cycle de developpement)
 
+## Le pare-feu entre dans le classement, avec deux canaux ou pas du tout
+
+[dsr_classer()] pose desormais la classe `pare_feu` -- `man_made=cutline` +
+`cutline=firebreak` -- a partir d'un argument `tpi`, la position topographique
+le long de l'axe.
+
+**Aucune fonction nouvelle** : la specification proposait un `dsr_tpi()`, mais
+[dsr_slrm()] le calculait deja. Le SLRM est le residu signe du MNT apres retrait
+d'une surface lissee, `MNT - moyenne_focale(MNT)` -- la definition meme du TPI.
+`dsr_slrm(mnt, fenetres_m = 50)` sert directement d'entree.
+
+**La conjonction est le critere, pas une precaution.** Beaucoup de routes
+forestieres suivent des cretes : c'est une pratique de trace, le terrain y est
+plat en travers et le drainage naturel. Le relief seul les classerait toutes en
+pare-feu. Un troncon en crete ne sort donc en `pare_feu` que si la surface est
+CONNUE et non minerale ; sans `ndvi`, la classe n'est jamais posee.
+
+Un defaut corrige au passage : une plage minerale absente etait lue comme
+INCONNUE. [dsr_largeur_ndvi()] rend `NA` quand aucune plage ne se ferme autour
+de l'axe -- mais elle a deja echoue si le raster ne couvrait pas le trace ou si
+le seuil d'Otsu n'etait pas calculable. Un retour sans plage veut donc dire « le
+canal a regarde, il n'y a rien de mineral » : c'est 0, pas `NA`.
+
+Les seuils sont verifies sur relief de synthese et sur rien d'autre. Aucun
+pare-feu reel n'a ete mesure.
+
 ## Le sous-type de parcellaire ne se devine pas non plus
 
 [dsr_classer()] annonce desormais sa supposition quand un `parcellaire` est
