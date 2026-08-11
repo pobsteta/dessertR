@@ -3,11 +3,53 @@
 **Équivalent dessertR de CubaRoad** (SylvaLab / ONF Pôle RDI Chambéry, Sylvain
 Dupire 2021 ; portage QGIS `github.com/Tijjat/CubaRoad_qgis_plugin`, GPL-3.0)
 
-Statut : spécification, **v0.1** — non implémentée, non arbitrée dans la roadmap
-du [BRIEF](BRIEF.md).
+Statut : **partiellement implémentée**. Le moteur par profil est en place —
+[`dsr_cubature()`](../R/cubature.R), commit `abe130b` du 2026-07-30, exporté,
+testé, documenté. Ce fichier reste la référence de conception : il porte le
+raisonnement, les pièges et ce qui manque encore.
+
 Source analysée : `cubaroad/CubaRoad_1_function.py` (3 488 l.) du portage QGIS,
 plus le jeu de résultats `ResSimu_35_Res5m_Pas10` qui donne le schéma de sortie
 exact.
+
+### Ce que `dsr_cubature()` couvre
+
+Point de niveau, ripage, profil théorique, paliers de durcissement de talus,
+sections, volumes, bilan d'évacuation, et le schéma de sortie (22 colonnes,
+`points` + `resume`). Le régime **élargissement** — celui qui justifie le lot —
+est le comportement obtenu par défaut, puisque le MNT Lidar HD porte déjà la
+plateforme.
+
+**Réimplémenté, pas porté**, avec deux écarts assumés par rapport à CubaRoad :
+
+* **intersection talus / terrain par changement de signe** plutôt que par seuil
+  de tolérance — le critère de CubaRoad échoue dès que le croisement tombe entre
+  deux échantillons, et dépend alors du pas transversal ;
+* **point de niveau choisi sur l'altitude**, l'axe n'arbitrant qu'à égalité —
+  retenir le candidat le plus proche de l'axe biaise l'ancrage de `tol_z / pente`
+  de 0,17 m sur un versant à 30 %, mesuré en écrivant le test.
+
+Un défaut **absent de cette spec** a été trouvé à l'implémentation : sur terrain
+plat, le talus part du niveau du sol et ne le recoupe jamais, donc il courait
+jusqu'au bout du profil et fabriquait un volume entièrement fictif.
+`.dsr_talus()` rend désormais un talus vide quand le bord de plateforme est déjà
+au niveau du terrain.
+
+### Ce qui reste
+
+| Reste à faire | Charge | Note |
+|---|---|---|
+| Lacets (`get_profil_L` / `L2`) | 1 sem | §3 ; les profils de lacet ne sont pas traités séparément |
+| Argument `regime` explicite | 0,5 j | voir ci-dessous — c'est un garde-fou, pas une fonctionnalité |
+| Banc de résolution du régime élargissement | 1,5 sem | §5 ; MNT 50 cm contre RGE Alti 5 m |
+
+**Le piège du §5 n'est pas ferme.** Cette spec demandait que le régime soit
+« un argument obligatoire sans défaut », le résumé rappelant lequel a tourné.
+`dsr_cubature()` n'a pas d'argument `regime` : le choix se fait implicitement,
+par le MNT fourni, et la documentation renvoie à « fournir un MNT dont l'emprise
+existante a été comblée » pour chiffrer du neuf. Traité par de la documentation
+là où la spec demandait un garde-fou. L'ajouter casserait les appels existants —
+arbitrage à poser avant la prochaine version mineure.
 
 ---
 
@@ -225,22 +267,25 @@ dans `dsr_measure()`) sera probablement nécessaire.
 
 ---
 
-## 6. Estimation
+## 6. Estimation — et ce qu'elle est devenue
 
-| Étape | Charge |
-|---|---|
-| Transects et profils (adaptation `dsr_profils()`) | 0,5 sem |
-| Point de niveau, ripage, profil théorique, paliers de talus | 2 sem |
-| Lacets (`get_profil_L` / `L2`) | 1 sem |
-| Sections, volumes, bilan d'évacuation | 0,5 sem |
-| Sorties SIG et tableur au schéma CubaRoad | 1 sem |
-| Régime `"elargissement"` + banc de résolution | 1,5 sem |
+Estimation d'origine, conservée pour ce qu'elle apprend sur la suite :
 
-**≈ 6,5 semaines**, dont un tiers déjà couvert par `measure.R`. Nettement moins
-lourd que la spec de tracé abandonnée (≈ 8 sem, désormais chez foretaccess), pour une valeur métier
-plus directe dans le contexte français — le BRIEF §1 a déjà arbitré que
-mesurer l'existant prime sur concevoir du neuf. **Si un seul des deux lots doit
-être ouvert, c'est celui-ci.**
+| Étape | Charge estimée | État |
+|---|---|---|
+| Transects et profils (adaptation `dsr_profils()`) | 0,5 sem | fait |
+| Point de niveau, ripage, profil théorique, paliers de talus | 2 sem | fait |
+| Lacets (`get_profil_L` / `L2`) | 1 sem | **reste** |
+| Sections, volumes, bilan d'évacuation | 0,5 sem | fait |
+| Sorties SIG et tableur au schéma CubaRoad | 1 sem | fait (22 colonnes) |
+| Régime `"elargissement"` + banc de résolution | 1,5 sem | régime fait, **banc reste** |
+
+**≈ 6,5 semaines** annoncées, dont un tiers déjà couvert par `measure.R`. Le lot
+a bien été ouvert, et l'arbitrage qu'appelait la dernière phrase de cette
+section — « si un seul des deux lots doit être ouvert, c'est celui-ci » — a été
+tranché dans les deux sens : la cubature est ici, le tracé de desserte neuve est
+chez **foretaccess** (voir [SPEC_TRACER.md](SPEC_TRACER.md)), qui l'avait porté
+avant que dessertR n'en écrive la spec.
 
 ---
 
