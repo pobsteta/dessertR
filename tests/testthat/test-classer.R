@@ -143,3 +143,19 @@ test_that("garde-fous de dsr_classer", {
   expect_error(dsr_peignes(tr, espacement_min = 50, espacement_max = 10),
     "espacement_min")
 })
+
+test_that("le sous-type de parcellaire n'est pas suppose en silence", {
+  skip_if_not_installed("sf")
+  tr <- sf::st_sf(geometry = sf::st_sfc(ligne(0), crs = 2154))
+  limite <- sf::st_sfc(ligne(0.5), crs = 2154)
+
+  # Parcellaire fourni sans dire ce qu'il est : la supposition est annoncee.
+  expect_message(r <- dsr_classer(tr, parcellaire = limite), "section")
+  expect_equal(r$OSM_TAGS, "man_made=cutline;cutline=section")
+
+  # Declare : rien a dire.
+  expect_no_message(dsr_classer(tr, parcellaire = limite,
+                                sous_type_parcelle = "border"))
+  # Sans parcellaire, l'argument ne sert a rien : pas de message parasite.
+  expect_no_message(dsr_classer(tr))
+})

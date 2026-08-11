@@ -262,9 +262,17 @@ dsr_peignes <- function(traces, tol_angle = 15, espacement_min = 4,
 #'   tester la coincidence. Le paquet n'acquiert pas cette couche : elle vient de
 #'   l'amont, qui seul sait ce qu'elle porte -- d'ou `sous_type_parcelle`.
 #' @param sous_type_parcelle Sous-type OSM des limites fournies :
-#'   `"section"` (defaut, parcellaire de gestion forestiere -- ses limites sont
-#'   les layons materialises au sol) ou `"border"` (limites de propriete, un
-#'   parcellaire cadastral). Le choix n'est pas devinable depuis la geometrie.
+#'   `"section"` (parcellaire de gestion forestiere -- ses limites sont les
+#'   layons materialises au sol) ou `"border"` (limites de propriete, un
+#'   parcellaire cadastral). Le choix n'est pas devinable depuis la geometrie :
+#'   omis alors qu'un `parcellaire` est fourni, `"section"` est suppose **et la
+#'   fonction le dit**.
+#'
+#'   Attention a ce qu'on passe : des contours d'unites de gestion ne sont pas
+#'   des limites cadastrales. Une unite taillee dans une PORTION de parcelle a
+#'   des cotes de decoupe interne, qui ne correspondent a rien sur le terrain --
+#'   les fournir ferait classer en layon des lineaires qui suivent une limite
+#'   purement administrative. Passer les limites des parcelles elles-memes.
 #' @param panneaux `sf` `POINT`/`LINESTRING` attestant une restriction d'acces,
 #'   portant `champ_acces` et, si possible, `champ_source` ; `NULL` (defaut)
 #'   pour n'emettre aucun tag d'acces.
@@ -297,6 +305,9 @@ dsr_classer <- function(aretes, stations = NULL, id = "troncon",
                         tol_panneau = 15, champ_acces = "access",
                         champ_source = "source", part_minerale = 0.5,
                         sous_type_parcelle = c("section", "border"), ...) {
+  # Meme regle que `regime` de dsr_cubature() : la valeur n'est pas devinable
+  # depuis la geometrie, alors on ne la suppose pas en silence.
+  sous_type_dit <- !missing(sous_type_parcelle)
   sous_type_parcelle <- match.arg(sous_type_parcelle)
   if (!inherits(aretes, "sf")) dsr_abort("{.arg aretes} doit etre un {.cls sf}.")
   n <- nrow(aretes)
@@ -343,6 +354,13 @@ dsr_classer <- function(aretes, stations = NULL, id = "troncon",
       .dsr_part_le_long(g[i], ref, tol_parcelle) >= part_parcelle, logical(1))
   }
   parcelle <- suit(parcellaire)
+  if (!is.null(parcellaire) && !sous_type_dit) {
+    dsr_inform(c(
+      "!" = "{.arg sous_type_parcelle} non precise : {.val section} est suppose.",
+      "i" = "Un parcellaire de GESTION forestiere : ses limites sont les layons materialises au sol.",
+      "i" = "Pour un parcellaire CADASTRAL -- limites de propriete -- passer {.code sous_type_parcelle = \"border\"}."
+    ))
+  }
   # La reference fait autorite pour l'EXISTENCE d'un troncon (cf.
   # dsr_repositionner) : ce qu'elle porte est une desserte, quelle que soit la
   # structure geometrique par ailleurs.
