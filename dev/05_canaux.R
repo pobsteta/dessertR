@@ -115,37 +115,20 @@ if (length(nuage)) {
 # du paquet. dsr_ndvi() suppose l'ortho a 20 cm -- la seule resolution a
 # l'echelle d'une chaussee forestiere. On va donc la chercher a la source.
 #
-# WMS Geoplateforme, deux pieges rencontres : le service impose VERSION=1.3.0,
-# et EPSG:2154 y est en ordre (X, Y) -- un BBOX inverse renvoie un GeoTIFF
-# valide mais entierement vide, ce qui ne leve aucune erreur.
-wms_irc <- function(ext, res = 0.2, pas = 200) {
-  base <- paste0("https://data.geopf.fr/wms-r/wms?SERVICE=WMS&VERSION=1.3.0",
-    "&REQUEST=GetMap&LAYERS=ORTHOIMAGERY.ORTHOPHOTOS.IRC&STYLES=&CRS=EPSG:2154",
-    "&FORMAT=image/geotiff")
-  xs <- seq(ext[1], ext[2] - 1, by = pas)
-  ys <- seq(ext[3], ext[4] - 1, by = pas)
-  tuiles <- list()
-  for (x in xs) for (y in ys) {
-    x2 <- min(x + pas, ext[2]); y2 <- min(y + pas, ext[4])
-    n <- c(round((x2 - x) / res), round((y2 - y) / res))
-    f <- tempfile(fileext = ".tif")
-    u <- sprintf("%s&BBOX=%f,%f,%f,%f&WIDTH=%d&HEIGHT=%d", base, x, y, x2, y2, n[1], n[2])
-    ok <- tryCatch(system2("curl", c("-s", "--max-time", "120", shQuote(u), "-o", shQuote(f))) == 0,
-      error = function(e) FALSE)
-    if (ok && file.exists(f) && file.size(f) > 1000) {
-      r <- tryCatch(terra::rast(f), error = function(e) NULL)
-      if (!is.null(r)) tuiles[[length(tuiles) + 1L]] <- r
-    }
-  }
-  if (!length(tuiles)) return(NULL)
-  if (length(tuiles) == 1L) return(tuiles[[1]])
-  do.call(terra::merge, unname(tuiles))
-}
+# L'acquisition passe par dsr_ortho_ign(), la fonction DU PAQUET. Ce script
+# portait jusqu'ici sa propre copie de la requete WMS ; elle a ete retiree.
+#
+# Un banc qui reimplemente ce qu'il est cense exercer ne le valide pas, et il se
+# desynchronise au premier changement amont. La copie locale avait d'ailleurs
+# deja diverge : elle ne reparait pas le CRS absent -- piege documente du service,
+# qui fait sortir des « CRS do not match » a chaque croisement ulterieur -- et
+# elle ne nommait pas les bandes, obligeant a designer PIR et Rouge par leur
+# indice.
 
 if (!identical(Sys.getenv("DSR_ORTHO"), "0")) {
   cat("Canal optique : BD ORTHO IRC 20 cm (Geoplateforme)...\n")
   t0 <- Sys.time()
-  irc <- tryCatch(wms_irc(as.vector(fen)), error = function(e) NULL)
+  irc <- tryCatch(dsr_ortho_ign(emprise), error = function(e) NULL)
   if (is.null(irc)) {
     cat("  indisponible.\n")
   } else {
@@ -155,7 +138,9 @@ if (!identical(Sys.getenv("DSR_ORTHO"), "0")) {
     # NDVI sur les pixels NATIFS (20 cm), puis agrege a 1 m pour l'AUC : c'est
     # l'ordre impose par le paquet -- calculer le NDVI apres reechantillonnage
     # melangerait chaussee et vegetation dans le meme pixel avant l'indice.
-    ndvi20 <- dsr_ndvi(irc, bandes = c(pir = 1, rouge = 2))
+    # Bandes designees par leur NOM : dsr_ortho_ign() les nomme, ce que la
+    # copie locale ne faisait pas.
+    ndvi20 <- dsr_ndvi(irc, bandes = c(pir = "pir", rouge = "rouge"))
     ajouter("ndvi_ortho20", ndvi20, "BD ORTHO IRC, pixels natifs 20 cm")
     ndvi1 <- terra::resample(ndvi20, sigma_geo, method = "average")
     ajouter("ndvi_ortho_1m", ndvi1, "meme NDVI, agrege a 1 m")

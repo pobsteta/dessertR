@@ -54,6 +54,7 @@ reference:
       - dsr_profils
       - dsr_calibrer_largeur
       - dsr_emprise_certu
+      - dsr_ecart_norme
       - dsr_cubature
   - title: Canal optique (ortho)
     contents:
@@ -69,6 +70,8 @@ reference:
   - title: Reseau (topologie)
     contents:
       - dsr_reseau
+      - dsr_classer
+      - dsr_peignes
       - dsr_coller_noeuds
       - dsr_dedupe_paralleles
       - dsr_sfnetwork

@@ -9,6 +9,7 @@ dsr_rapport(
   praticabilite = NULL,
   etat = NULL,
   reseau = NULL,
+  norme = NULL,
   fichier = NULL
 )
 }
@@ -20,6 +21,11 @@ dsr_rapport(
 \item{etat}{Sortie de \code{\link[=dsr_etat_trace]{dsr_etat_trace()}} (\verb{$resume}, \code{data.frame}).}
 
 \item{reseau}{Sortie de \code{\link[=dsr_reseau]{dsr_reseau()}} (\verb{$resume}).}
+
+\item{norme}{Sortie de \code{\link[=dsr_ecart_norme]{dsr_ecart_norme()}} : l'ecart entre la largeur mesuree
+et la largeur normative de la fiche Certu. La section se lit dans \strong{un
+seul sens} -- la mesure informe sur ce que la norme suppose, jamais
+l'inverse (voir \code{\link[=dsr_emprise_certu]{dsr_emprise_certu()}}).}
 
 \item{fichier}{Chemin d'un \code{.md} a ecrire ; \code{NULL} pour seulement renvoyer le
 texte.}
@@ -33,5 +39,5 @@ Assemble en un texte Markdown les metriques cles d'un traitement de desserte
 Chaque entree est optionnelle.
 }
 \seealso{
-\code{\link[=dsr_export_gpkg]{dsr_export_gpkg()}}.
+\code{\link[=dsr_export_gpkg]{dsr_export_gpkg()}}, \code{\link[=dsr_ecart_norme]{dsr_ecart_norme()}}.
 }

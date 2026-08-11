@@ -49,3 +49,20 @@ test_that("dsr_rapport assemble les metriques et ecrit un .md", {
   dsr_rapport(mesure = m, fichier = f)
   expect_true(file.exists(f))
 })
+
+test_that("dsr_rapport rend la section d'ecart a la norme", {
+  n <- data.frame(troncon = 1:3, ECART_NORME = c(1.2, 0.2, -0.3),
+    BORDS_RESOLUS = c(1, 0, 0.5))
+  txt <- dsr_rapport(norme = n)
+  expect_match(txt, "## Ecart a la norme Certu")
+  expect_match(txt, "Ecart median a la norme : \\+0.2 m")
+  expect_match(txt, "Au-dessus de la norme : 2 troncon\\(s\\) ; en dessous : 1")
+  expect_match(txt, "majorant")   # la reserve chaussee/plateforme est dite
+
+  # Cas courant en foret : classement administratif vide, rien n'est apparie.
+  muet <- dsr_rapport(norme = data.frame(troncon = 1:2,
+    ECART_NORME = c(NA_real_, NA_real_)))
+  expect_match(muet, "Aucun troncon apparie")
+
+  expect_error(dsr_rapport(norme = data.frame(x = 1)), "ECART_NORME")
+})

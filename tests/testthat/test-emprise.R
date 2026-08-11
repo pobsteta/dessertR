@@ -135,3 +135,116 @@ test_that("garde-fous d'entree", {
     sf::st_linestring(cbind(c(0, 1), c(0, 1))), crs = 2154))
   expect_error(dsr_emprise_certu(nu), "introuvables")
 })
+
+# Les millesimes recents de la BD TOPO nomment le classement administratif
+# `cpx_classement_administratif` : c'est le nom porte par l'extrait livre avec
+# le paquet, et la detection le manquait.
+bdtopo_v3_cpx <- function() {
+  sf::st_sf(
+    cpx_classement_administratif = c("Autre", "Autre"),
+    nature = c("Chemin", "Route empierrée"),
+    nombre_de_voies = c(0L, 0L),
+    position_par_rapport_au_sol = c(0L, 1L),
+    geometry = sf::st_sfc(
+      sf::st_linestring(cbind(c(0, 100), c(0, 0))),
+      sf::st_linestring(cbind(c(0, 100), c(20, 20))), crs = 2154)
+  )
+}
+
+test_that("schema v3 : `cpx_classement_administratif` est detecte", {
+  skip_if_not_installed("sf")
+  r <- dsr_emprise_certu(bdtopo_v3_cpx())
+  ch <- attr(r, "certu")$champs
+  expect_equal(ch$cl_admin, "cpx_classement_administratif")
+  expect_equal(attr(r, "certu")$schema, "v3")
+  expect_equal(r$LARGEUR_CHAUSSEE_CERTU, c(2, 2))
+  expect_length(attr(r, "certu")$non_apparies, 0)
+})
+
+test_that("`champs` complete la detection au lieu de la remplacer", {
+  skip_if_not_installed("sf")
+  x <- bdtopo_v3_cpx()
+  x$classement_maison <- x$cpx_classement_administratif
+  x$cpx_classement_administratif <- NULL
+
+  # Un seul champ force : les trois autres restent detectes.
+  r <- dsr_emprise_certu(x, champs = list(cl_admin = "classement_maison"))
+  ch <- attr(r, "certu")$champs
+  expect_equal(ch$cl_admin, "classement_maison")
+  expect_equal(ch$nature, "nature")
+  expect_equal(ch$nb_voies, "nombre_de_voies")
+  expect_equal(ch$pos_sol, "position_par_rapport_au_sol")
+  expect_equal(r$LARGEUR_CHAUSSEE_CERTU, c(2, 2))
+})
+
+test_that("le champ manquant signale est bien celui qui manque", {
+  skip_if_not_installed("sf")
+  x <- bdtopo_v3_cpx()
+  x$cpx_classement_administratif <- NULL
+  err <- expect_error(dsr_emprise_certu(x), "introuvables")
+  # le message nommait `cl_admin` ET `nb_voies` alors que seul le premier
+  # manquait : les noms etaient recycles a cote de la position testee.
+  expect_match(conditionMessage(err), "cl_admin")
+  expect_false(grepl("nb_voies", conditionMessage(err)))
+})
+
+test_that("`champs` errone echoue tot et clairement", {
+  skip_if_not_installed("sf")
+  x <- bdtopo_v3_cpx()
+  expect_error(dsr_emprise_certu(x, champs = list(cl_admin = "nexiste_pas")),
+    "absente")
+  expect_error(dsr_emprise_certu(x, champs = list(cladmin = "nature")),
+    "inconnue")
+})
+
+test_that("dsr_ecart_norme confronte mesure et norme dans le bon sens", {
+  st <- data.frame(troncon = c(1, 1, 2, 2),
+    LARGEUR_ROULABLE = c(3.0, 3.4, 2.1, 2.3),
+    BORDS_CHAUSSEE = c(2, 2, 0, 0))
+  ce <- data.frame(LARGEUR_CHAUSSEE_CERTU = c(2, 2))
+  r <- dsr_ecart_norme(st, ce)
+
+  expect_equal(nrow(r), 2)
+  expect_equal(r$LARGEUR_MED, c(3.2, 2.2))
+  # mesure - norme : une piste plus large que la norme rend un ecart POSITIF.
+  expect_equal(r$ECART_NORME, c(1.2, 0.2))
+  expect_equal(r$ECART_REL, c(0.6, 0.1))
+  # part de stations ou la chaussee est resolue : sans elle, l'ecart compare
+  # une plateforme a une largeur de chaussee.
+  expect_equal(r$BORDS_RESOLUS, c(1, 0))
+  expect_equal(r$N_STATIONS, c(2L, 2L))
+})
+
+test_that("dsr_ecart_norme garde les troncons que la fiche n'apparie pas", {
+  st <- data.frame(troncon = c(1, 1, 2, 2),
+    LARGEUR_ROULABLE = c(3.0, 3.4, 2.1, 2.3))
+  ce <- data.frame(LARGEUR_CHAUSSEE_CERTU = c(2, NA))
+  r <- dsr_ecart_norme(st, ce)
+  expect_equal(nrow(r), 2)             # conserve, pas retire en silence
+  expect_true(is.na(r$ECART_NORME[2]))
+  expect_true(all(is.na(r$BORDS_RESOLUS)))  # BORDS_CHAUSSEE absent
+})
+
+test_that("dsr_ecart_norme apparie par colonne quand `certu` la porte", {
+  st <- data.frame(troncon = c("b", "b", "a"),
+    LARGEUR_ROULABLE = c(3, 3, 5))
+  # ordre INVERSE de celui des stations : l'appariement par indice donnerait
+  # le mauvais resultat, celui par identifiant non.
+  ce <- data.frame(troncon = c("b", "a"), LARGEUR_CHAUSSEE_CERTU = c(2, 4))
+  r <- dsr_ecart_norme(st, ce)
+  expect_equal(r$troncon, c("a", "b"))
+  expect_equal(r$LARGEUR_NORME, c(4, 2))
+  expect_equal(r$ECART_NORME, c(1, 1))
+})
+
+test_that("garde-fous de dsr_ecart_norme", {
+  st <- data.frame(troncon = 1, LARGEUR_ROULABLE = 3)
+  ce <- data.frame(LARGEUR_CHAUSSEE_CERTU = 2)
+  expect_error(dsr_ecart_norme(st[, "LARGEUR_ROULABLE", drop = FALSE], ce), "troncon")
+  expect_error(dsr_ecart_norme(st[, "troncon", drop = FALSE], ce), "LARGEUR_ROULABLE")
+  expect_error(dsr_ecart_norme(st, data.frame(x = 1)), "LARGEUR_CHAUSSEE_CERTU")
+  # appariement par indice hors des bornes de `certu` : on refuse plutot que
+  # de rendre un NA qui passerait pour une non-correspondance de la fiche.
+  st2 <- data.frame(troncon = c(1, 7), LARGEUR_ROULABLE = c(3, 3))
+  expect_error(dsr_ecart_norme(st2, ce), "indice de ligne")
+})

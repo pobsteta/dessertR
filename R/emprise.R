@@ -228,9 +228,10 @@
 #'
 #' @param troncons `sf` des troncons de route (BD TOPO).
 #' @param schema `"auto"` (defaut), `"v2"` ou `"v3"`.
-#' @param champs Liste nommee pour forcer les noms de colonnes
-#'   (`cl_admin`, `nature`, `franchissement`, `nb_voies`) ; `NULL` pour la
-#'   detection automatique.
+#' @param champs Liste nommee pour forcer les noms de colonnes (`cl_admin`,
+#'   `nature`, `franchissement`, `nb_voies`, `pos_sol`). Elle **complete** la
+#'   detection automatique : les champs non cites restent detectes. `NULL`
+#'   (defaut) pour s'en remettre entierement a la detection.
 #' @param nature_map Vecteur nomme de correspondance des valeurs de nature vers
 #'   celles de la fiche ; `NULL` pour le defaut du schema detecte.
 #' @param emprise `TRUE` pour renvoyer en plus les polygones d'emprise
@@ -263,21 +264,37 @@ dsr_emprise_certu <- function(troncons, schema = c("auto", "v2", "v3"),
   if (identical(schema, "auto")) {
     schema <- if (!is.na(trouver("franchisst"))) "v2" else "v3"
   }
-  ch <- if (is.null(champs)) {
-    list(
-      cl_admin = trouver(c("cl_admin", "CL_ADMIN", "classe_administrative")),
-      nature = trouver(c("nature", "NATURE")),
-      franchissement = trouver(c("franchisst", "FRANCHISST", "franchissement")),
-      nb_voies = trouver(c("nb_voies", "NB_VOIES", "nombre_de_voies")),
-      pos_sol = trouver(c("pos_sol", "POS_SOL", "position_par_rapport_au_sol"))
-    )
-  } else {
-    utils::modifyList(list(cl_admin = NA_character_, nature = NA_character_,
-      franchissement = NA_character_, nb_voies = NA_character_,
-      pos_sol = NA_character_), champs)
+  auto <- list(
+    cl_admin = trouver(c("cl_admin", "CL_ADMIN", "classe_administrative",
+      "cpx_classement_administratif", "classement_administratif")),
+    nature = trouver(c("nature", "NATURE")),
+    franchissement = trouver(c("franchisst", "FRANCHISST", "franchissement")),
+    nb_voies = trouver(c("nb_voies", "NB_VOIES", "nombre_de_voies")),
+    pos_sol = trouver(c("pos_sol", "POS_SOL", "position_par_rapport_au_sol"))
+  )
+  # `champs` COMPLETE la detection, il ne la remplace pas : forcer le seul champ
+  # qui manque ne doit pas obliger a redonner les quatre autres.
+  ch <- if (is.null(champs)) auto else {
+    inconnus <- setdiff(names(champs), names(auto))
+    if (length(inconnus) > 0L) {
+      dsr_abort(c(
+        "{.arg champs} : entree{?s} inconnue{?s} {.val {inconnus}}.",
+        "i" = "Noms attendus : {.val {names(auto)}}."
+      ))
+    }
+    absents <- unlist(champs)[!is.na(unlist(champs)) &
+      !tolower(unlist(champs)) %in% tolower(nms)]
+    if (length(absents) > 0L) {
+      dsr_abort(c(
+        "{.arg champs} designe {length(absents)} colonne{?s} absente{?s} de {.arg troncons} : {.val {unname(absents)}}.",
+        "i" = "Colonnes presentes : {.val {nms}}."
+      ))
+    }
+    utils::modifyList(auto, champs)
   }
 
-  manquants <- names(ch)[is.na(unlist(ch[c("cl_admin", "nature", "nb_voies")]))]
+  requis <- c("cl_admin", "nature", "nb_voies")
+  manquants <- requis[is.na(unlist(ch[requis]))]
   if (length(manquants) > 0L) {
     dsr_abort(c(
       "Champs BD TOPO introuvables : {.val {manquants}}.",
@@ -345,4 +362,112 @@ dsr_emprise_certu <- function(troncons, schema = c("auto", "v2", "v3"),
     endCapStyle = "FLAT")
   list(troncons = troncons, emprise = sf::st_sf(
     LARGEUR_EMPRISE_CERTU = 2 * larg[ok], geometry = poly))
+}
+
+
+#' Ecart a la norme Certu, troncon par troncon
+#'
+#' Confronte la largeur MESUREE ([dsr_measure()]) a la largeur NORMATIVE de la
+#' fiche Certu ([dsr_emprise_certu()]). Le sens de lecture est fixe : la mesure
+#' informe sur ce que la norme ne fait que supposer -- « cette piste fait 3,2 m
+#' la ou la fiche en suppose 2 ». L'inverse, ramener la mesure vers la norme,
+#' detruirait le signal que le paquet produit (voir [dsr_emprise_certu()]).
+#'
+#' @details
+#' **Comparer ce qui est comparable.** `LARGEUR_ROULABLE` vise la chaussee, et
+#' `LARGEUR_CHAUSSEE_CERTU` est une largeur de chaussee : les deux se
+#' correspondent. Mais quand la rupture chaussee/accotement n'est pas resolue,
+#' [dsr_measure()] retombe sur la **plateforme** et le signale par
+#' `BORDS_CHAUSSEE`. La colonne `BORDS_RESOLUS` reporte cette part au niveau du
+#' troncon : proche de 0, l'ecart compare une plateforme a une largeur de
+#' chaussee, et se lit comme un majorant.
+#'
+#' **Appariement.** [dsr_measure()] ne nomme pas ses troncons ; l'usage etabli
+#' est d'ajouter soi-meme une colonne (`troncon`) portant l'indice de ligne du
+#' reseau mesure. Si `certu` porte la meme colonne, l'appariement se fait
+#' dessus ; sinon il se fait par **indice de ligne**, ce qui suppose que `certu`
+#' est le meme reseau, dans le meme ordre.
+#'
+#' @param stations `sf`/`data.frame` des stations ([dsr_measure()]), portant
+#'   `champ_mesure`, la colonne `id` et, si possible, `BORDS_CHAUSSEE`.
+#' @param certu Sortie de [dsr_emprise_certu()] (ou tout objet portant
+#'   `champ_certu`).
+#' @param id Nom de la colonne identifiant le troncon dans `stations`. Defaut
+#'   `"troncon"`.
+#' @param champ_mesure,champ_certu Colonnes comparees. Defauts
+#'   `"LARGEUR_ROULABLE"` et `"LARGEUR_CHAUSSEE_CERTU"`.
+#'
+#' @return Un `data.frame`, une ligne par troncon mesure : la colonne `id`,
+#'   `N_STATIONS`, `LARGEUR_MED` (mediane mesuree), `LARGEUR_NORME`,
+#'   `ECART_NORME` (mesure - norme, m), `ECART_REL` (rapporte a la norme) et
+#'   `BORDS_RESOLUS` (part de stations ou la chaussee est resolue, `NA` si
+#'   `BORDS_CHAUSSEE` est absent). Les troncons que la fiche n'apparie pas
+#'   gardent `LARGEUR_NORME = NA` et un ecart `NA` : ils sont conserves, pas
+#'   silencieusement retires.
+#' @seealso [dsr_emprise_certu()], [dsr_measure()], [dsr_rapport()].
+#' @examples
+#' stations <- data.frame(troncon = c(1, 1, 2, 2),
+#'   LARGEUR_ROULABLE = c(3.0, 3.4, 2.1, 2.3), BORDS_CHAUSSEE = c(2, 2, 0, 0))
+#' certu <- data.frame(LARGEUR_CHAUSSEE_CERTU = c(2, 2))
+#' dsr_ecart_norme(stations, certu)
+#' @export
+dsr_ecart_norme <- function(stations, certu, id = "troncon",
+                            champ_mesure = "LARGEUR_ROULABLE",
+                            champ_certu = "LARGEUR_CHAUSSEE_CERTU") {
+  st <- if (inherits(stations, "sf")) sf::st_drop_geometry(stations) else stations
+  ce <- if (inherits(certu, "sf")) sf::st_drop_geometry(certu) else certu
+  if (!is.data.frame(st)) dsr_abort("{.arg stations} doit etre un {.cls data.frame}.")
+  if (!is.data.frame(ce)) dsr_abort("{.arg certu} doit etre un {.cls data.frame}.")
+  if (!id %in% names(st)) {
+    dsr_abort(c(
+      "{.arg stations} ne porte pas la colonne {.field {id}}.",
+      "i" = "L'ajouter avant d'empiler les sorties de {.fun dsr_measure}."
+    ))
+  }
+  if (!champ_mesure %in% names(st)) {
+    dsr_abort("{.arg stations} ne porte pas la colonne {.field {champ_mesure}}.")
+  }
+  if (!champ_certu %in% names(ce)) {
+    dsr_abort(c(
+      "{.arg certu} ne porte pas la colonne {.field {champ_certu}}.",
+      "i" = "Attendu : la sortie de {.fun dsr_emprise_certu}."
+    ))
+  }
+
+  cles <- unique(st[[id]])
+  cles <- cles[!is.na(cles)]
+  cles <- cles[order(cles)]
+  if (!length(cles)) dsr_abort("Aucun troncon identifie dans {.arg stations}.")
+
+  # Appariement par colonne homonyme si `certu` la porte, par indice sinon.
+  norme <- if (id %in% names(ce)) {
+    ce[[champ_certu]][match(cles, ce[[id]])]
+  } else {
+    idx <- suppressWarnings(as.integer(cles))
+    if (any(is.na(idx)) || any(idx < 1L) || any(idx > nrow(ce))) {
+      dsr_abort(c(
+        "L'appariement par indice de ligne sort de {.arg certu} ({nrow(ce)} ligne{?s}).",
+        "i" = "Ajouter la colonne {.field {id}} a {.arg certu} pour apparier par identifiant."
+      ))
+    }
+    ce[[champ_certu]][idx]
+  }
+
+  med <- vapply(cles, function(k)
+    stats::median(st[[champ_mesure]][st[[id]] %in% k], na.rm = TRUE), numeric(1))
+  n <- vapply(cles, function(k) sum(st[[id]] %in% k), integer(1))
+  bords <- if ("BORDS_CHAUSSEE" %in% names(st)) {
+    vapply(cles, function(k)
+      mean(st$BORDS_CHAUSSEE[st[[id]] %in% k] > 0, na.rm = TRUE), numeric(1))
+  } else {
+    rep(NA_real_, length(cles))
+  }
+
+  out <- data.frame(cles, n, med, norme, med - norme,
+    ifelse(is.na(norme) | norme == 0, NA_real_, (med - norme) / norme), bords,
+    stringsAsFactors = FALSE)
+  names(out) <- c(id, "N_STATIONS", "LARGEUR_MED", "LARGEUR_NORME",
+    "ECART_NORME", "ECART_REL", "BORDS_RESOLUS")
+  rownames(out) <- NULL
+  out
 }

@@ -13,7 +13,8 @@ dsr_calibrer_specs(
   poids_max = 3,
   n = 2500,
   exclure = "theta",
-  bornes = TRUE
+  bornes = TRUE,
+  graine = 1
 )
 }
 \arguments{
@@ -45,6 +46,12 @@ non une intensite.}
 \item{bornes}{Produire aussi les bornes d'appartenance \code{a} et \code{b}, en unites
 du canal. Defaut \code{TRUE}. Voir « Bornes absolues » ci-dessous ; \code{FALSE}
 rend des regles sans bornes, donc \strong{relatives a l'emprise}.}
+
+\item{graine}{Graine du tirage servant a estimer l'AUC. Defaut 1, ce qui rend
+la calibration \strong{reproductible} : deux appels sur la meme donnee rendent
+les memes regles. \code{NULL} pour laisser jouer l'aleatoire ambiant -- utile
+pour justement mesurer la variabilite d'echantillonnage. L'etat du
+generateur est sauvegarde et restaure dans tous les cas.}
 }
 \value{
 Une liste de quatre elements :
@@ -93,6 +100,17 @@ la \code{pente} marque les routes par le bas dans l'un et par le haut dans
 l'autre. Calibree sur un seul, elle entrait dans les regles ; calibree sur
 les deux, elle en est ecartee. Un canal dont le signe depend du relief n'a
 rien a faire dans une regle.
+
+\strong{Reproductibilite.} L'AUC est estimee sur un echantillon de \code{n} cellules.
+Sans graine, deux appels sur la meme donnee ne rendent pas les memes regles :
+l'ecart-type du tirage est d'environ \strong{0,006} sur l'AUC, ce qui suffit a
+faire entrer ou sortir du jeu un canal pose au bord de \code{auc_min}. Le defaut
+\code{graine = 1} fige ce tirage.
+
+Il le fige, il ne le supprime pas : l'incertitude d'echantillonnage reste, et
+deux graines differentes peuvent rendre deux jeux de regles legerement
+differents. Pour la mesurer plutot que de l'ignorer, appeler avec plusieurs
+graines explicites et comparer les diagnostics.
 
 \strong{Bornes absolues, et pourquoi elles comptent.} La fonction rend aussi les
 bornes \code{a} et \code{b} de chaque rampe, en unites du canal (\code{bornes = TRUE}).
