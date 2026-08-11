@@ -17,7 +17,8 @@ dsr_calibrer_specs(
   poids_max = 3,
   n = 2500,
   exclure = "theta",
-  bornes = TRUE
+  bornes = TRUE,
+  graine = 1
 )
 ```
 
@@ -70,6 +71,14 @@ dsr_calibrer_specs(
   canal. Defaut `TRUE`. Voir « Bornes absolues » ci-dessous ; `FALSE`
   rend des regles sans bornes, donc **relatives a l'emprise**.
 
+- graine:
+
+  Graine du tirage servant a estimer l'AUC. Defaut 1, ce qui rend la
+  calibration **reproductible** : deux appels sur la meme donnee rendent
+  les memes regles. `NULL` pour laisser jouer l'aleatoire ambiant –
+  utile pour justement mesurer la variabilite d'echantillonnage. L'etat
+  du generateur est sauvegarde et restaure dans tous les cas.
+
 ## Value
 
 Une liste de quatre elements :
@@ -120,6 +129,17 @@ massifs de validation, la `pente` marque les routes par le bas dans l'un
 et par le haut dans l'autre. Calibree sur un seul, elle entrait dans les
 regles ; calibree sur les deux, elle en est ecartee. Un canal dont le
 signe depend du relief n'a rien a faire dans une regle.
+
+**Reproductibilite.** L'AUC est estimee sur un echantillon de `n`
+cellules. Sans graine, deux appels sur la meme donnee ne rendent pas les
+memes regles : l'ecart-type du tirage est d'environ **0,006** sur l'AUC,
+ce qui suffit a faire entrer ou sortir du jeu un canal pose au bord de
+`auc_min`. Le defaut `graine = 1` fige ce tirage.
+
+Il le fige, il ne le supprime pas : l'incertitude d'echantillonnage
+reste, et deux graines differentes peuvent rendre deux jeux de regles
+legerement differents. Pour la mesurer plutot que de l'ignorer, appeler
+avec plusieurs graines explicites et comparer les diagnostics.
 
 **Bornes absolues, et pourquoi elles comptent.** La fonction rend aussi
 les bornes `a` et `b` de chaque rampe, en unites du canal

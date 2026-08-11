@@ -115,6 +115,8 @@
   : Calibrer la mesure de largeur sur une reference terrain
 - [`dsr_emprise_certu()`](https://pobsteta.github.io/dessertR/reference/dsr_emprise_certu.md)
   : Emprise routiere normative (methode Certu, fiche 1.7)
+- [`dsr_ecart_norme()`](https://pobsteta.github.io/dessertR/reference/dsr_ecart_norme.md)
+  : Ecart a la norme Certu, troncon par troncon
 - [`dsr_cubature()`](https://pobsteta.github.io/dessertR/reference/dsr_cubature.md)
   : Cubature deblai / remblai le long d'un trace
 
@@ -142,6 +144,10 @@
 
 - [`dsr_reseau()`](https://pobsteta.github.io/dessertR/reference/dsr_reseau.md)
   : Construire un reseau topologiquement coherent
+- [`dsr_classer()`](https://pobsteta.github.io/dessertR/reference/dsr_classer.md)
+  : Classer les lineaires detectes et proposer un balisage OSM
+- [`dsr_peignes()`](https://pobsteta.github.io/dessertR/reference/dsr_peignes.md)
+  : Regrouper les traces en peignes de paralleles
 - [`dsr_coller_noeuds()`](https://pobsteta.github.io/dessertR/reference/dsr_coller_noeuds.md)
   : Coller les extremites proches sur des noeuds partages
 - [`dsr_dedupe_paralleles()`](https://pobsteta.github.io/dessertR/reference/dsr_dedupe_paralleles.md)

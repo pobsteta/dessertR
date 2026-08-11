@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dessertR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.2.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -32,6 +32,57 @@
       <small>Source: <a href="https://github.com/pobsteta/dessertR/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="1.3.0" id="dessertr-130">dessertR 1.3.0<a class="anchor" aria-label="anchor" href="#dessertr-130"></a></h2>
+<p>Version de <strong>la norme lue et du detecte qualifie</strong>. La 1.2.0 remettait l’instrument d’aplomb ; celle-ci fait parler ce qu’il produit – et surtout ce qu’il produit hors de la desserte.</p>
+<p>Le fil conducteur est un constat : deux jeux de reference dormaient dans le paquet sans que rien ne les lise.</p>
+<ul><li>
+<strong>La fiche Certu ne servait a rien.</strong> Aucune fonction n’en lisait les colonnes, et elle echouait sur l’extrait livre avec le paquet. Elle est reparee, sa transcription verifiee ligne a ligne contre le PDF d’origine (97 lignes, aucun ecart), et [dsr_ecart_norme()] la met au travail dans [dsr_rapport()] – dans un seul sens : la mesure informe sur ce que la norme suppose.</li>
+<li>
+<strong>Ce que la detection remonte hors reference n’etait pas qualifie.</strong> En foret geree, ce n’est pas majoritairement de la desserte : ce sont des cloisonnements et des layons. [dsr_classer()] leur donne une classe et propose un balisage OSM aligne sur le consensus de la communaute – <code>man_made=cutline</code> pour ce qui n’est pas une voie de circulation.</li>
+</ul><p>Ces deux sorties partagent une regle : <strong>elles ne concluent pas ce qu’elles ne peuvent pas etablir.</strong> <code>BORDS_RESOLUS</code> dit quand un ecart compare une plateforme a une chaussee, <code>CLASSE_CONF</code> chiffre la part de criteres renseignes, <code>access=</code> n’est jamais infere du lidar mais peut etre atteste par une source, et le pare-feu comme la place de depot restent hors classement faute de critere.</p>
+<div class="section level3">
+<h3 id="classer-ce-que-la-detection-remonte-et-proposer-un-balisage-1-3-0">Classer ce que la detection remonte, et proposer un balisage<a class="anchor" aria-label="anchor" href="#classer-ce-que-la-detection-remonte-et-proposer-un-balisage-1-3-0"></a></h3>
+<p>[dsr_classer()] attribue une classe forestiere a chaque lineaire – desserte, route, piste, cloisonnement d’exploitation, layon parcellaire – et propose le balisage OpenStreetMap correspondant. Point de depart : le fil OSM-fr « Layons, cloisonnements d’exploitation en forets publiques » (juillet 2026), ou l’ONF decrit exactement notre methode (MNT Lidar HD) et demande comment baliser. Le consensus qui en sort est repris tel quel : <code>man_made=cutline</code> (+ sous-type), pas <code>highway=*</code>, pour ce qui n’est pas une voie de circulation.</p>
+<p>Ce que la detection remonte hors reference, en foret geree, n’est pas majoritairement de la desserte. Le traiter comme du bruit serait faux, comme des routes aussi.</p>
+<p><strong>La decision porte sur des structures, pas sur des seuils de largeur.</strong> [dsr_peignes()] repere les faisceaux de paralleles regulierement espaces – la signature d’un cloisonnement, qui n’existe jamais seul – en <strong>estimant la periodicite sur la donnee</strong> plutot qu’en posant un espacement a priori. Une trace intruse retire une dent au peigne, elle ne le fait pas disparaitre. <code>BORDS_CHAUSSEE</code> n’est deliberement pas un critere : il dit si la mesure a reussi, pas si la route est construite.</p>
+<p><strong><code>access=*</code> n’est jamais infere, il peut etre atteste.</strong> Un panneau ne se lit pas dans un MNT ; tant que la seule entree est le lidar, aucun tag d’acces n’est defendable. L’argument <code>panneaux</code> accepte des releves – terrain, ou photos geolocalisees d’un jumeau numerique – et fait alors emettre <code>access=</code> avec sa provenance dans <code>source:access</code>. Deux panneaux contradictoires n’emettent rien et le motif le dit.</p>
+<p>Le pare-feu et la place de depot ne sont pas classes automatiquement : le premier demande un critere de crete que le paquet ne calcule pas, la seconde n’est pas un lineaire et le fil OSM ne lui donne aucun tag consensuel.</p>
+<p>Le parcellaire n’est pas acquis par le paquet : il vient de l’amont, qui seul sait ce qu’il porte. <code>sous_type_parcelle</code> le lui fait dire – <code>"section"</code> pour un parcellaire de gestion forestiere, dont les limites sont les layons materialises au sol, <code>"border"</code> pour un parcellaire cadastral, qui ne trace que des limites de propriete. La geometrie est identique dans les deux cas ; le sous-type OSM, non.</p>
+<p>La sortie – <code>CLASSE</code>, <code>CLASSE_CONF</code>, <code>CLASSE_MOTIF</code>, <code>OSM_TAGS</code> – est une <strong>proposition auditable</strong>, pas un jeu pret a televerser : un import dans OSM releve des regles de la communaute, pas d’une fonction R.</p>
+</div>
+<div class="section level3">
+<h3 id="lecart-a-la-norme-entre-enfin-dans-le-rapport-1-3-0">L’ecart a la norme entre enfin dans le rapport<a class="anchor" aria-label="anchor" href="#lecart-a-la-norme-entre-enfin-dans-le-rapport-1-3-0"></a></h3>
+<p>La fiche Certu ne servait a rien dans la chaine : aucune fonction ne lisait ses colonnes. [dsr_ecart_norme()] les met au travail – elle confronte, troncon par troncon, la largeur <strong>mesuree</strong> a la largeur <strong>normative</strong>, et [dsr_rapport()] rend la section correspondante via son nouvel argument <code>norme</code>.</p>
+<p>Le sens de lecture est fixe et ne s’inverse pas : la mesure informe sur ce que la norme suppose. Ramener la mesure vers la norme detruirait le signal que le paquet produit, la fiche rendant une constante de 2 m sur toute la desserte forestiere.</p>
+<p>La sortie porte <code>BORDS_RESOLUS</code>, la part de stations ou la rupture chaussee/accotement a ete tranchee. Sans elle, l’ecart comparerait une <strong>plateforme</strong> a une largeur de <strong>chaussee</strong> sans le dire : le rapport signale alors qu’il se lit comme un majorant. Les troncons que la fiche n’apparie pas sont conserves avec un ecart <code>NA</code> plutot que retires – et quand aucun ne s’apparie, cas courant en foret ou le classement administratif est vide, la section le dit au lieu de rester muette.</p>
+</div>
+<div class="section level3">
+<h3 id="la-fiche-certu-lit-les-millesimes-recents-de-la-bd-topo-1-3-0">La fiche Certu lit les millesimes recents de la BD TOPO<a class="anchor" aria-label="anchor" href="#la-fiche-certu-lit-les-millesimes-recents-de-la-bd-topo-1-3-0"></a></h3>
+<p>[dsr_emprise_certu()] echouait sur l’extrait BD TOPO <strong>livre avec le paquet</strong> : les millesimes recents nomment le classement administratif <code>cpx_classement_administratif</code>, absent des alias de detection. Il est ajoute (avec <code>classement_administratif</code>).</p>
+<p><code>champs</code> <strong>complete</strong> desormais la detection au lieu de la remplacer. Forcer le seul champ qui manque obligeait a redonner les quatre autres, sans quoi la fonction declarait introuvables des colonnes bien presentes. Les noms forces sont verifies a l’entree : un role inconnu ou une colonne absente echoue tout de suite, avec la liste des noms attendus.</p>
+<p>Le message de champ manquant nommait enfin <strong>les mauvais champs</strong> : les noms etaient recycles a cote des positions testees, et l’appel signalait <code>cl_admin</code> et <code>nb_voies</code> quand seul <code>cl_admin</code> manquait.</p>
+<p>Rien de tout cela ne change une largeur : la fiche reste une <strong>lecture d’ecart a la norme</strong>, jamais une reference de calibration.</p>
+</div>
+<div class="section level3">
+<h3 id="un-exemple-de-bout-en-bout-sur-desserte-existante-1-3-0">Un exemple de bout en bout sur desserte existante<a class="anchor" aria-label="anchor" href="#un-exemple-de-bout-en-bout-sur-desserte-existante-1-3-0"></a></h3>
+<p><code>dev/11_chaine_desserte_existante.R</code> deroule les dix etapes du cas d’usage central – corridor, deux canaux, recalage contraint, etat, mesure, gabarit libre, praticabilite, ecart Certu, detection hors reference, reseau, export – sur l’extrait de <code>inst/extdata</code>. Contrairement a <code>dev/03_validation.R</code>, il ne demande <strong>aucune donnee externe</strong> : il s’execute tel quel. C’est un exemple de reference, pas une validation ; 200 m de desserte ne valident rien.</p>
+</div>
+<div class="section level3">
+<h3 id="la-calibration-devient-reproductible-1-3-0">La calibration devient reproductible<a class="anchor" aria-label="anchor" href="#la-calibration-devient-reproductible-1-3-0"></a></h3>
+<p>[dsr_calibrer_specs()] accepte <code>graine</code> (defaut 1) : deux appels sur la meme donnee rendent desormais <strong>les memes regles</strong>.</p>
+<p>L’AUC y est estimee sur un echantillon de <code>n</code> cellules, et l’ecart-type du tirage vaut environ <strong>0,006</strong> – assez pour faire entrer ou sortir du jeu un canal pose au bord de <code>auc_min</code>. Une fonction de calibration dont la sortie bouge a entree constante ne vaut pas grand-chose, et c’etait la derniere source d’aleatoire du paquet.</p>
+<p><code>graine = NULL</code> restaure le comportement precedent, utile pour <strong>mesurer</strong> la variabilite d’echantillonnage plutot que de l’ignorer. Dans tous les cas l’etat du generateur de l’appelant est sauvegarde et restaure : poser une graine dans une fonction de paquet sans la rendre casserait la reproductibilite du code appelant, ce qui serait pire que le probleme resolu.</p>
+<p><strong>Le harnais de tests est graine aussi</strong> (<code>tests/testthat/setup.R</code>). Sans cela, la <strong>couverture</strong> elle-meme n’etait pas deterministe : selon le tirage, une branche etait exercee ou non, et codecov rapportait jusqu’a <strong>-0,74 %</strong> sur des commits ne touchant aucune ligne de R. La suite rend maintenant un nombre d’assertions <strong>constant</strong> a chaque passage (753 a ce jour), la ou il oscillait entre 646 et 647.</p>
+</div>
+<div class="section level3">
+<h3 id="le-banc-du-canal-optique-passe-par-dsr_ortho_ign-1-3-0">Le banc du canal optique passe par <code>dsr_ortho_ign()</code>
+<a class="anchor" aria-label="anchor" href="#le-banc-du-canal-optique-passe-par-dsr_ortho_ign-1-3-0"></a></h3>
+<p><code>dev/05_canaux.R</code> portait sa propre copie de la requete WMS Geoplateforme. Elle est retiree au profit de [dsr_ortho_ign()]. Un banc qui reimplemente ce qu’il est cense exercer ne le valide pas, et la copie avait deja diverge : elle ne reparait pas le CRS absent – piege documente du service – et ne nommait pas les bandes.</p>
+<p><strong>Ce que la mesure a rendu au passage.</strong> Le NDVI etait jusqu’ici juge sur le <code>ndvi.tif</code> des caches, un produit a <strong>4,4 m</strong> ou une chaussee de 4 m tient dans un pixel. Acquis a sa resolution nominale de <strong>20 cm</strong> (5000 x 5000 px, 39 s), il passe de 0,534 a <strong>0,560</strong> d’AUC route / hors-route.</p>
+<p><strong>+0,026.</strong> La faiblesse du canal optique n’etait donc <strong>pas</strong> un artefact de resolution : mesure a son echelle utile, le NDVI reste loin derriere la <code>rugosite</code> (0,779), <code>sigma_geo</code> (0,715) et <code>openness_pos</code> (0,663). Il faut le savoir avant d’investir dans l’acquisition d’ortho a 20 cm en esperant un gain.</p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="1.2.0" id="dessertr-120">dessertR 1.2.0<a class="anchor" aria-label="anchor" href="#dessertr-120"></a></h2>
 <p>Version de <strong>l’instrument avant la mesure</strong>. La 1.1.0 corrigeait des reglages supposes ; celle-ci s’en prend a ce qui rendait ces reglages inmesurables.</p>

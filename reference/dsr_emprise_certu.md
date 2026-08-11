@@ -30,7 +30,9 @@ dsr_emprise_certu(
 - champs:
 
   Liste nommee pour forcer les noms de colonnes (`cl_admin`, `nature`,
-  `franchissement`, `nb_voies`) ; `NULL` pour la detection automatique.
+  `franchissement`, `nb_voies`, `pos_sol`). Elle **complete** la
+  detection automatique : les champs non cites restent detectes. `NULL`
+  (defaut) pour s'en remettre entierement a la detection.
 
 - nature_map:
 

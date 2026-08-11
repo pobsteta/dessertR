@@ -11,7 +11,7 @@ tel quel par dsr_conductivite()."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">dessertR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.2.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -54,7 +54,8 @@ tel quel par <code><a href="dsr_conductivite.html">dsr_conductivite()</a></code>
 <span>  poids_max <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  n <span class="op">=</span> <span class="fl">2500</span>,</span>
 <span>  exclure <span class="op">=</span> <span class="st">"theta"</span>,</span>
-<span>  bornes <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  bornes <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  graine <span class="op">=</span> <span class="fl">1</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -108,6 +109,14 @@ non une intensite.</p></dd>
 du canal. Defaut <code>TRUE</code>. Voir « Bornes absolues » ci-dessous ; <code>FALSE</code>
 rend des regles sans bornes, donc <strong>relatives a l'emprise</strong>.</p></dd>
 
+
+<dt id="arg-graine">graine<a class="anchor" aria-label="anchor" href="#arg-graine"></a></dt>
+<dd><p>Graine du tirage servant a estimer l'AUC. Defaut 1, ce qui rend
+la calibration <strong>reproductible</strong> : deux appels sur la meme donnee rendent
+les memes regles. <code>NULL</code> pour laisser jouer l'aleatoire ambiant – utile
+pour justement mesurer la variabilite d'echantillonnage. L'etat du
+generateur est sauvegarde et restaure dans tous les cas.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -148,6 +157,15 @@ la <code>pente</code> marque les routes par le bas dans l'un et par le haut dans
 l'autre. Calibree sur un seul, elle entrait dans les regles ; calibree sur
 les deux, elle en est ecartee. Un canal dont le signe depend du relief n'a
 rien a faire dans une regle.</p>
+<p><strong>Reproductibilite.</strong> L'AUC est estimee sur un echantillon de <code>n</code> cellules.
+Sans graine, deux appels sur la meme donnee ne rendent pas les memes regles :
+l'ecart-type du tirage est d'environ <strong>0,006</strong> sur l'AUC, ce qui suffit a
+faire entrer ou sortir du jeu un canal pose au bord de <code>auc_min</code>. Le defaut
+<code>graine = 1</code> fige ce tirage.</p>
+<p>Il le fige, il ne le supprime pas : l'incertitude d'echantillonnage reste, et
+deux graines differentes peuvent rendre deux jeux de regles legerement
+differents. Pour la mesurer plutot que de l'ignorer, appeler avec plusieurs
+graines explicites et comparer les diagnostics.</p>
 <p><strong>Bornes absolues, et pourquoi elles comptent.</strong> La fonction rend aussi les
 bornes <code>a</code> et <code>b</code> de chaque rampe, en unites du canal (<code>bornes = TRUE</code>).
 Ce n'est pas un agrement : sans elles, <code><a href="dsr_appartenance.html">dsr_appartenance()</a></code> derive ses bornes

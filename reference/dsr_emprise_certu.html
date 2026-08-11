@@ -13,7 +13,7 @@ reglementation suppose, pas ce que le terrain porte."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">dessertR</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.2.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -70,9 +70,10 @@ reglementation suppose, pas ce que le terrain porte.</p>
 
 
 <dt id="arg-champs">champs<a class="anchor" aria-label="anchor" href="#arg-champs"></a></dt>
-<dd><p>Liste nommee pour forcer les noms de colonnes
-(<code>cl_admin</code>, <code>nature</code>, <code>franchissement</code>, <code>nb_voies</code>) ; <code>NULL</code> pour la
-detection automatique.</p></dd>
+<dd><p>Liste nommee pour forcer les noms de colonnes (<code>cl_admin</code>,
+<code>nature</code>, <code>franchissement</code>, <code>nb_voies</code>, <code>pos_sol</code>). Elle <strong>complete</strong> la
+detection automatique : les champs non cites restent detectes. <code>NULL</code>
+(defaut) pour s'en remettre entierement a la detection.</p></dd>
 
 
 <dt id="arg-nature-map">nature_map<a class="anchor" aria-label="anchor" href="#arg-nature-map"></a></dt>

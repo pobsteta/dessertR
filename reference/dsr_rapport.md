@@ -12,6 +12,7 @@ dsr_rapport(
   praticabilite = NULL,
   etat = NULL,
   reseau = NULL,
+  norme = NULL,
   fichier = NULL
 )
 ```
@@ -42,6 +43,15 @@ dsr_rapport(
   [`dsr_reseau()`](https://pobsteta.github.io/dessertR/reference/dsr_reseau.md)
   (`$resume`).
 
+- norme:
+
+  Sortie de
+  [`dsr_ecart_norme()`](https://pobsteta.github.io/dessertR/reference/dsr_ecart_norme.md)
+  : l'ecart entre la largeur mesuree et la largeur normative de la fiche
+  Certu. La section se lit dans **un seul sens** – la mesure informe sur
+  ce que la norme suppose, jamais l'inverse (voir
+  [`dsr_emprise_certu()`](https://pobsteta.github.io/dessertR/reference/dsr_emprise_certu.md)).
+
 - fichier:
 
   Chemin d'un `.md` a ecrire ; `NULL` pour seulement renvoyer le texte.
@@ -52,4 +62,5 @@ Le texte Markdown (caractere), invisiblement si `fichier` est fourni.
 
 ## See also
 
-[`dsr_export_gpkg()`](https://pobsteta.github.io/dessertR/reference/dsr_export_gpkg.md).
+[`dsr_export_gpkg()`](https://pobsteta.github.io/dessertR/reference/dsr_export_gpkg.md),
+[`dsr_ecart_norme()`](https://pobsteta.github.io/dessertR/reference/dsr_ecart_norme.md).

@@ -1,5 +1,177 @@
 # Changelog
 
+## dessertR 1.3.0
+
+Version de **la norme lue et du detecte qualifie**. La 1.2.0 remettait
+l’instrument d’aplomb ; celle-ci fait parler ce qu’il produit – et
+surtout ce qu’il produit hors de la desserte.
+
+Le fil conducteur est un constat : deux jeux de reference dormaient dans
+le paquet sans que rien ne les lise.
+
+- **La fiche Certu ne servait a rien.** Aucune fonction n’en lisait les
+  colonnes, et elle echouait sur l’extrait livre avec le paquet. Elle
+  est reparee, sa transcription verifiee ligne a ligne contre le PDF
+  d’origine (97 lignes, aucun ecart), et \[dsr_ecart_norme()\] la met au
+  travail dans \[dsr_rapport()\] – dans un seul sens : la mesure informe
+  sur ce que la norme suppose.
+- **Ce que la detection remonte hors reference n’etait pas qualifie.**
+  En foret geree, ce n’est pas majoritairement de la desserte : ce sont
+  des cloisonnements et des layons. \[dsr_classer()\] leur donne une
+  classe et propose un balisage OSM aligne sur le consensus de la
+  communaute – `man_made=cutline` pour ce qui n’est pas une voie de
+  circulation.
+
+Ces deux sorties partagent une regle : **elles ne concluent pas ce
+qu’elles ne peuvent pas etablir.** `BORDS_RESOLUS` dit quand un ecart
+compare une plateforme a une chaussee, `CLASSE_CONF` chiffre la part de
+criteres renseignes, `access=` n’est jamais infere du lidar mais peut
+etre atteste par une source, et le pare-feu comme la place de depot
+restent hors classement faute de critere.
+
+### Classer ce que la detection remonte, et proposer un balisage
+
+\[dsr_classer()\] attribue une classe forestiere a chaque lineaire –
+desserte, route, piste, cloisonnement d’exploitation, layon parcellaire
+– et propose le balisage OpenStreetMap correspondant. Point de depart :
+le fil OSM-fr « Layons, cloisonnements d’exploitation en forets
+publiques » (juillet 2026), ou l’ONF decrit exactement notre methode
+(MNT Lidar HD) et demande comment baliser. Le consensus qui en sort est
+repris tel quel : `man_made=cutline` (+ sous-type), pas `highway=*`,
+pour ce qui n’est pas une voie de circulation.
+
+Ce que la detection remonte hors reference, en foret geree, n’est pas
+majoritairement de la desserte. Le traiter comme du bruit serait faux,
+comme des routes aussi.
+
+**La decision porte sur des structures, pas sur des seuils de largeur.**
+\[dsr_peignes()\] repere les faisceaux de paralleles regulierement
+espaces – la signature d’un cloisonnement, qui n’existe jamais seul – en
+**estimant la periodicite sur la donnee** plutot qu’en posant un
+espacement a priori. Une trace intruse retire une dent au peigne, elle
+ne le fait pas disparaitre. `BORDS_CHAUSSEE` n’est deliberement pas un
+critere : il dit si la mesure a reussi, pas si la route est construite.
+
+**`access=*` n’est jamais infere, il peut etre atteste.** Un panneau ne
+se lit pas dans un MNT ; tant que la seule entree est le lidar, aucun
+tag d’acces n’est defendable. L’argument `panneaux` accepte des releves
+– terrain, ou photos geolocalisees d’un jumeau numerique – et fait alors
+emettre `access=` avec sa provenance dans `source:access`. Deux panneaux
+contradictoires n’emettent rien et le motif le dit.
+
+Le pare-feu et la place de depot ne sont pas classes automatiquement :
+le premier demande un critere de crete que le paquet ne calcule pas, la
+seconde n’est pas un lineaire et le fil OSM ne lui donne aucun tag
+consensuel.
+
+Le parcellaire n’est pas acquis par le paquet : il vient de l’amont, qui
+seul sait ce qu’il porte. `sous_type_parcelle` le lui fait dire –
+`"section"` pour un parcellaire de gestion forestiere, dont les limites
+sont les layons materialises au sol, `"border"` pour un parcellaire
+cadastral, qui ne trace que des limites de propriete. La geometrie est
+identique dans les deux cas ; le sous-type OSM, non.
+
+La sortie – `CLASSE`, `CLASSE_CONF`, `CLASSE_MOTIF`, `OSM_TAGS` – est
+une **proposition auditable**, pas un jeu pret a televerser : un import
+dans OSM releve des regles de la communaute, pas d’une fonction R.
+
+### L’ecart a la norme entre enfin dans le rapport
+
+La fiche Certu ne servait a rien dans la chaine : aucune fonction ne
+lisait ses colonnes. \[dsr_ecart_norme()\] les met au travail – elle
+confronte, troncon par troncon, la largeur **mesuree** a la largeur
+**normative**, et \[dsr_rapport()\] rend la section correspondante via
+son nouvel argument `norme`.
+
+Le sens de lecture est fixe et ne s’inverse pas : la mesure informe sur
+ce que la norme suppose. Ramener la mesure vers la norme detruirait le
+signal que le paquet produit, la fiche rendant une constante de 2 m sur
+toute la desserte forestiere.
+
+La sortie porte `BORDS_RESOLUS`, la part de stations ou la rupture
+chaussee/accotement a ete tranchee. Sans elle, l’ecart comparerait une
+**plateforme** a une largeur de **chaussee** sans le dire : le rapport
+signale alors qu’il se lit comme un majorant. Les troncons que la fiche
+n’apparie pas sont conserves avec un ecart `NA` plutot que retires – et
+quand aucun ne s’apparie, cas courant en foret ou le classement
+administratif est vide, la section le dit au lieu de rester muette.
+
+### La fiche Certu lit les millesimes recents de la BD TOPO
+
+\[dsr_emprise_certu()\] echouait sur l’extrait BD TOPO **livre avec le
+paquet** : les millesimes recents nomment le classement administratif
+`cpx_classement_administratif`, absent des alias de detection. Il est
+ajoute (avec `classement_administratif`).
+
+`champs` **complete** desormais la detection au lieu de la remplacer.
+Forcer le seul champ qui manque obligeait a redonner les quatre autres,
+sans quoi la fonction declarait introuvables des colonnes bien
+presentes. Les noms forces sont verifies a l’entree : un role inconnu ou
+une colonne absente echoue tout de suite, avec la liste des noms
+attendus.
+
+Le message de champ manquant nommait enfin **les mauvais champs** : les
+noms etaient recycles a cote des positions testees, et l’appel signalait
+`cl_admin` et `nb_voies` quand seul `cl_admin` manquait.
+
+Rien de tout cela ne change une largeur : la fiche reste une **lecture
+d’ecart a la norme**, jamais une reference de calibration.
+
+### Un exemple de bout en bout sur desserte existante
+
+`dev/11_chaine_desserte_existante.R` deroule les dix etapes du cas
+d’usage central – corridor, deux canaux, recalage contraint, etat,
+mesure, gabarit libre, praticabilite, ecart Certu, detection hors
+reference, reseau, export – sur l’extrait de `inst/extdata`.
+Contrairement a `dev/03_validation.R`, il ne demande **aucune donnee
+externe** : il s’execute tel quel. C’est un exemple de reference, pas
+une validation ; 200 m de desserte ne valident rien.
+
+### La calibration devient reproductible
+
+\[dsr_calibrer_specs()\] accepte `graine` (defaut 1) : deux appels sur
+la meme donnee rendent desormais **les memes regles**.
+
+L’AUC y est estimee sur un echantillon de `n` cellules, et l’ecart-type
+du tirage vaut environ **0,006** – assez pour faire entrer ou sortir du
+jeu un canal pose au bord de `auc_min`. Une fonction de calibration dont
+la sortie bouge a entree constante ne vaut pas grand-chose, et c’etait
+la derniere source d’aleatoire du paquet.
+
+`graine = NULL` restaure le comportement precedent, utile pour
+**mesurer** la variabilite d’echantillonnage plutot que de l’ignorer.
+Dans tous les cas l’etat du generateur de l’appelant est sauvegarde et
+restaure : poser une graine dans une fonction de paquet sans la rendre
+casserait la reproductibilite du code appelant, ce qui serait pire que
+le probleme resolu.
+
+**Le harnais de tests est graine aussi** (`tests/testthat/setup.R`).
+Sans cela, la **couverture** elle-meme n’etait pas deterministe : selon
+le tirage, une branche etait exercee ou non, et codecov rapportait
+jusqu’a **-0,74 %** sur des commits ne touchant aucune ligne de R. La
+suite rend maintenant un nombre d’assertions **constant** a chaque
+passage (753 a ce jour), la ou il oscillait entre 646 et 647.
+
+### Le banc du canal optique passe par `dsr_ortho_ign()`
+
+`dev/05_canaux.R` portait sa propre copie de la requete WMS
+Geoplateforme. Elle est retiree au profit de \[dsr_ortho_ign()\]. Un
+banc qui reimplemente ce qu’il est cense exercer ne le valide pas, et la
+copie avait deja diverge : elle ne reparait pas le CRS absent – piege
+documente du service – et ne nommait pas les bandes.
+
+**Ce que la mesure a rendu au passage.** Le NDVI etait jusqu’ici juge
+sur le `ndvi.tif` des caches, un produit a **4,4 m** ou une chaussee de
+4 m tient dans un pixel. Acquis a sa resolution nominale de **20 cm**
+(5000 x 5000 px, 39 s), il passe de 0,534 a **0,560** d’AUC route /
+hors-route.
+
+**+0,026.** La faiblesse du canal optique n’etait donc **pas** un
+artefact de resolution : mesure a son echelle utile, le NDVI reste loin
+derriere la `rugosite` (0,779), `sigma_geo` (0,715) et `openness_pos`
+(0,663). Il faut le savoir avant d’investir dans l’acquisition d’ortho a
+20 cm en esperant un gain.
+
 ## dessertR 1.2.0
 
 Version de **l’instrument avant la mesure**. La 1.1.0 corrigeait des
