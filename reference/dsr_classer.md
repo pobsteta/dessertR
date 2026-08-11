@@ -94,10 +94,19 @@ dsr_classer(
 
 - sous_type_parcelle:
 
-  Sous-type OSM des limites fournies : `"section"` (defaut, parcellaire
-  de gestion forestiere – ses limites sont les layons materialises au
-  sol) ou `"border"` (limites de propriete, un parcellaire cadastral).
-  Le choix n'est pas devinable depuis la geometrie.
+  Sous-type OSM des limites fournies : `"section"` (parcellaire de
+  gestion forestiere – ses limites sont les layons materialises au sol)
+  ou `"border"` (limites de propriete, un parcellaire cadastral). Le
+  choix n'est pas devinable depuis la geometrie : omis alors qu'un
+  `parcellaire` est fourni, `"section"` est suppose **et la fonction le
+  dit**.
+
+  Attention a ce qu'on passe : des contours d'unites de gestion ne sont
+  pas des limites cadastrales. Une unite taillee dans une PORTION de
+  parcelle a des cotes de decoupe interne, qui ne correspondent a rien
+  sur le terrain – les fournir ferait classer en layon des lineaires qui
+  suivent une limite purement administrative. Passer les limites des
+  parcelles elles-memes.
 
 - ...:
 
