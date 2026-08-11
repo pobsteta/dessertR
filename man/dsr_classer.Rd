@@ -66,11 +66,13 @@ parcellaire cadastral). Le choix n'est pas devinable depuis la geometrie :
 omis alors qu'un \code{parcellaire} est fourni, \code{"section"} est suppose \strong{et la
 fonction le dit}.
 
-Attention a ce qu'on passe : des contours d'unites de gestion ne sont pas
-des limites cadastrales. Une unite taillee dans une PORTION de parcelle a
-des cotes de decoupe interne, qui ne correspondent a rien sur le terrain --
-les fournir ferait classer en layon des lineaires qui suivent une limite
-purement administrative. Passer les limites des parcelles elles-memes.}
+En pratique, l'amont fournit des contours d'\strong{unites de gestion} (UGF),
+chacune portant sa reference cadastrale. Ce sont des limites de gestion, et
+\code{"section"} leur convient. Consequence a connaitre : une unite taillee dans
+une PORTION de parcelle a des cotes de decoupe interne, que rien ne
+materialise au sol -- un lineaire qui les suit ressort en
+\code{layon_parcellaire} sans en etre un. \code{CLASSE_MOTIF} porte alors \code{parcelle},
+ce qui permet de les retrouver et de trancher au cas par cas.}
 
 \item{...}{Passe a \code{\link[=dsr_peignes]{dsr_peignes()}} quand \code{aretes} ne porte pas \code{PEIGNE}.}
 }
