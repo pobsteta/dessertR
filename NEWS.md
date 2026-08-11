@@ -1,4 +1,29 @@
-# dessertR (cycle de developpement)
+# dessertR 1.3.0
+
+Version de **la norme lue et du detecte qualifie**. La 1.2.0 remettait
+l'instrument d'aplomb ; celle-ci fait parler ce qu'il produit -- et surtout ce
+qu'il produit hors de la desserte.
+
+Le fil conducteur est un constat : deux jeux de reference dormaient dans le
+paquet sans que rien ne les lise.
+
+* **La fiche Certu ne servait a rien.** Aucune fonction n'en lisait les
+  colonnes, et elle echouait sur l'extrait livre avec le paquet. Elle est
+  reparee, sa transcription verifiee ligne a ligne contre le PDF d'origine
+  (97 lignes, aucun ecart), et [dsr_ecart_norme()] la met au travail dans
+  [dsr_rapport()] -- dans un seul sens : la mesure informe sur ce que la norme
+  suppose.
+* **Ce que la detection remonte hors reference n'etait pas qualifie.** En foret
+  geree, ce n'est pas majoritairement de la desserte : ce sont des
+  cloisonnements et des layons. [dsr_classer()] leur donne une classe et
+  propose un balisage OSM aligne sur le consensus de la communaute --
+  `man_made=cutline` pour ce qui n'est pas une voie de circulation.
+
+Ces deux sorties partagent une regle : **elles ne concluent pas ce qu'elles ne
+peuvent pas etablir.** `BORDS_RESOLUS` dit quand un ecart compare une plateforme
+a une chaussee, `CLASSE_CONF` chiffre la part de criteres renseignes, `access=`
+n'est jamais infere du lidar mais peut etre atteste par une source, et le
+pare-feu comme la place de depot restent hors classement faute de critere.
 
 ## Classer ce que la detection remonte, et proposer un balisage
 
