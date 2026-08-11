@@ -1,3 +1,6 @@
+# dessertR (cycle de developpement)
+
+
 # dessertR 1.3.0
 
 Version de **la norme lue et du detecte qualifie**. La 1.2.0 remettait
