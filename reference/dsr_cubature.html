@@ -49,6 +49,7 @@ theorique</strong> confronte au terrain (voir <code>dev/SPEC_CUBATURE.md</code>)
 <span>  <span class="va">trace</span>,</span>
 <span>  <span class="va">mnt</span>,</span>
 <span>  <span class="va">largeur</span>,</span>
+<span>  <span class="va">regime</span>,</span>
 <span>  s_amont <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  s_aval <span class="op">=</span> <span class="fl">0.6</span>,</span>
 <span>  p_rocher <span class="op">=</span> <span class="fl">0</span>,</span>
@@ -78,6 +79,16 @@ theorique</strong> confronte au terrain (voir <code>dev/SPEC_CUBATURE.md</code>)
 <dt id="arg-largeur">largeur<a class="anchor" aria-label="anchor" href="#arg-largeur"></a></dt>
 <dd><p>Largeur de plateforme visee, en metres. Un scalaire, ou un
 vecteur d'une valeur par station.</p></dd>
+
+
+<dt id="arg-regime">regime<a class="anchor" aria-label="anchor" href="#arg-regime"></a></dt>
+<dd><p>Ce que porte le <code>mnt</code> : <code>"elargissement"</code> (la plateforme y est
+deja creusee – cas d'un MNT Lidar HD) ou <code>"construction"</code> (terrain vierge,
+emprise absente). <strong>Sans defaut</strong> : omis, <code>"elargissement"</code> est suppose et
+la fonction le dit. Le regime ne change pas le calcul – le terrain est
+toujours pris tel quel – il declare ce qu'on lui donne, et en
+<code>"construction"</code> il verifie cette declaration contre le terrain (voir
+Details).</p></dd>
 
 
 <dt id="arg-s-amont-s-aval">s_amont, s_aval<a class="anchor" aria-label="anchor" href="#arg-s-amont-s-aval"></a></dt>
@@ -141,13 +152,21 @@ interpolation du devers amont entre <code>ripage_min</code> et <code>ripage_max<
 <code>assise_deblai = largeur / 2 * (1 + ripage^2)</code>. Sur pente douce
 (<code>ripage = 0</code>) deblai et remblai s'equilibrent ; sur pente raide
 (<code>ripage = 1</code>) le remblai ne tient pas et la totalite passe en deblai.</p>
-<p><strong>Le terrain est pris tel quel.</strong> Sur un MNT Lidar HD, une route existante est
-deja creusee : la cubature obtenue est alors celle de l'<strong>ecart au gabarit</strong>
-(elargissement), pas celle d'une construction sur terrain vierge. C'est le
-regime utile en France – <code><a href="dsr_trafficability.html">dsr_trafficability()</a></code> dit que le grumier ne passe
-pas, la cubature dit combien pour qu'il passe – mais la confusion est
-couteuse : pour chiffrer une construction sur terrain vierge, fournir un MNT
-dont l'emprise existante a ete comblee.</p>
+<p><strong>Le terrain est pris tel quel</strong>, et c'est <code>regime</code> qui dit ce qu'il porte.
+Sur un MNT Lidar HD, une route existante est deja creusee : la cubature
+obtenue est celle de l'<strong>ecart au gabarit</strong> (<code>"elargissement"</code>), pas celle
+d'une construction sur terrain vierge. C'est le regime utile en France –
+<code><a href="dsr_trafficability.html">dsr_trafficability()</a></code> dit que le grumier ne passe pas, la cubature dit
+combien pour qu'il passe. Pour chiffrer une construction, fournir un MNT dont
+l'emprise a ete comblee <strong>et</strong> le declarer par <code>regime = "construction"</code>.</p>
+<p><strong>La declaration est verifiee.</strong> En regime <code>"construction"</code>, chaque profil est
+teste : la pente en travers de la bande centrale est-elle nettement plus
+faible que celle des bandes qui la flanquent ? Sur un versant vierge les deux
+se valent ; sur un versant deja terrasse, le replat de la route trahit
+l'emprise. Si plus de la moitie des profils portent cette signature, la
+fonction le signale – elle ne bloque pas, la decision reste a l'appelant.
+Le controle <strong>s'abstient</strong> sous 10 % de pente en travers : sur du plat, un
+replat ne se distingue de rien.</p>
 <p>Le <strong>volume a evacuer</strong> n'est pas le volume de deblai : sur un profil
 equilibre, le deblai est reemploye en remblai sur place. Seuls les profils ou
 ce reemploi est impossible – devers superieur a <code>ripage_max</code>, ou plateforme
@@ -166,12 +185,13 @@ entierement sous ou au-dessus du terrain – sont cumules a l'evacuation.</p>
 <span class="r-in"><span><span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/values.html" class="external-link">values</a></span><span class="op">(</span><span class="va">mnt</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/xyCellFrom.html" class="external-link">xFromCell</a></span><span class="op">(</span><span class="va">mnt</span>, <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/dimensions.html" class="external-link">ncell</a></span><span class="op">(</span><span class="va">mnt</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">*</span> <span class="fl">0.3</span></span></span>
 <span class="r-in"><span><span class="va">tr</span> <span class="op">&lt;-</span> <span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">st_sfc</a></span><span class="op">(</span><span class="fu">sf</span><span class="fu">::</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st.html" class="external-link">st_linestring</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">50</span>, <span class="fl">50</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">90</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  crs <span class="op">=</span> <span class="st">"EPSG:2154"</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">cub</span> <span class="op">&lt;-</span> <span class="fu">dsr_cubature</span><span class="op">(</span><span class="va">tr</span>, <span class="va">mnt</span>, largeur <span class="op">=</span> <span class="fl">4</span>, pas <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># Plan incline sans emprise : c'est bien une construction, on le declare.</span></span></span>
+<span class="r-in"><span><span class="va">cub</span> <span class="op">&lt;-</span> <span class="fu">dsr_cubature</span><span class="op">(</span><span class="va">tr</span>, <span class="va">mnt</span>, largeur <span class="op">=</span> <span class="fl">4</span>, regime <span class="op">=</span> <span class="st">"construction"</span>, pas <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">cub</span><span class="op">$</span><span class="va">resume</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   n_points longueur volume_deblai volume_remblai volume_evacuer volume_roche</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1        9       80         68.58          96.12              0            0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   surface_emprise n_talus_force</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1             552             0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         regime n_points longueur volume_deblai volume_remblai volume_evacuer</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 construction        9       80         68.58          96.12              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   volume_roche surface_emprise n_talus_force</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1            0             552             0</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
