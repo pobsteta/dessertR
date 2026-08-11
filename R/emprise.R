@@ -228,9 +228,10 @@
 #'
 #' @param troncons `sf` des troncons de route (BD TOPO).
 #' @param schema `"auto"` (defaut), `"v2"` ou `"v3"`.
-#' @param champs Liste nommee pour forcer les noms de colonnes
-#'   (`cl_admin`, `nature`, `franchissement`, `nb_voies`) ; `NULL` pour la
-#'   detection automatique.
+#' @param champs Liste nommee pour forcer les noms de colonnes (`cl_admin`,
+#'   `nature`, `franchissement`, `nb_voies`, `pos_sol`). Elle **complete** la
+#'   detection automatique : les champs non cites restent detectes. `NULL`
+#'   (defaut) pour s'en remettre entierement a la detection.
 #' @param nature_map Vecteur nomme de correspondance des valeurs de nature vers
 #'   celles de la fiche ; `NULL` pour le defaut du schema detecte.
 #' @param emprise `TRUE` pour renvoyer en plus les polygones d'emprise
@@ -263,21 +264,37 @@ dsr_emprise_certu <- function(troncons, schema = c("auto", "v2", "v3"),
   if (identical(schema, "auto")) {
     schema <- if (!is.na(trouver("franchisst"))) "v2" else "v3"
   }
-  ch <- if (is.null(champs)) {
-    list(
-      cl_admin = trouver(c("cl_admin", "CL_ADMIN", "classe_administrative")),
-      nature = trouver(c("nature", "NATURE")),
-      franchissement = trouver(c("franchisst", "FRANCHISST", "franchissement")),
-      nb_voies = trouver(c("nb_voies", "NB_VOIES", "nombre_de_voies")),
-      pos_sol = trouver(c("pos_sol", "POS_SOL", "position_par_rapport_au_sol"))
-    )
-  } else {
-    utils::modifyList(list(cl_admin = NA_character_, nature = NA_character_,
-      franchissement = NA_character_, nb_voies = NA_character_,
-      pos_sol = NA_character_), champs)
+  auto <- list(
+    cl_admin = trouver(c("cl_admin", "CL_ADMIN", "classe_administrative",
+      "cpx_classement_administratif", "classement_administratif")),
+    nature = trouver(c("nature", "NATURE")),
+    franchissement = trouver(c("franchisst", "FRANCHISST", "franchissement")),
+    nb_voies = trouver(c("nb_voies", "NB_VOIES", "nombre_de_voies")),
+    pos_sol = trouver(c("pos_sol", "POS_SOL", "position_par_rapport_au_sol"))
+  )
+  # `champs` COMPLETE la detection, il ne la remplace pas : forcer le seul champ
+  # qui manque ne doit pas obliger a redonner les quatre autres.
+  ch <- if (is.null(champs)) auto else {
+    inconnus <- setdiff(names(champs), names(auto))
+    if (length(inconnus) > 0L) {
+      dsr_abort(c(
+        "{.arg champs} : entree{?s} inconnue{?s} {.val {inconnus}}.",
+        "i" = "Noms attendus : {.val {names(auto)}}."
+      ))
+    }
+    absents <- unlist(champs)[!is.na(unlist(champs)) &
+      !tolower(unlist(champs)) %in% tolower(nms)]
+    if (length(absents) > 0L) {
+      dsr_abort(c(
+        "{.arg champs} designe {length(absents)} colonne{?s} absente{?s} de {.arg troncons} : {.val {unname(absents)}}.",
+        "i" = "Colonnes presentes : {.val {nms}}."
+      ))
+    }
+    utils::modifyList(auto, champs)
   }
 
-  manquants <- names(ch)[is.na(unlist(ch[c("cl_admin", "nature", "nb_voies")]))]
+  requis <- c("cl_admin", "nature", "nb_voies")
+  manquants <- requis[is.na(unlist(ch[requis]))]
   if (length(manquants) > 0L) {
     dsr_abort(c(
       "Champs BD TOPO introuvables : {.val {manquants}}.",

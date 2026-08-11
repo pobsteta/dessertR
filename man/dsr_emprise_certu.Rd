@@ -17,9 +17,10 @@ dsr_emprise_certu(
 
 \item{schema}{\code{"auto"} (defaut), \code{"v2"} ou \code{"v3"}.}
 
-\item{champs}{Liste nommee pour forcer les noms de colonnes
-(\code{cl_admin}, \code{nature}, \code{franchissement}, \code{nb_voies}) ; \code{NULL} pour la
-detection automatique.}
+\item{champs}{Liste nommee pour forcer les noms de colonnes (\code{cl_admin},
+\code{nature}, \code{franchissement}, \code{nb_voies}, \code{pos_sol}). Elle \strong{complete} la
+detection automatique : les champs non cites restent detectes. \code{NULL}
+(defaut) pour s'en remettre entierement a la detection.}
 
 \item{nature_map}{Vecteur nomme de correspondance des valeurs de nature vers
 celles de la fiche ; \code{NULL} pour le defaut du schema detecte.}
