@@ -16,6 +16,9 @@ dsr_classer(
   reference = NULL,
   parcellaire = NULL,
   panneaux = NULL,
+  tpi = NULL,
+  seuil_crete = 0.5,
+  part_crete = 0.6,
   tol_parcelle = 5,
   part_parcelle = 0.6,
   tol_panneau = 15,
@@ -73,6 +76,23 @@ dsr_classer(
   `sf` `POINT`/`LINESTRING` attestant une restriction d'acces, portant
   `champ_acces` et, si possible, `champ_source` ; `NULL` (defaut) pour
   n'emettre aucun tag d'acces.
+
+- tpi:
+
+  `SpatRaster` de position topographique – l'altitude moins la moyenne
+  de son voisinage.
+  [`dsr_slrm()`](https://pobsteta.github.io/dessertR/reference/dsr_slrm.md)
+  le rend deja : `dsr_slrm(mnt, fenetres_m = 50)` est le TPI a 50 m.
+  `NULL` pour ne pas juger la position, et donc ne jamais poser
+  `pare_feu`. **Le rayon commande tout** : a 10 m on mesure la banquette
+  de la route elle-meme, a 200 m le massif ; 50 m est un point de
+  depart, pas une valeur calibree.
+
+- seuil_crete, part_crete:
+
+  Un troncon est en crete si la mediane du `tpi` le long de son axe
+  atteint `seuil_crete` (metres) **et** si `part_crete` de ses points y
+  sont positifs. Defauts 0.5 m et 0.6.
 
 - tol_parcelle, part_parcelle:
 
@@ -147,14 +167,24 @@ l'ouvrage – reference ou fosses – qui prime sur elles :
 2.  coincide avec une limite du parcellaire et non minerale -\>
     `layon_parcellaire` ;
 
-3.  porte par la reference ou creuse de fosses, minerale -\>
+3.  en crete et non minerale -\> `pare_feu` (prime sur le peigne) ;
+
+4.  porte par la reference ou creuse de fosses, minerale -\>
     `route_forestiere` ;
 
-4.  idem, non minerale -\> `piste_forestiere` ;
+5.  idem, non minerale -\> `piste_forestiere` ;
 
-5.  idem, nature de surface inconnue -\> `desserte` ;
+6.  idem, nature de surface inconnue -\> `desserte` ;
 
-6.  sinon `indetermine`.
+7.  sinon `indetermine`.
+
+**Le pare-feu exige DEUX canaux.** Un tronçon en crete non minerale sort
+en `pare_feu` ; en crete et minerale, il reste une desserte. La
+conjonction n'est pas une precaution mais le critere lui-meme : beaucoup
+de routes forestieres suivent des cretes – c'est une pratique de trace,
+le terrain y est plat en travers et le drainage naturel – et le seul
+relief les classerait toutes en pare-feu. Sans `ndvi`, la classe n'est
+jamais posee.
 
 `desserte` n'est pas une classe de repli commode : c'est le refus de
 trancher entre route et piste sans le canal optique. Sans NDVI, aucun

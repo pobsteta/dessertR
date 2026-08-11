@@ -56,6 +56,9 @@ et propose le balisage OpenStreetMap correspondant. La sortie est une
 <span>  reference <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  parcellaire <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  panneaux <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  tpi <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  seuil_crete <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>  part_crete <span class="op">=</span> <span class="fl">0.6</span>,</span>
 <span>  tol_parcelle <span class="op">=</span> <span class="fl">5</span>,</span>
 <span>  part_parcelle <span class="op">=</span> <span class="fl">0.6</span>,</span>
 <span>  tol_panneau <span class="op">=</span> <span class="fl">15</span>,</span>
@@ -107,6 +110,20 @@ l'amont, qui seul sait ce qu'elle porte – d'ou <code>sous_type_parcelle</code>
 <dd><p><code>sf</code> <code>POINT</code>/<code>LINESTRING</code> attestant une restriction d'acces,
 portant <code>champ_acces</code> et, si possible, <code>champ_source</code> ; <code>NULL</code> (defaut)
 pour n'emettre aucun tag d'acces.</p></dd>
+
+
+<dt id="arg-tpi">tpi<a class="anchor" aria-label="anchor" href="#arg-tpi"></a></dt>
+<dd><p><code>SpatRaster</code> de position topographique – l'altitude moins la
+moyenne de son voisinage. <code><a href="dsr_slrm.html">dsr_slrm()</a></code> le rend deja : <code>dsr_slrm(mnt, fenetres_m = 50)</code> est le TPI a 50 m. <code>NULL</code> pour ne pas juger la position,
+et donc ne jamais poser <code>pare_feu</code>. <strong>Le rayon commande tout</strong> : a 10 m on
+mesure la banquette de la route elle-meme, a 200 m le massif ; 50 m est un
+point de depart, pas une valeur calibree.</p></dd>
+
+
+<dt id="arg-seuil-crete-part-crete">seuil_crete, part_crete<a class="anchor" aria-label="anchor" href="#arg-seuil-crete-part-crete"></a></dt>
+<dd><p>Un troncon est en crete si la mediane du <code>tpi</code>
+le long de son axe atteint <code>seuil_crete</code> (metres) <strong>et</strong> si <code>part_crete</code> de
+ses points y sont positifs. Defauts 0.5 m et 0.6.</p></dd>
 
 
 <dt id="arg-tol-parcelle-part-parcelle">tol_parcelle, part_parcelle<a class="anchor" aria-label="anchor" href="#arg-tol-parcelle-part-parcelle"></a></dt>
@@ -172,12 +189,19 @@ par Otsu sur la donnee (<code><a href="dsr_largeur_ndvi.html">dsr_largeur_ndvi()
 – reference ou fosses – qui prime sur elles :</p><ol><li><p>dent d'un peigne, non minerale, sans fosse -&gt; <code>cloisonnement_exploitation</code> ;</p></li>
 <li><p>coincide avec une limite du parcellaire et non minerale -&gt;
 <code>layon_parcellaire</code> ;</p></li>
+<li><p>en crete et non minerale -&gt; <code>pare_feu</code> (prime sur le peigne) ;</p></li>
 <li><p>porte par la reference ou creuse de fosses, minerale -&gt;
 <code>route_forestiere</code> ;</p></li>
 <li><p>idem, non minerale -&gt; <code>piste_forestiere</code> ;</p></li>
 <li><p>idem, nature de surface inconnue -&gt; <code>desserte</code> ;</p></li>
 <li><p>sinon <code>indetermine</code>.</p></li>
-</ol><p><code>desserte</code> n'est pas une classe de repli commode : c'est le refus de trancher
+</ol><p><strong>Le pare-feu exige DEUX canaux.</strong> Un tronçon en crete non minerale sort en
+<code>pare_feu</code> ; en crete et minerale, il reste une desserte. La conjonction n'est
+pas une precaution mais le critere lui-meme : beaucoup de routes forestieres
+suivent des cretes – c'est une pratique de trace, le terrain y est plat en
+travers et le drainage naturel – et le seul relief les classerait toutes en
+pare-feu. Sans <code>ndvi</code>, la classe n'est jamais posee.</p>
+<p><code>desserte</code> n'est pas une classe de repli commode : c'est le refus de trancher
 entre route et piste sans le canal optique. Sans NDVI, aucun <code>surface=</code> ni
 <code>tracktype=</code> n'est propose.</p>
 <p><strong><code>connecte_public</code> est reporte, pas decisif.</strong> <code><a href="dsr_reseau.html">dsr_reseau()</a></code> l'attribue par
