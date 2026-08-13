@@ -21,12 +21,16 @@ Depends:
     R (>= 4.2)
 Imports:
     cli,
+    curl,
     data.table,
+    jsonlite,
     rlas,
     sf,
     stats,
-    terra
+    terra,
+    utils
 Suggests:
+    foretaccess,
     igraph,
     knitr,
     lasR,
@@ -38,9 +42,10 @@ Suggests:
     testthat (>= 3.0.0),
     withr
 Additional_repositories: https://r-lidar.r-universe.dev
+Remotes: github::pobsteta/foretaccess
 Config/testthat/edition: 3
 URL: https://github.com/pobsteta/dessertR, https://pobsteta.github.io/dessertR
 BugReports: https://github.com/pobsteta/dessertR/issues
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0
 Config/rextendr/version: 0.5.0
 SystemRequirements: Cargo (Rust's package manager), rustc >= 1.65.0, xz
