@@ -60,11 +60,12 @@ canal, nommee comme les entrees de `couches`.
 
 ## Details
 
-Source recommandee : `foretaccess::micro_relief()`, dont le noyau Rust
-est un portage valide de la Relief Visualization Toolbox et qui rend
-directement les bandes `svf`, `openness_pos` et `openness_neg` (memes
-noms que le vocabulaire interne). Alimente-le avec la grille de
-reference 1 m de la dalle et l'alignement est exact.
+Source recommandee :
+[`foretaccess::micro_relief()`](https://pobsteta.github.io/foretaccess/reference/micro_relief.html),
+dont le noyau Rust est un portage valide de la Relief Visualization
+Toolbox et qui rend directement les bandes `svf`, `openness_pos` et
+`openness_neg` (memes noms que le vocabulaire interne). Alimente-le avec
+la grille de reference 1 m de la dalle et l'alignement est exact.
 
 **Canaux optiques.** Le vocabulaire accepte aussi des canaux derives de
 l'ortho et non du lidar : `chm`, `mnh`, `ndvi`, `gndvi`, `savi`, `ndwi`.

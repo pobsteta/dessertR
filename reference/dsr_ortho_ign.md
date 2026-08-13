@@ -58,7 +58,8 @@ Trois pieges du service, tous rencontres et tous silencieux :
 Le tuilage n'est pas un detail : au-dela d'environ 4096 pixels de cote,
 un appel unique force a **degrader la resolution**. Comme l'interet du
 canal optique est precisement d'etre a l'echelle d'une chaussee, on
-decoupe pour preserver le 20 cm natif.
+decoupe pour preserver le 20 cm natif. Contrairement a Overpass, le WMS
+facture la SURFACE : ici le decoupage est la bonne strategie.
 
 ## See also
 
