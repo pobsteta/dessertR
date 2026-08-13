@@ -59,6 +59,8 @@ export(dsr_specs_surface)
 export(dsr_trafficability)
 export(dsr_vectoriser)
 export(dsr_vesselness)
-importFrom(data.table,":=")
-importFrom(data.table,data.table)
+importFrom(data.table,
+  ":=",
+  data.table
+)
 useDynLib(dessertR, .registration = TRUE)

@@ -7,38 +7,62 @@
 dsr_osm(
   emprise,
   valeurs = c("track", "path", "unclassified", "service", "residential", "tertiary"),
-  cote = DSR_TAILLE_DALLE,
-  pause = 1
+  cote = NULL,
+  pause = 1,
+  timeout = 90,
+  cache_dir = NULL,
+  politique_cache = "reacquerir"
 )
 }
 \arguments{
 \item{emprise}{\code{sf}/\code{sfc}/\code{SpatVector}/\code{SpatRaster}, ou une sortie de
-\code{\link[=dsr_catalog]{dsr_catalog()}}. Son emprise est decoupee en dalles.}
+\code{\link[=dsr_catalog]{dsr_catalog()}}. Sa bbox est interrogee d'un seul tenant.}
 
 \item{valeurs}{Valeurs de la cle \code{highway} retenues ; \code{NULL} pour toutes.
 Defaut : les classes forestieres utiles.}
 
-\item{cote}{Cote des tuiles de requete, en metres. Defaut 1000 (grille
-Lidar HD).}
+\item{cote}{Plancher de bissection, en metres : une sous-emprise plus petite
+n'est plus decoupee. Defaut \code{NULL} (aucun plancher). \strong{N'est plus un pas de
+grille} : le decoupage ne suit plus la grille kilometrique Lidar HD.}
 
-\item{pause}{Secondes d'attente entre deux dalles, pour menager les quotas.
-Defaut 1.}
+\item{pause}{Secondes d'attente entre deux sous-emprises, en mode bissection
+seulement. Sans effet dans le cas nominal, qui ne fait qu'une requete.}
+
+\item{timeout}{Plafond par requete, en secondes. Passe a libcurl \strong{et} a
+Overpass.}
+
+\item{cache_dir}{Repertoire de cache. \code{NULL} (defaut) : aucun cache, chaque
+appel retape le reseau.}
+
+\item{politique_cache}{Que faire d'un cache produit avec \strong{d'autres
+parametres} ? \code{"reacquerir"} (defaut), \code{"avertir"}, \code{"echouer"} ou
+\code{"ignorer"}.}
 }
 \value{
 Un \code{sf} \code{LINESTRING} dans le CRS de \code{emprise}, colonnes \code{highway} et
-\code{osm_id}, sans doublon (une voie a cheval sur deux dalles n'est rendue
-qu'une fois). \code{NULL} si OSM ne porte rien sur l'emprise.
+\code{osm_id}, sans doublon. \code{NULL} si OSM ne porte rien sur l'emprise.
 }
 \description{
-Telecharge les lineaires \code{highway} d'OpenStreetMap, \strong{dalle par dalle}, et
-les rend projetes et decoupes sur l'emprise.
+Telecharge les lineaires \code{highway} d'OpenStreetMap sur l'emprise, en \strong{une
+requete}, et les rend projetes et decoupes.
 }
 \details{
-\strong{Pourquoi decouper par dalle.} Une requete unique sur un massif entier
-depasse les quotas d'Overpass et echoue en bloc ; decoupee sur la grille
-kilometrique du Lidar HD, elle devient une suite de requetes courtes, chacune
-relancable, et le decoupage coincide avec celui du reste du traitement
-(\code{\link[=dsr_catalog]{dsr_catalog()}}). Une dalle qui echoue n'emporte pas les autres.
+\strong{Une requete, pas cent.} Overpass plafonne le \strong{nombre de requetes}, pas
+la surface : le cout suit la densite de voirie, et une requete \code{highway} sur
+une bbox de massif reste modeste. L'ancien tuilage kilometrique transformait
+une emprise de 10 x 10 km en 100 requetes -- soit precisement ce qui
+declenche le \code{429} que tout le reste du code s'efforce d'eviter -- et
+retelechargeait tous les noeuds de chaque voie a chaque dalle traversee. Le
+decoupage n'intervient plus qu'en \strong{repli} : sur un refus de volume ou de
+duree, l'emprise est bissectee en quadrants (profondeur maximale 3, soit 64
+sous-emprises au pire). Jamais sur un \code{429}, qui appelle une rotation
+d'instance et non un decoupage.
+
+\strong{Trois issues, jamais confondues.} Des donnees, un vide legitime, ou un
+refus. Un refus ne devient jamais une couche vide : une instance bridee rend
+un XML \strong{bien forme} de quelques centaines d'octets, sans code HTTP
+d'erreur, avec un element \verb{<remark>}. Lu naivement, cela dit « rien ici » --
+l'erreur qui a fausse une journee de validation.
 
 \strong{Ce qu'OSM peut servir ici, et ce qu'il ne peut pas.} La question de
 \code{\link[=dsr_detecter]{dsr_detecter()}} -- « quelle desserte la reference ignore-t-elle ? » -- n'a
@@ -48,13 +72,42 @@ OSM n'est \strong{ni} un metre etalon de largeur (aucun attribut fiable), \stron
 une verite de position : une part du lineaire forestier y est tracee sur
 trace GPS agregee (\verb{source=strava heatmap}) ou sur fond satellite. Meme regle
 que pour toute sortie d'un autre algorithme : comparaison, jamais calibrage.
+
+\strong{Datez vos resultats.} OSM change tous les jours. Avec \code{cache_dir}, un
+sidecar \code{osm.gpkg.provenance.json} enregistre la date de requete (UTC), les
+instances servies, la requete Overpass exacte et le lineaire obtenu : sans
+cela, deux executions a un mois d'ecart different \strong{sans aucune trace}, ce
+qui rend inciteable toute mesure de rappel.
 }
+\section{Performance}{
+
+Mesures du 2026-08-13, instance \code{overpass-api.de}, cache froid :\tabular{lrrrr}{
+   emprise \tab troncons \tab lineaire \tab requetes \tab duree \cr
+   3 x 3 km \tab 199 \tab 59,5 km \tab 1 \tab 0,8 s \cr
+   10 x 10 km \tab 2 116 \tab 562,7 km \tab 1 \tab 16,0 s \cr
+}
+
+
+La seconde valait 100 requetes et 100 s de \code{pause} avec le tuilage
+kilometrique, avant meme de compter les \code{429} qu'elle provoquait. Relecture
+depuis \code{cache_dir} : 0,08 s.
+}
+
+\section{Duree bornee}{
+
+Aucun appel ne peut depasser \code{timeout * 4 * 3} secondes par emprise
+interrogee -- quatre instances, trois essais chacune. Le decoupage multiplie
+ce plafond par le nombre de sous-emprises. Baisser \code{timeout} resserre la
+borne. C'est la propriete que \code{osmdata} ne peut pas offrir : son backoff de
+60 s n'a pas de plafond.
+}
+
 \examples{
 \dontrun{
 emp <- sf::st_as_sfc(sf::st_bbox(mnt))
-osm <- dsr_osm(emp)
+osm <- dsr_osm(emp, cache_dir = "cache/osm")
 }
 }
 \seealso{
-\code{\link[=dsr_detecter]{dsr_detecter()}}, \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}.
+\code{\link[=dsr_detecter]{dsr_detecter()}}, \code{\link[=dsr_vectoriser]{dsr_vectoriser()}}, \code{\link[=dsr_classer]{dsr_classer()}}.
 }

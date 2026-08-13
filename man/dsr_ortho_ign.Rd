@@ -44,7 +44,8 @@ selon les cas, des valeurs fausses.
 Le tuilage n'est pas un detail : au-dela d'environ 4096 pixels de cote, un
 appel unique force a \strong{degrader la resolution}. Comme l'interet du canal
 optique est precisement d'etre a l'echelle d'une chaussee, on decoupe pour
-preserver le 20 cm natif.
+preserver le 20 cm natif. Contrairement a Overpass, le WMS facture la
+SURFACE : ici le decoupage est la bonne strategie.
 }
 \examples{
 \dontrun{

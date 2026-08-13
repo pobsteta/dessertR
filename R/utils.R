@@ -23,6 +23,10 @@ dsr_abort <- function(..., .envir = parent.frame()) cli::cli_abort(c(...), .envi
 #' @noRd
 dsr_inform <- function(..., .envir = parent.frame()) cli::cli_inform(c(...), .envir = .envir)
 
+# `%||%` est dans la base depuis R 4.4 ; le paquet declare R >= 4.2.
+#' @noRd
+`%||%` <- function(x, y) if (is.null(x)) y else x
+
 #' @noRd
 dsr_verifier_lasR <- function() {
   if (!requireNamespace("lasR", quietly = TRUE)) {

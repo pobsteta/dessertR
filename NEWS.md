@@ -1,5 +1,60 @@
 # dessertR (cycle de developpement)
 
+## Une requete OSM au lieu de cent, et un refus qui ne se lit plus comme un vide
+
+[dsr_osm()] interrogeait Overpass **dalle par dalle** sur la grille kilometrique
+du Lidar HD. C'etait un contresens : Overpass plafonne le **nombre de requetes**,
+pas la surface. Une emprise de 10 x 10 km devenait 100 requetes plus 100 s de
+`pause` -- soit precisement ce qui declenche le `429` que tout le reste du code
+s'efforce d'eviter -- et chaque dalle retelechargeait tous les noeuds des voies
+qu'elle traversait, pour que `!duplicated()` en jette ensuite la moitie. Une
+seule requete desormais, et le decoupage n'est plus qu'un **repli** : sur un
+refus de volume ou de duree, l'emprise est bissectee en quadrants, profondeur
+maximale 3. Jamais sur un `429` : decouper un quota ne fait que multiplier les
+requetes refusees.
+
+**Consequence pour les appelants** : `cote` n'est plus un pas de grille mais un
+plancher de bissection, et son defaut passe de 1000 m a `NULL`. Qui comptait sur
+l'alignement Lidar HD de la requete OSM doit savoir qu'il ne s'applique plus --
+il reste pertinent pour [dsr_catalog()], qui n'est pas concerne. `pause` ne sert
+plus que dans le mode bissection. Aucune signature n'est cassee.
+
+**Le transport passe au paquet `curl`, pas au binaire.** La borne au niveau du
+transport etait la bonne idee -- `setTimeLimit()` n'interrompt qu'aux points de
+controle R, jamais un socket bloque dans du C -- mais `system2("curl")` exigeait
+un executable dont la presence n'etait declaree nulle part : un bug latent en
+conteneur, et sous Windows. Le paquet donne en prime le **code HTTP et les
+en-tetes**, sans quoi on ne peut ni lire `Retry-After` ni distinguer un 429
+(quota : on change d'instance) d'un 504 (duree : on decoupe). [dsr_ortho_ign()]
+en beneficie aussi.
+
+**Trois issues, jamais confondues** : des donnees, un vide legitime, un refus.
+La regle etait deja la en commentaire ; elle est maintenant testee ligne a
+ligne. Un refus ne devient jamais une couche vide -- une instance bridee rend un
+XML bien forme de quelques centaines d'octets, HTTP 200, avec un `<remark>`, et
+le lire naivement dit « rien ici ». C'est l'erreur qui a fausse une journee de
+validation.
+
+**Un cache et une provenance datee.** [dsr_osm()] prend `cache_dir` et
+`politique_cache` : GeoPackage plus sidecar `osm.gpkg.provenance.json`, au meme
+format que celui de `foretaccess` pour qu'un cache ecrit par l'un se relise chez
+l'autre. Le sidecar porte la date de requete (UTC), les instances servies, la
+requete Overpass exacte, le nombre d'entites et le lineaire. Jusqu'ici deux
+executions a un mois d'ecart rendaient des resultats differents **sans aucune
+trace** : une mesure de rappel de [dsr_detecter()] n'etait donc pas citable,
+faute de pouvoir dire contre quel etat d'OSM elle avait ete faite.
+
+**Ou vit le client.** ADR-010 de `foretaccess` place le transport canonique
+la-bas ; il a repris d'ici la borne de transport et le test du `<remark>`, et
+nous reprenons de lui la requete unique et le cache. `dsr_osm()` l'utilise quand
+il est installe et retombe sinon sur sa copie interne, qui applique le meme
+contrat -- le paquet doit continuer de fonctionner sans `foretaccess`. La
+resolution passe par `getExportedValue()` plutot que par `::` : declarer le
+frere imposerait a chaque job de CI la compilation d'un crate Rust entier pour
+une optimisation dont le repli fait le travail.
+
+`.dsr_tuiles()` disparait -- interne, elle ne servait qu'au tuilage supprime.
+
 ## Le pare-feu entre dans le classement, avec deux canaux ou pas du tout
 
 [dsr_classer()] pose desormais la classe `pare_feu` -- `man_made=cutline` +
